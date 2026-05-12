@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getNeonClient } from "@/lib/neon";
+import { sql } from "@/lib/neon";
 
 export const dynamic = "force-dynamic";
 
@@ -7,8 +7,7 @@ export async function GET() {
   const checks: Record<string, { ok: boolean; detail?: string }> = {};
 
   try {
-    const sql = getNeonClient();
-    const rows = await sql`SELECT version()`;
+    const rows = await sql()`SELECT version()`;
     checks.neon = { ok: true, detail: rows[0]?.version ?? "connected" };
   } catch (error) {
     checks.neon = {
@@ -22,14 +21,6 @@ export async function GET() {
   checks.gemini = {
     ok: Boolean(geminiKey),
     detail: geminiKey ? "API key configured" : "GOOGLE_GEMINI_API_KEY is missing"
-  };
-
-  const firebaseProject = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-  checks.firebase = {
-    ok: Boolean(firebaseProject),
-    detail: firebaseProject
-      ? `project: ${firebaseProject}`
-      : "NEXT_PUBLIC_FIREBASE_PROJECT_ID is missing"
   };
 
   const allOk = Object.values(checks).every((c) => c.ok);

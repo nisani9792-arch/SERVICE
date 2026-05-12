@@ -3,18 +3,11 @@
 import { FormEvent, useState } from "react";
 import { X } from "lucide-react";
 import { createTicket } from "@/lib/firebase";
-import { GeminiClassification } from "@/lib/types";
 
 interface NewTicketModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-const DEFAULT_CLASSIFICATION: GeminiClassification = {
-  category: "suggestions",
-  priority: 3,
-  summary: "פנייה חדשה שנוצרה ידנית וממתינה לטיפול."
-};
 
 export function NewTicketModal({ isOpen, onClose }: NewTicketModalProps) {
   const [senderEmail, setSenderEmail] = useState("");
@@ -48,31 +41,13 @@ export function NewTicketModal({ isOpen, onClose }: NewTicketModalProps) {
     setError("");
 
     try {
-      const response = await fetch("/api/classify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          senderEmail,
-          subject,
-          content: body
-        })
-      });
-
-      const classification = response.ok
-        ? ((await response.json()) as GeminiClassification)
-        : DEFAULT_CLASSIFICATION;
-
       await createTicket({
         senderEmail,
         senderName,
         subject,
         body,
-        source: "manual",
-        category: classification.category ?? DEFAULT_CLASSIFICATION.category,
-        priority: classification.priority ?? DEFAULT_CLASSIFICATION.priority,
-        aiSummary: classification.summary ?? DEFAULT_CLASSIFICATION.summary
+        source: "manual"
       });
-
       handleClose();
     } catch {
       setError("שמירת הפנייה נכשלה. נסה שוב.");

@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { subscribeToTickets } from "@/lib/firebase";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { fetchTickets } from "@/lib/firebase";
 import { Ticket, TicketCategory } from "@/lib/types";
+
+const POLL_INTERVAL_MS = 5000;
 
 export function useTickets(
   activeCategory: TicketCategory | "all",
@@ -11,25 +13,30 @@ export function useTickets(
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const unsubscribe = subscribeToTickets((nextTickets) => {
-      setTickets(nextTickets);
+  const load = useCallback(async () => {
+    try {
+      const data = await fetchTickets();
+      setTickets(data);
+    } catch {
+      /* keep stale data on error */
+    } finally {
       setIsLoading(false);
-    });
-    return () => unsubscribe();
+    }
   }, []);
+
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [load]);
 
   const filteredTickets = useMemo(() => {
     const normalized = queryText.trim().toLowerCase();
     return tickets.filter((ticket) => {
       const categoryMatch =
         activeCategory === "all" || ticket.category === activeCategory;
-      if (!categoryMatch) {
-        return false;
-      }
-      if (!normalized) {
-        return true;
-      }
+      if (!categoryMatch) return false;
+      if (!normalized) return true;
       const haystack =
         `${ticket.senderEmail} ${ticket.subject} ${ticket.body}`.toLowerCase();
       return haystack.includes(normalized);
@@ -55,5 +62,5 @@ export function useTickets(
     return base;
   }, [tickets]);
 
-  return { tickets, filteredTickets, counts, isLoading };
+  return { tickets, filteredTickets, counts, isLoading, refresh: load };
 }
