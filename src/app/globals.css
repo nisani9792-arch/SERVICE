@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background:
+    radial-gradient(circle at 8% 8%, rgba(90, 90, 201, 0.09), transparent 34%),
+    radial-gradient(circle at 90% 2%, rgba(47, 180, 216, 0.12), transparent 30%),
+    #f8f7fb;
+  @apply text-on-surface antialiased;
+}
+
+.lux-card {
+  @apply rounded-xl2 border border-outline bg-surface-high/95 shadow-card backdrop-blur-sm;
+}
+
+.lux-button {
+  @apply inline-flex items-center justify-center rounded-lg border border-outline bg-white px-3 py-2 text-sm font-medium text-on-surface transition hover:bg-surface-container;
+}
+
+.lux-button-primary {
+  @apply inline-flex items-center justify-center rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white shadow-soft transition hover:opacity-95;
+}
