@@ -2,11 +2,14 @@ services:
   - type: web
     name: jusic-crm
     runtime: node
-    buildCommand: npm install && npm run build
+    plan: free
+    buildCommand: npm ci || npm install
     startCommand: npm run start
     envVars:
       - key: NODE_VERSION
         value: "20.18.0"
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
       - key: DATABASE_URL
         sync: false
       - key: GOOGLE_GEMINI_API_KEY
