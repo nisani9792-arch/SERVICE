@@ -1,12 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { Plus, Upload } from "lucide-react";
+import { CheckSquare, Plus, Upload } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
 import { Sidebar } from "@/components/Sidebar";
 import { TicketGrid } from "@/components/TicketGrid";
-import { deleteTicket, updateTicket } from "@/lib/firebase";
+import { BulkActionBar } from "@/components/BulkActionBar";
+import {
+  deleteTicket,
+  deleteTicketsBulk,
+  updateTicket,
+  updateTicketsBulk
+} from "@/lib/firebase";
 import { Ticket, TicketCategory } from "@/lib/types";
 import { useTickets } from "@/hooks/useTickets";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -23,6 +29,7 @@ export default function DashboardPage() {
   const [showNewModal, setShowNewModal] = useState(false);
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
   const [visibleCount, setVisibleCount] = useState(60);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const debouncedSearch = useDebouncedValue(searchValue, 250);
 
   const { filteredTickets, counts, isLoading } = useTickets(
@@ -40,14 +47,16 @@ export default function DashboardPage() {
   };
 
   const onDelete = async (ticketId: string) => {
-    if (!window.confirm("למחוק את הפנייה לצמיתות?")) {
-      return;
-    }
+    if (!window.confirm("למחוק את הפנייה לצמיתות?")) return;
     await deleteTicket(ticketId);
   };
 
   useEffect(() => {
     setVisibleCount(60);
+  }, [activeCategory, debouncedSearch]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
   }, [activeCategory, debouncedSearch]);
 
   const visibleTickets = useMemo(
@@ -56,18 +65,63 @@ export default function DashboardPage() {
   );
   const hasMore = filteredTickets.length > visibleCount;
 
+  const onToggleSelect = useCallback((ticketId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(ticketId)) {
+        next.delete(ticketId);
+      } else {
+        next.add(ticketId);
+      }
+      return next;
+    });
+  }, []);
+
+  const onSelectAll = useCallback(() => {
+    const allVisibleIds = visibleTickets.map((t) => t.id);
+    const allSelected = allVisibleIds.every((id) => selectedIds.has(id));
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allVisibleIds));
+    }
+  }, [visibleTickets, selectedIds]);
+
+  const onClearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  const onBulkMarkHandled = async () => {
+    const ids = Array.from(selectedIds);
+    await updateTicketsBulk(ids, { category: "handled", status: "handled" });
+    setSelectedIds(new Set());
+  };
+
+  const onBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    await deleteTicketsBulk(ids);
+    setSelectedIds(new Set());
+  };
+
+  const onBulkChangeCategory = async (category: TicketCategory) => {
+    const ids = Array.from(selectedIds);
+    await updateTicketsBulk(ids, {
+      category,
+      status: category === "handled" ? "handled" : "open"
+    });
+    setSelectedIds(new Set());
+  };
+
   return (
     <main className="min-h-screen p-4 md:p-6">
       <div className="mx-auto max-w-[1500px] space-y-4">
         <section className="lux-card flex flex-wrap items-center justify-between gap-3 p-4">
           <div className="inline-flex items-center gap-3">
-            <span className="rounded-2xl border border-outline bg-white p-1 shadow-soft">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-outline bg-white shadow-soft">
               <Image
                 src="/jusic-logo.svg"
-                width={36}
-                height={36}
+                width={28}
+                height={28}
                 alt="Jusic logo"
-                className="rounded-xl"
+                unoptimized
               />
             </span>
             <div>
@@ -82,6 +136,13 @@ export default function DashboardPage() {
           </div>
 
           <div className="inline-flex items-center gap-2">
+            <button onClick={onSelectAll} className="lux-button">
+              <CheckSquare className="ml-1 size-4" />
+              {selectedIds.size > 0 &&
+              visibleTickets.every((t) => selectedIds.has(t.id))
+                ? "בטל הכל"
+                : "בחר הכל"}
+            </button>
             <button
               onClick={() => setShowImportModal(true)}
               className="lux-button"
@@ -110,6 +171,8 @@ export default function DashboardPage() {
             <SearchBar value={searchValue} onChange={setSearchValue} />
             <TicketGrid
               tickets={visibleTickets}
+              selectedIds={selectedIds}
+              onToggleSelect={onToggleSelect}
               onMarkHandled={onMarkHandled}
               onEdit={setEditingTicket}
               onDelete={onDelete}
@@ -125,6 +188,14 @@ export default function DashboardPage() {
                 </button>
               </div>
             ) : null}
+
+            <BulkActionBar
+              count={selectedIds.size}
+              onMarkHandled={onBulkMarkHandled}
+              onDelete={onBulkDelete}
+              onChangeCategory={onBulkChangeCategory}
+              onClearSelection={onClearSelection}
+            />
           </div>
         </section>
       </div>

@@ -125,3 +125,29 @@ export const deleteTicket = async (ticketId: string) => {
   const ticketRef = doc(db, "tickets", ticketId);
   await deleteDoc(ticketRef);
 };
+
+export const updateTicketsBulk = async (
+  ticketIds: string[],
+  input: TicketUpdateInput
+) => {
+  if (ticketIds.length === 0) return;
+  const batch = writeBatch(db);
+  for (const id of ticketIds) {
+    const ref = doc(db, "tickets", id);
+    batch.update(ref, {
+      ...input,
+      status: input.category === "handled" ? "handled" : input.status,
+      updatedAt: serverTimestamp()
+    });
+  }
+  await batch.commit();
+};
+
+export const deleteTicketsBulk = async (ticketIds: string[]) => {
+  if (ticketIds.length === 0) return;
+  const batch = writeBatch(db);
+  for (const id of ticketIds) {
+    batch.delete(doc(db, "tickets", id));
+  }
+  await batch.commit();
+};

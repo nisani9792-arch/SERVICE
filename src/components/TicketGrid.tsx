@@ -3,6 +3,8 @@ import { Ticket } from "@/lib/types";
 
 interface TicketGridProps {
   tickets: Ticket[];
+  selectedIds: Set<string>;
+  onToggleSelect: (ticketId: string) => void;
   onMarkHandled: (ticketId: string) => void;
   onEdit: (ticket: Ticket) => void;
   onDelete: (ticketId: string) => void;
@@ -11,11 +13,15 @@ interface TicketGridProps {
 
 export function TicketGrid({
   tickets,
+  selectedIds,
+  onToggleSelect,
   onMarkHandled,
   onEdit,
   onDelete,
   isLoading
 }: TicketGridProps) {
+  const selectionActive = selectedIds.size > 0;
+
   if (isLoading) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -40,6 +46,9 @@ export function TicketGrid({
         <TicketCard
           key={ticket.id}
           ticket={ticket}
+          selected={selectedIds.has(ticket.id)}
+          selectionActive={selectionActive}
+          onToggleSelect={onToggleSelect}
           onMarkHandled={onMarkHandled}
           onEdit={onEdit}
           onDelete={onDelete}

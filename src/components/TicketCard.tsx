@@ -1,9 +1,14 @@
+"use client";
+
 import { CheckCheck, Pencil, Trash2 } from "lucide-react";
 import { CategoryBadge } from "@/components/CategoryBadge";
 import { Ticket } from "@/lib/types";
 
 interface TicketCardProps {
   ticket: Ticket;
+  selected: boolean;
+  selectionActive: boolean;
+  onToggleSelect: (ticketId: string) => void;
   onMarkHandled: (ticketId: string) => void;
   onEdit: (ticket: Ticket) => void;
   onDelete: (ticketId: string) => void;
@@ -26,6 +31,9 @@ const PriorityDots = ({ priority }: { priority: Ticket["priority"] }) => {
 
 export function TicketCard({
   ticket,
+  selected,
+  selectionActive,
+  onToggleSelect,
   onMarkHandled,
   onEdit,
   onDelete
@@ -33,13 +41,28 @@ export function TicketCard({
   const createdAt = new Date(ticket.createdAt).toLocaleDateString("he-IL");
 
   return (
-    <article className="lux-card flex min-h-52 flex-col p-4">
+    <article
+      className={`lux-card flex min-h-52 flex-col p-4 transition ${
+        selected ? "ring-2 ring-primary ring-offset-2" : ""
+      }`}
+    >
       <div className="mb-2 flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{ticket.senderEmail}</p>
-          <p className="mt-1 truncate text-sm text-on-surface-variant">
-            {ticket.subject}
-          </p>
+        <div className="flex min-w-0 items-start gap-2">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect(ticket.id)}
+            className={`mt-1 size-4 shrink-0 cursor-pointer accent-primary ${
+              selectionActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            }`}
+            style={selectionActive ? undefined : { opacity: undefined }}
+          />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{ticket.senderEmail}</p>
+            <p className="mt-1 truncate text-sm text-on-surface-variant">
+              {ticket.subject}
+            </p>
+          </div>
         </div>
         <CategoryBadge category={ticket.category} />
       </div>
