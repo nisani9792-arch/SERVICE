@@ -35,20 +35,13 @@ export const createTicketsBulk = async (
     summary: string;
   }[]
 ) => {
-  const promises = records.map((record) =>
-    fetch(API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        senderEmail: record.senderEmail,
-        senderName: record.senderName,
-        subject: record.subject,
-        body: record.body,
-        source: "import"
-      })
-    })
-  );
-  await Promise.all(promises);
+  if (records.length === 0) return;
+  const res = await fetch(`${API}/bulk`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ records })
+  });
+  if (!res.ok) throw new Error("Failed to bulk-create tickets");
 };
 
 export const updateTicket = async (ticketId: string, input: TicketUpdateInput) => {

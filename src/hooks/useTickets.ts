@@ -56,7 +56,11 @@ export function useTickets(
     };
 
     for (const ticket of tickets) {
-      base[ticket.category] += 1;
+      if (ticket.category in base) {
+        base[ticket.category] += 1;
+      } else {
+        base.suggestions += 1;
+      }
     }
 
     return base;
