@@ -7,13 +7,14 @@ interface SearchBarProps {
 
 export function SearchBar({ value, onChange }: SearchBarProps) {
   return (
-    <label className="lux-card flex w-full items-center gap-2 px-3 py-2">
-      <Search className="size-4 text-on-surface-variant" />
+    <label className="crm-search flex w-full items-center gap-3 px-4 py-3">
+      <Search className="size-[1.125rem] shrink-0 text-primary/70" aria-hidden />
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full bg-transparent text-sm outline-none placeholder:text-on-surface-variant"
-        placeholder="חיפוש לפי אימייל, נושא או מילת מפתח"
+        className="w-full bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-on-surface-variant"
+        placeholder="חיפוש חכם: אימייל, נושא, תוכן או שם פונה…"
+        autoComplete="off"
       />
     </label>
   );

@@ -4,24 +4,107 @@
 
 :root {
   color-scheme: light;
+  --color-primary: #5a5ac9;
+  --color-accent: #0d9488;
+  --crm-mesh-1: rgba(90, 90, 201, 0.14);
+  --crm-mesh-2: rgba(13, 148, 136, 0.11);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 body {
   background:
-    radial-gradient(circle at 8% 8%, rgba(90, 90, 201, 0.09), transparent 34%),
-    radial-gradient(circle at 90% 2%, rgba(47, 180, 216, 0.12), transparent 30%),
-    #f8f7fb;
+    radial-gradient(ellipse 140% 80% at 100% -30%, var(--crm-mesh-1), transparent 52%),
+    radial-gradient(ellipse 100% 60% at 0% 100%, var(--crm-mesh-2), transparent 48%),
+    linear-gradient(180deg, #fdfcfe 0%, #f3f1f8 45%, #f8f7fb 100%);
   @apply text-on-surface antialiased;
 }
 
 .lux-card {
-  @apply rounded-xl2 border border-outline bg-surface-high/95 shadow-card backdrop-blur-sm;
+  @apply rounded-xl2 border border-outline/90 bg-surface-high/95 shadow-card backdrop-blur-sm;
 }
 
 .lux-button {
-  @apply inline-flex items-center justify-center rounded-lg border border-outline bg-white px-3 py-2 text-sm font-medium text-on-surface transition hover:bg-surface-container;
+  @apply inline-flex items-center justify-center rounded-xl border border-outline/90 bg-white/95 px-3 py-2 text-sm font-medium text-on-surface shadow-sm transition hover:border-primary/25 hover:bg-primary-soft/30 hover:shadow-md;
 }
 
 .lux-button-primary {
-  @apply inline-flex items-center justify-center rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white shadow-soft transition hover:opacity-95;
+  @apply inline-flex items-center justify-center rounded-xl bg-gradient-to-bl from-primary via-primary to-primary/90 px-3 py-2 text-sm font-semibold text-white shadow-soft transition hover:brightness-[1.03] hover:shadow-md;
+}
+
+.crm-app-header {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 20px 50px -24px rgba(30, 27, 36, 0.12);
+}
+
+.crm-display-title {
+  letter-spacing: -0.03em;
+}
+
+.brand-logo-aura {
+  padding: 3px;
+  border-radius: 1.35rem;
+  background: conic-gradient(from 210deg, var(--color-primary), var(--color-accent), #c4b5fd, var(--color-primary));
+  box-shadow: 0 12px 40px -12px rgba(90, 90, 201, 0.45);
+}
+
+.brand-logo-inner {
+  @apply flex size-[4.25rem] items-center justify-center rounded-[1.2rem] border border-white/60 bg-white/95 shadow-sm backdrop-blur-md;
+}
+
+.crm-bento-card {
+  min-height: 7.5rem;
+}
+
+.crm-donut {
+  width: 5.5rem;
+  height: 5.5rem;
+  border-radius: 9999px;
+  padding: 0.4rem;
+  box-shadow: 0 4px 14px rgba(30, 27, 36, 0.08);
+}
+
+.crm-donut-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(215, 210, 226, 0.55);
+}
+
+.crm-search {
+  @apply rounded-2xl border border-outline/80 bg-surface-high/95 shadow-sm transition focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/15;
+}
+
+.crm-sidebar {
+  @apply rounded-2xl border border-outline/70 bg-surface-high/95 shadow-card backdrop-blur-md;
+}
+
+.md3-table-shell {
+  @apply overflow-hidden rounded-2xl border border-outline/75 shadow-card;
+}
+
+.md3-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.md3-icon-btn {
+  @apply inline-flex size-8 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container;
+}
+
+.md3-pager-btn {
+  @apply rounded-full border border-outline bg-white px-3 py-1.5 text-xs font-medium text-on-surface transition enabled:hover:bg-surface-container disabled:cursor-not-allowed disabled:opacity-45;
+}
+
+.md3-toolbar-btn {
+  @apply inline-flex items-center justify-center gap-1 rounded-full border border-outline bg-white px-3 py-1.5 text-xs font-medium text-on-surface transition enabled:hover:bg-surface-container disabled:cursor-not-allowed disabled:opacity-50;
 }

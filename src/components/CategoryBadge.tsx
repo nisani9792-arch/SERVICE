@@ -1,16 +1,16 @@
-import { CATEGORY_COLORS, CATEGORY_LABELS_HE } from "@/lib/categories";
-import { TicketCategory } from "@/lib/types";
+import { categoryBadgeClass, categoryLabel } from "@/lib/categories";
 
 interface CategoryBadgeProps {
-  category: TicketCategory;
+  category: string;
 }
 
 export function CategoryBadge({ category }: CategoryBadgeProps) {
   return (
     <span
-      className={`rounded-full px-2.5 py-1 text-xs font-medium ${CATEGORY_COLORS[category]}`}
+      className={`inline-block max-w-[10rem] truncate rounded-full px-2.5 py-1 text-xs font-medium ${categoryBadgeClass(category)}`}
+      title={categoryLabel(category)}
     >
-      {CATEGORY_LABELS_HE[category]}
+      {categoryLabel(category)}
     </span>
   );
 }

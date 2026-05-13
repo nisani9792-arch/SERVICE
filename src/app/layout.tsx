@@ -8,8 +8,8 @@ const heebo = Heebo({
 });
 
 export const metadata: Metadata = {
-  title: "Jusic CRM",
-  description: "מערכת שירות לקוחות - Jusic Ticketing & CRM"
+  title: "Jusic Nexus — מרכז פיקוד חכם",
+  description: "מערכת שירות, CRM ותובנות תפעול — Jusic Nexus Command Center"
 };
 
 export default function RootLayout({

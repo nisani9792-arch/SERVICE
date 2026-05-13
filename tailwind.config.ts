@@ -15,6 +15,8 @@ const config: Config = {
         "on-surface-variant": "#5E596B",
         primary: "#5A5AC9",
         "primary-soft": "#ECECFF",
+        accent: "#0D9488",
+        "accent-soft": "#CCFBF1",
         outline: "#D7D2E2",
         success: "#2E7D32",
         danger: "#C62828",

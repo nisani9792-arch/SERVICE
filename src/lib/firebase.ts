@@ -1,9 +1,39 @@
-import { Ticket, TicketUpdateInput } from "@/lib/types";
+import type { HistoricalTicketJson, Ticket, TicketListResponse, TicketUpdateInput } from "@/lib/types";
 
 const API = "/api/tickets";
 
 export const fetchTickets = async (): Promise<Ticket[]> => {
-  const res = await fetch(API, { cache: "no-store" });
+  const res = await fetch(`${API}?pageSize=5000`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch tickets");
+  const data = (await res.json()) as TicketListResponse;
+  return data.items;
+};
+
+export type TicketListQuery = {
+  page?: number;
+  pageSize?: number;
+  category?: string | "all";
+  status?: string | "all";
+  dateFrom?: string;
+  dateTo?: string;
+  tags?: string[];
+  q?: string;
+  email?: string;
+};
+
+export const fetchTicketPage = async (query: TicketListQuery): Promise<TicketListResponse> => {
+  const sp = new URLSearchParams();
+  sp.set("page", String(query.page ?? 1));
+  sp.set("pageSize", String(query.pageSize ?? 25));
+  if (query.category && query.category !== "all") sp.set("category", query.category);
+  if (query.status && query.status !== "all") sp.set("status", query.status);
+  if (query.dateFrom) sp.set("dateFrom", query.dateFrom);
+  if (query.dateTo) sp.set("dateTo", query.dateTo);
+  if (query.tags?.length) sp.set("tags", query.tags.join(","));
+  if (query.q?.trim()) sp.set("q", query.q.trim());
+  if (query.email) sp.set("email", query.email);
+
+  const res = await fetch(`${API}?${sp.toString()}`, { cache: "no-store" });
   if (!res.ok) throw new Error("Failed to fetch tickets");
   return res.json();
 };
@@ -33,6 +63,8 @@ export const createTicketsBulk = async (
     category: string;
     priority: number;
     summary: string;
+    status?: string;
+    messageAt?: string | null;
   }[]
 ) => {
   if (records.length === 0) return;
@@ -42,6 +74,29 @@ export const createTicketsBulk = async (
     body: JSON.stringify({ records })
   });
   if (!res.ok) throw new Error("Failed to bulk-create tickets");
+};
+
+/** Chunked structured historical import (no AI). */
+export const importHistoricalRecords = async (
+  records: HistoricalTicketJson[],
+  chunkSize = 400,
+  onProgress?: (done: number, total: number) => void
+) => {
+  let inserted = 0;
+  const total = records.length;
+  for (let i = 0; i < records.length; i += chunkSize) {
+    const chunk = records.slice(i, i + chunkSize);
+    const res = await fetch("/api/import", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ records: chunk })
+    });
+    if (!res.ok) throw new Error(`Historical import failed (${res.status})`);
+    const payload = (await res.json()) as { inserted?: number };
+    inserted += payload.inserted ?? chunk.length;
+    onProgress?.(inserted, total);
+  }
+  return inserted;
 };
 
 export const updateTicket = async (ticketId: string, input: TicketUpdateInput) => {
@@ -58,10 +113,12 @@ export const deleteTicket = async (ticketId: string) => {
   if (!res.ok) throw new Error("Failed to delete ticket");
 };
 
-export const updateTicketsBulk = async (
-  ticketIds: string[],
-  input: TicketUpdateInput
-) => {
+export type BulkPatchInput = TicketUpdateInput & {
+  tags?: string[];
+  replaceTags?: boolean;
+};
+
+export const updateTicketsBulk = async (ticketIds: string[], input: BulkPatchInput) => {
   const res = await fetch(`${API}/bulk`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -77,4 +134,11 @@ export const deleteTicketsBulk = async (ticketIds: string[]) => {
     body: JSON.stringify({ ids: ticketIds })
   });
   if (!res.ok) throw new Error("Failed to bulk delete");
+};
+
+export const exportContactsUrl = (category?: string | "all") => {
+  const sp = new URLSearchParams();
+  if (category && category !== "all") sp.set("category", category);
+  const q = sp.toString();
+  return `/api/export/contacts${q ? `?${q}` : ""}`;
 };

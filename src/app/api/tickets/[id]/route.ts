@@ -13,19 +13,43 @@ export async function PATCH(
       priority?: number;
       aiSummary?: string;
       status?: string;
+      tags?: string[];
+      assignedTo?: string;
     };
 
-    const effectiveStatus = body.category === "handled" ? "handled" : (body.status ?? undefined);
+    let effectiveStatus = body.status ?? undefined;
+    if (body.category === "handled") {
+      effectiveStatus = "closed";
+    }
 
-    const rows = await sql()`
+    const tags = body.tags;
+    const shouldSetTags = Array.isArray(tags);
+
+    const rows = shouldSetTags
+      ? await sql()`
       UPDATE tickets SET
-        subject    = COALESCE(${body.subject ?? null}, subject),
-        body       = COALESCE(${body.body ?? null}, body),
-        category   = COALESCE(${body.category ?? null}, category),
-        priority   = COALESCE(${body.priority ?? null}, priority),
-        ai_summary = COALESCE(${body.aiSummary ?? null}, ai_summary),
-        status     = COALESCE(${effectiveStatus ?? null}, status),
-        updated_at = now()
+        subject      = COALESCE(${body.subject ?? null}, subject),
+        body         = COALESCE(${body.body ?? null}, body),
+        category     = COALESCE(${body.category ?? null}, category),
+        priority     = COALESCE(${body.priority ?? null}, priority),
+        ai_summary   = COALESCE(${body.aiSummary ?? null}, ai_summary),
+        status       = COALESCE(${effectiveStatus ?? null}, status),
+        tags         = ${tags}::text[],
+        assigned_to  = COALESCE(${body.assignedTo ?? null}, assigned_to),
+        updated_at   = now()
+      WHERE id = ${params.id}
+      RETURNING id
+    `
+      : await sql()`
+      UPDATE tickets SET
+        subject      = COALESCE(${body.subject ?? null}, subject),
+        body         = COALESCE(${body.body ?? null}, body),
+        category     = COALESCE(${body.category ?? null}, category),
+        priority     = COALESCE(${body.priority ?? null}, priority),
+        ai_summary   = COALESCE(${body.aiSummary ?? null}, ai_summary),
+        status       = COALESCE(${effectiveStatus ?? null}, status),
+        assigned_to  = COALESCE(${body.assignedTo ?? null}, assigned_to),
+        updated_at   = now()
       WHERE id = ${params.id}
       RETURNING id
     `;

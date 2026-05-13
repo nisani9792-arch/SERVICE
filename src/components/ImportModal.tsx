@@ -3,9 +3,9 @@
 import Papa from "papaparse";
 import { ChangeEvent, useMemo, useState } from "react";
 import { UploadCloud, X } from "lucide-react";
-import { createTicketsBulk } from "@/lib/firebase";
+import { createTicketsBulk, importHistoricalRecords } from "@/lib/firebase";
 import { isMboxFile, parseMbox } from "@/lib/mbox";
-import { ClassifiedImportRecord, ImportRecordInput } from "@/lib/types";
+import type { ClassifiedImportRecord, HistoricalTicketJson, ImportRecordInput } from "@/lib/types";
 
 interface ImportModalProps {
   isOpen: boolean;
@@ -15,10 +15,17 @@ interface ImportModalProps {
 const normalizeRecord = (raw: Record<string, unknown>): ImportRecordInput => {
   return {
     senderEmail: String(raw.senderEmail ?? raw.email ?? raw.from ?? "").trim(),
-    senderName: String(raw.senderName ?? raw.name ?? raw.fromName ?? "").trim(),
+    senderName: String(raw.senderName ?? raw.name ?? raw.sender_name ?? raw.fromName ?? "").trim(),
     subject: String(raw.subject ?? raw.title ?? "").trim(),
-    body: String(raw.body ?? raw.content ?? raw.message ?? raw.text ?? "").trim()
+    body: String(raw.body ?? raw.content ?? raw.message ?? raw.text ?? raw.summary ?? "").trim()
   };
+};
+
+const isHistoricalRow = (raw: Record<string, unknown>) => {
+  const email = String(raw.email ?? "").trim();
+  const hasHistoricalKeys =
+    "sender_name" in raw || ("summary" in raw && !("body" in raw && String(raw.body ?? "").trim()));
+  return Boolean(email && hasHistoricalKeys);
 };
 
 const parseCsv = async (file: File): Promise<ImportRecordInput[]> => {
@@ -33,24 +40,37 @@ const parseCsv = async (file: File): Promise<ImportRecordInput[]> => {
   });
 };
 
-const parseJson = async (file: File): Promise<ImportRecordInput[]> => {
+const parseJson = async (
+  file: File
+): Promise<{ mode: "classic" | "historical"; classic: ImportRecordInput[]; historical: HistoricalTicketJson[] }> => {
   const text = await file.text();
   const parsed = JSON.parse(text);
+  let rows: Record<string, unknown>[] = [];
   if (Array.isArray(parsed)) {
-    return parsed.map((item) =>
-      normalizeRecord((item as Record<string, unknown>) ?? {})
-    );
-  }
-  if (
+    rows = parsed as Record<string, unknown>[];
+  } else if (
     typeof parsed === "object" &&
     parsed !== null &&
     Array.isArray((parsed as { records?: unknown }).records)
   ) {
-    return (parsed as { records: Record<string, unknown>[] }).records.map(
-      (item) => normalizeRecord(item)
-    );
+    rows = (parsed as { records: Record<string, unknown>[] }).records;
+  } else {
+    throw new Error("JSON format is not supported");
   }
-  throw new Error("JSON format is not supported");
+
+  if (rows.length > 0 && rows.every((item) => isHistoricalRow(item))) {
+    const historical: HistoricalTicketJson[] = rows.map((item) => ({
+      date: item.date != null ? String(item.date) : undefined,
+      sender_name: item.sender_name != null ? String(item.sender_name) : undefined,
+      email: String(item.email ?? "").trim(),
+      subject: item.subject != null ? String(item.subject) : undefined,
+      summary: item.summary != null ? String(item.summary) : undefined,
+      category: item.category != null ? String(item.category) : undefined
+    }));
+    return { mode: "historical", classic: [], historical };
+  }
+
+  return { mode: "classic", classic: rows.map((item) => normalizeRecord(item)), historical: [] };
 };
 
 const truncateBody = (text: string, max = 12000): string => {
@@ -59,7 +79,9 @@ const truncateBody = (text: string, max = 12000): string => {
 };
 
 export function ImportModal({ isOpen, onClose }: ImportModalProps) {
-  const [records, setRecords] = useState<ImportRecordInput[]>([]);
+  const [classicRecords, setClassicRecords] = useState<ImportRecordInput[]>([]);
+  const [historicalRecords, setHistoricalRecords] = useState<HistoricalTicketJson[]>([]);
+  const [importMode, setImportMode] = useState<"classic" | "historical">("classic");
   const [fileName, setFileName] = useState("");
   const [isParsing, setIsParsing] = useState(false);
   const [parseStatus, setParseStatus] = useState("");
@@ -71,12 +93,21 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
   const [excludeSender, setExcludeSender] = useState("");
   const [skipClassification, setSkipClassification] = useState(false);
 
-  const validRecords = useMemo(
+  const validClassic = useMemo(
     () =>
-      records.filter(
+      classicRecords.filter(
         (record) => record.senderEmail && record.subject && record.body
       ),
-    [records]
+    [classicRecords]
+  );
+
+  const validHistorical = useMemo(
+    () =>
+      historicalRecords.filter((r) => {
+        const sub = String(r.subject ?? "").trim();
+        return Boolean(r.email && sub);
+      }),
+    [historicalRecords]
   );
 
   if (!isOpen) {
@@ -84,7 +115,9 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
   }
 
   const reset = () => {
-    setRecords([]);
+    setClassicRecords([]);
+    setHistoricalRecords([]);
+    setImportMode("classic");
     setFileName("");
     setError("");
     setIsImporting(false);
@@ -107,15 +140,18 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
     }
     setError("");
     setFileName(selected.name);
-    setRecords([]);
+    setClassicRecords([]);
+    setHistoricalRecords([]);
+    setImportMode("classic");
     setIsParsing(true);
     setParseStatus("קורא קובץ...");
 
     try {
-      let parsed: ImportRecordInput[] = [];
-
       if (selected.name.toLowerCase().endsWith(".csv")) {
-        parsed = await parseCsv(selected);
+        const parsed = await parseCsv(selected);
+        setClassicRecords(parsed);
+        setImportMode("classic");
+        setParseStatus(`נมצאו ${parsed.length.toLocaleString("he-IL")} רשומות בקובץ.`);
       } else if (isMboxFile(selected)) {
         setParseStatus("מנתח קובץ MBOX של Google Takeout...");
         const text = await selected.text();
@@ -125,27 +161,37 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
           onProgress: (count) =>
             setParseStatus(`נותחו ${count.toLocaleString("he-IL")} הודעות...`)
         });
-        parsed = messages.map((m) => ({
+        const parsed = messages.map((m) => ({
           senderEmail: m.senderEmail,
           senderName: m.senderName,
           subject: m.subject || "(ללא נושא)",
           body: truncateBody(m.body || m.subject || "")
         }));
+        setClassicRecords(parsed);
+        setImportMode("classic");
+        setParseStatus(`נמצאו ${parsed.length.toLocaleString("he-IL")} רשומות בקובץ.`);
       } else {
-        parsed = await parseJson(selected);
+        const parsed = await parseJson(selected);
+        if (parsed.mode === "historical") {
+          setHistoricalRecords(parsed.historical);
+          setImportMode("historical");
+          setParseStatus(
+            `זוהה ייבוא היסטורי: ${parsed.historical.length.toLocaleString("he-IL")} רשומות (ללא AI).`
+          );
+        } else {
+          setClassicRecords(parsed.classic);
+          setImportMode("classic");
+          setParseStatus(`נמצאו ${parsed.classic.length.toLocaleString("he-IL")} רשומות בקובץ.`);
+        }
       }
-
-      setRecords(parsed);
-      setParseStatus(
-        `נמצאו ${parsed.length.toLocaleString("he-IL")} רשומות בקובץ.`
-      );
     } catch (parseError) {
       const message =
         parseError instanceof Error ? parseError.message : "Unknown error";
       setError(
         `קריאת הקובץ נכשלה: ${message}. ודא שמדובר ב-CSV, JSON או MBOX (Google Takeout) תקין.`
       );
-      setRecords([]);
+      setClassicRecords([]);
+      setHistoricalRecords([]);
       setParseStatus("");
     } finally {
       setIsParsing(false);
@@ -153,18 +199,40 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
   };
 
   const onImport = async () => {
-    if (validRecords.length === 0) {
+    if (importMode === "historical") {
+      if (validHistorical.length === 0) {
+        setError("לא נמצאו רשומות תקינות לייבוא היסטורי.");
+        return;
+      }
+      setError("");
+      setIsImporting(true);
+      setProgress({ current: 0, total: validHistorical.length });
+      try {
+        await importHistoricalRecords(validHistorical, 400, (done, total) =>
+          setProgress({ current: done, total })
+        );
+        handleClose();
+      } catch (importError) {
+        const message =
+          importError instanceof Error ? importError.message : "Unknown error";
+        setError(`תהליך הייבוא נכשל: ${message}. נסה שוב בעוד רגע.`);
+        setIsImporting(false);
+      }
+      return;
+    }
+
+    if (validClassic.length === 0) {
       setError("לא נמצאו רשומות תקינות לייבוא.");
       return;
     }
 
     setError("");
     setIsImporting(true);
-    setProgress({ current: 0, total: validRecords.length });
+    setProgress({ current: 0, total: validClassic.length });
 
     try {
-      for (let offset = 0; offset < validRecords.length; offset += chunkSize) {
-        const chunk = validRecords.slice(offset, offset + chunkSize);
+      for (let offset = 0; offset < validClassic.length; offset += chunkSize) {
+        const chunk = validClassic.slice(offset, offset + chunkSize);
         const classifyResponse = await fetch("/api/import", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -184,8 +252,8 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
 
         await createTicketsBulk(payload.records);
         setProgress({
-          current: Math.min(offset + chunk.length, validRecords.length),
-          total: validRecords.length
+          current: Math.min(offset + chunk.length, validClassic.length),
+          total: validClassic.length
         });
       }
 
@@ -199,19 +267,23 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
   };
 
   const isBusy = isParsing || isImporting;
+  const readyCount = importMode === "historical" ? validHistorical.length : validClassic.length;
+  const totalParsed =
+    importMode === "historical" ? historicalRecords.length : classicRecords.length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
-      <div className="lux-card w-full max-w-xl p-4">
+      <div className="lux-card w-full max-w-xl rounded-2xl p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold">ייבוא פניות</h2>
-          <button onClick={handleClose} className="lux-button p-2" disabled={isBusy}>
+          <button type="button" onClick={handleClose} className="lux-button p-2" disabled={isBusy}>
             <X className="size-4" />
           </button>
         </div>
 
         <p className="mb-3 text-xs text-on-surface-variant">
-          תומך בקבצי CSV, JSON וקבצי MBOX מייצוא של Google Takeout (Gmail).
+          תומך ב-CSV, JSON מובנה היסטורי, JSON קלאסי, וקבצי MBOX מ-Google Takeout. ייבוא היסטורי ללא AI ומהיר
+          לכמויות גדולות.
         </p>
 
         <div className="mb-3 grid gap-2 sm:grid-cols-2">
@@ -225,7 +297,7 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
               value={recipientFilter}
               onChange={(event) => setRecipientFilter(event.target.value)}
               disabled={isBusy}
-              className="w-full rounded-lg border border-outline bg-white px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-60"
+              className="w-full rounded-xl border border-outline bg-white px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-60"
             />
           </label>
           <label className="block">
@@ -238,12 +310,12 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
               value={excludeSender}
               onChange={(event) => setExcludeSender(event.target.value)}
               disabled={isBusy}
-              className="w-full rounded-lg border border-outline bg-white px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-60"
+              className="w-full rounded-xl border border-outline bg-white px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-60"
             />
           </label>
         </div>
 
-        <label className="mb-3 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-outline bg-surface-container px-4 py-8 text-center">
+        <label className="mb-3 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-outline bg-surface-container px-4 py-8 text-center">
           <UploadCloud className="size-7 text-on-surface-variant" />
           <span className="text-sm">בחר קובץ CSV, JSON או MBOX לייבוא</span>
           <span className="text-xs text-on-surface-variant">
@@ -263,42 +335,44 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
         ) : null}
 
         <p className="mb-2 text-sm text-on-surface-variant">
-          רשומות תקינות: {validRecords.length.toLocaleString("he-IL")}
-          {records.length !== validRecords.length
-            ? ` (מתוך ${records.length.toLocaleString("he-IL")} בקובץ)`
+          רשומות תקינות: {readyCount.toLocaleString("he-IL")}
+          {totalParsed > 0 && totalParsed !== readyCount
+            ? ` (מתוך ${totalParsed.toLocaleString("he-IL")} בקובץ)`
             : null}
         </p>
 
-        <div className="mb-3 grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-1 block text-xs text-on-surface-variant">
-              גודל באצ&apos; ייבוא
-            </span>
-            <select
-              className="w-full rounded-lg border border-outline bg-white px-3 py-2 text-sm outline-none focus:border-primary"
-              value={chunkSize}
-              onChange={(event) => setChunkSize(Number(event.target.value))}
-              disabled={isBusy}
-            >
-              {[10, 20, 30, 50, 100].map((value) => (
-                <option key={value} value={value}>
-                  {value} רשומות בכל באצ&apos;
-                </option>
-              ))}
-            </select>
-          </label>
+        {importMode === "classic" ? (
+          <div className="mb-3 grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-xs text-on-surface-variant">
+                גודל באצ&apos; ייבוא
+              </span>
+              <select
+                className="w-full rounded-xl border border-outline bg-white px-3 py-2 text-sm outline-none focus:border-primary"
+                value={chunkSize}
+                onChange={(event) => setChunkSize(Number(event.target.value))}
+                disabled={isBusy}
+              >
+                {[10, 20, 30, 50, 100].map((value) => (
+                  <option key={value} value={value}>
+                    {value} רשומות בכל באצ&apos;
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <label className="flex items-end gap-2 rounded-lg border border-outline bg-white px-3 py-2 text-xs">
-            <input
-              type="checkbox"
-              checked={skipClassification}
-              onChange={(event) => setSkipClassification(event.target.checked)}
-              disabled={isBusy}
-              className="size-4 cursor-pointer accent-primary"
-            />
-            <span>ייבוא מהיר ללא AI (לכמויות גדולות)</span>
-          </label>
-        </div>
+            <label className="flex items-end gap-2 rounded-xl border border-outline bg-white px-3 py-2 text-xs">
+              <input
+                type="checkbox"
+                checked={skipClassification}
+                onChange={(event) => setSkipClassification(event.target.checked)}
+                disabled={isBusy}
+                className="size-4 cursor-pointer accent-primary"
+              />
+              <span>ייבוא מהיר ללא AI (לכמויות גדולות)</span>
+            </label>
+          </div>
+        ) : null}
 
         {progress.total > 0 ? (
           <div className="mb-3">
@@ -320,13 +394,14 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
         {error ? <p className="mb-3 text-sm text-danger">{error}</p> : null}
 
         <div className="flex justify-end gap-2">
-          <button onClick={handleClose} className="lux-button" disabled={isBusy}>
+          <button type="button" onClick={handleClose} className="lux-button" disabled={isBusy}>
             סגור
           </button>
           <button
+            type="button"
             onClick={onImport}
             className="lux-button-primary"
-            disabled={isBusy || validRecords.length === 0}
+            disabled={isBusy || readyCount === 0}
           >
             {isImporting
               ? "מייבא..."
