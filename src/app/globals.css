@@ -33,11 +33,11 @@ body {
 }
 
 .lux-button {
-  @apply inline-flex items-center justify-center rounded-xl border border-outline/90 bg-white/95 px-3 py-2 text-sm font-medium text-on-surface shadow-sm transition hover:border-primary/25 hover:bg-primary-soft/30 hover:shadow-md;
+  @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-outline/90 bg-white/95 px-3 py-2 text-sm font-medium text-on-surface shadow-sm transition hover:border-primary/25 hover:bg-primary-soft/30 hover:shadow-md;
 }
 
 .lux-button-primary {
-  @apply inline-flex items-center justify-center rounded-xl bg-gradient-to-bl from-primary via-primary to-primary/90 px-3 py-2 text-sm font-semibold text-white shadow-soft transition hover:brightness-[1.03] hover:shadow-md;
+  @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-bl from-primary via-primary to-primary/90 px-3 py-2 text-sm font-semibold text-white shadow-soft transition hover:brightness-[1.03] hover:shadow-md;
 }
 
 .crm-app-header {
@@ -58,7 +58,7 @@ body {
 }
 
 .brand-logo-inner {
-  @apply flex size-[4.25rem] items-center justify-center rounded-[1.2rem] border border-white/60 bg-white/95 shadow-sm backdrop-blur-md;
+  @apply flex size-24 items-center justify-center rounded-[1.6rem] bg-transparent shadow-sm;
 }
 
 .crm-bento-card {
@@ -106,5 +106,5 @@ body {
 }
 
 .md3-toolbar-btn {
-  @apply inline-flex items-center justify-center gap-1 rounded-full border border-outline bg-white px-3 py-1.5 text-xs font-medium text-on-surface transition enabled:hover:bg-surface-container disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex min-h-10 items-center justify-center gap-1 rounded-full border border-outline bg-white px-3 py-1.5 text-xs font-medium text-on-surface transition enabled:hover:bg-surface-container disabled:cursor-not-allowed disabled:opacity-50;
 }

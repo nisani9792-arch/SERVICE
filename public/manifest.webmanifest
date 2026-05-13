@@ -1,0 +1,27 @@
+{
+  "name": "Jusic Nexus",
+  "short_name": "Jusic",
+  "description": "מערכת שירות, CRM ותובנות תפעול של Jusic",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8f7fb",
+  "theme_color": "#5a5ac9",
+  "icons": [
+    {
+      "src": "/jusic-logo.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

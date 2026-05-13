@@ -4,11 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchTicketPage, type TicketListQuery } from "@/lib/firebase";
 import type { Ticket } from "@/lib/types";
 
-const POLL_INTERVAL_MS = 12000;
-
 export function useTicketList(query: TicketListQuery) {
   const qRef = useRef(query);
   qRef.current = query;
+  const inFlightRef = useRef(false);
 
   const stableKey = useMemo(
     () =>
@@ -45,8 +44,14 @@ export function useTicketList(query: TicketListQuery) {
 
   const [isLoading, setIsLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
+  const load = useCallback(async (options?: { silent?: boolean }) => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+
+    if (!options?.silent) {
+      setIsLoading(true);
+    }
+
     try {
       const res = await fetchTicketPage(qRef.current);
       setData({
@@ -58,6 +63,7 @@ export function useTicketList(query: TicketListQuery) {
     } catch {
       /* keep stale */
     } finally {
+      inFlightRef.current = false;
       setIsLoading(false);
     }
   }, []);
@@ -66,10 +72,7 @@ export function useTicketList(query: TicketListQuery) {
     void load();
   }, [stableKey, load]);
 
-  useEffect(() => {
-    const t = setInterval(() => void load(), POLL_INTERVAL_MS);
-    return () => clearInterval(t);
-  }, [load]);
+  const refresh = useCallback(() => load({ silent: true }), [load]);
 
-  return { ...data, isLoading, refresh: load };
+  return { ...data, isLoading, refresh };
 }

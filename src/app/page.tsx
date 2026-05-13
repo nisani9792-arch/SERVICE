@@ -5,6 +5,7 @@ import {
   CheckSquare,
   Download,
   Filter,
+  MailCheck,
   MessageSquareText,
   Plus,
   Upload
@@ -14,6 +15,7 @@ import { SearchBar } from "@/components/SearchBar";
 import { Sidebar } from "@/components/Sidebar";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { DashboardStats, type DashboardStatsModel } from "@/components/DashboardStats";
+import { TicketKanbanBoard } from "@/components/TicketKanbanBoard";
 import { TicketsDataTable } from "@/components/TicketsDataTable";
 import {
   deleteTicket,
@@ -30,6 +32,14 @@ import { ExportContactsModal } from "@/components/ExportContactsModal";
 import { ReplyTemplatesModal } from "@/components/ReplyTemplatesModal";
 import type { Ticket, TicketStatus } from "@/lib/types";
 
+type EmailSyncResponse = {
+  imported?: number;
+  skipped?: number;
+  scanned?: number;
+  error?: string;
+  details?: string;
+};
+
 export default function DashboardPage() {
   const [activeCategory, setActiveCategory] = useState<string | "all">("all");
   const [activeStatus, setActiveStatus] = useState<TicketStatus | "all">("all");
@@ -38,7 +48,8 @@ export default function DashboardPage() {
   const [dateTo, setDateTo] = useState("");
   const [tagsFilter, setTagsFilter] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(25);
+  const [pageSize] = useState(500);
+  const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
 
   const [showImportModal, setShowImportModal] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
@@ -49,6 +60,11 @@ export default function DashboardPage() {
 
   const [headerRefreshing, setHeaderRefreshing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [emailSyncing, setEmailSyncing] = useState(false);
+  const [emailSyncMessage, setEmailSyncMessage] = useState<{
+    kind: "success" | "error";
+    text: string;
+  } | null>(null);
 
   const debouncedSearch = useDebouncedValue(searchValue, 320);
   const tagTokens = useMemo(
@@ -112,6 +128,37 @@ export default function DashboardPage() {
     }
   }, [refreshAll]);
 
+  const handleEmailSync = useCallback(async () => {
+    setEmailSyncing(true);
+    setEmailSyncMessage(null);
+
+    try {
+      const res = await fetch("/api/email-ingest", {
+        method: "POST",
+        cache: "no-store"
+      });
+      const data = (await res.json()) as EmailSyncResponse;
+
+      if (!res.ok) {
+        throw new Error(data.details || data.error || "Email sync failed");
+      }
+
+      await refreshAll();
+      setLastSyncedAt(new Date());
+      setEmailSyncMessage({
+        kind: "success",
+        text: `סנכרון מיילים הושלם: ${data.imported ?? 0} פניות חדשות נוספו, ${data.skipped ?? 0} דולגו.`
+      });
+    } catch (error) {
+      setEmailSyncMessage({
+        kind: "error",
+        text: `סנכרון המייל נכשל: ${error instanceof Error ? error.message : "שגיאה לא ידועה"}`
+      });
+    } finally {
+      setEmailSyncing(false);
+    }
+  }, [refreshAll]);
+
   useEffect(() => {
     setPage(1);
   }, [activeCategory, activeStatus, debouncedSearch, dateFrom, dateTo, tagsFilter]);
@@ -148,6 +195,11 @@ export default function DashboardPage() {
 
   const onMarkClosed = async (ticketId: string) => {
     await updateTicket(ticketId, { category: "handled" });
+    await refreshAll();
+  };
+
+  const onSetTicketStatus = async (ticketId: string, status: TicketStatus) => {
+    await updateTicket(ticketId, { status });
     await refreshAll();
   };
 
@@ -225,6 +277,15 @@ export default function DashboardPage() {
       </button>
       <button
         type="button"
+        onClick={handleEmailSync}
+        disabled={emailSyncing}
+        className="lux-button rounded-xl disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <MailCheck className={`size-4 opacity-80 ${emailSyncing ? "animate-pulse" : ""}`} />
+        {emailSyncing ? "מסנכרן מיילים…" : "סנכרן מיילים"}
+      </button>
+      <button
+        type="button"
         onClick={() => setShowNewModal(true)}
         className="lux-button-primary rounded-xl px-4 py-2.5 shadow-md"
       >
@@ -235,7 +296,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <main className="crm-workspace min-h-screen px-4 pb-10 pt-4 md:px-6 md:pb-12 md:pt-6">
+    <main className="crm-workspace min-h-screen px-3 pb-28 pt-3 sm:px-4 md:px-6 md:pb-12 md:pt-6">
       <div className="mx-auto max-w-[1680px] space-y-6">
         <AppHeader
           actions={headerActions}
@@ -243,6 +304,18 @@ export default function DashboardPage() {
           refreshing={headerRefreshing}
           lastSyncedAt={lastSyncedAt}
         />
+
+        {emailSyncMessage ? (
+          <div
+            className={`lux-card rounded-2xl px-4 py-3 text-sm ${
+              emailSyncMessage.kind === "success"
+                ? "border-success/30 bg-success/10 text-success"
+                : "border-danger/30 bg-danger/10 text-danger"
+            }`}
+          >
+            {emailSyncMessage.text}
+          </div>
+        ) : null}
 
         <DashboardStats
           stats={stats}
@@ -253,7 +326,7 @@ export default function DashboardPage() {
           }}
         />
 
-        <section className="grid gap-5 xl:grid-cols-[minmax(0,17.5rem),1fr]">
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,17.5rem),1fr] xl:gap-5">
           <Sidebar
             activeCategory={activeCategory}
             dynamicCategories={dynamicCategories}
@@ -264,26 +337,52 @@ export default function DashboardPage() {
             }}
           />
 
-          <div className="min-w-0 space-y-4">
+          <div className="min-w-0 space-y-3 md:space-y-4">
             <div className="flex flex-col gap-1 border-b border-outline/50 pb-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-lg font-bold text-on-surface md:text-xl">זרימת פניות</h2>
                 <p className="text-sm text-on-surface-variant">
-                  סינון מתקדם, בחירה מרוכזת ופעולות מהירות — הכל במקום אחד
+                  לוח קנבן לטיפול מהיר, עם תוכן הפנייה גלוי כבר בכרטיס
                 </p>
               </div>
-              <div className="flex items-center gap-2 text-xs font-medium text-on-surface-variant">
-                <Filter className="size-3.5" aria-hidden />
-                <span>
-                  {total.toLocaleString("he-IL")} תוצאות בעמוד הנוכחי · עומס:{" "}
-                  <span className="text-primary">{isLoading ? "…" : items.length}</span>
-                </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2 text-xs font-medium text-on-surface-variant">
+                  <Filter className="size-3.5" aria-hidden />
+                  <span>
+                    {total.toLocaleString("he-IL")} תוצאות · מוצגות{" "}
+                    <span className="text-primary">{isLoading ? "…" : items.length}</span>
+                  </span>
+                </div>
+                <div className="inline-flex rounded-full border border-outline bg-white p-1 text-xs shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("kanban")}
+                    className={`rounded-full px-3 py-1.5 font-semibold transition ${
+                      viewMode === "kanban"
+                        ? "bg-primary text-white"
+                        : "text-on-surface-variant hover:bg-surface-container"
+                    }`}
+                  >
+                    קנבן
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("table")}
+                    className={`rounded-full px-3 py-1.5 font-semibold transition ${
+                      viewMode === "table"
+                        ? "bg-primary text-white"
+                        : "text-on-surface-variant hover:bg-surface-container"
+                    }`}
+                  >
+                    טבלה
+                  </button>
+                </div>
               </div>
             </div>
 
             <SearchBar value={searchValue} onChange={setSearchValue} />
 
-            <div className="lux-card grid gap-3 rounded-2xl p-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="lux-card grid gap-3 rounded-2xl p-3 sm:grid-cols-2 sm:p-4 lg:grid-cols-4">
               <label className="block text-xs font-medium text-on-surface-variant">
                 מתאריך
                 <input
@@ -313,24 +412,41 @@ export default function DashboardPage() {
               </label>
             </div>
 
-            <TicketsDataTable
-              tickets={items}
-              total={total}
-              page={page}
-              pageSize={pageSize}
-              isLoading={isLoading}
-              selectedIds={selectedIds}
-              onToggleSelect={onToggleSelect}
-              onSelectPage={onSelectPage}
-              onPageChange={setPage}
-              onEdit={setEditingTicket}
-              onMarkClosed={async (id) => {
-                await onMarkClosed(id);
-              }}
-              onDelete={async (id) => {
-                await onDelete(id);
-              }}
-            />
+            {viewMode === "kanban" ? (
+              <TicketKanbanBoard
+                tickets={items}
+                isLoading={isLoading}
+                onEdit={setEditingTicket}
+                onSetStatus={(id, status) => {
+                  void onSetTicketStatus(id, status);
+                }}
+                onMarkClosed={(id) => {
+                  void onMarkClosed(id);
+                }}
+                onDelete={(id) => {
+                  void onDelete(id);
+                }}
+              />
+            ) : (
+              <TicketsDataTable
+                tickets={items}
+                total={total}
+                page={page}
+                pageSize={pageSize}
+                isLoading={isLoading}
+                selectedIds={selectedIds}
+                onToggleSelect={onToggleSelect}
+                onSelectPage={onSelectPage}
+                onPageChange={setPage}
+                onEdit={setEditingTicket}
+                onMarkClosed={async (id) => {
+                  await onMarkClosed(id);
+                }}
+                onDelete={async (id) => {
+                  await onDelete(id);
+                }}
+              />
+            )}
 
             <BulkActionBar
               count={selectedIds.size}

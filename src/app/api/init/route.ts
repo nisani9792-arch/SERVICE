@@ -20,6 +20,10 @@ export async function POST() {
         status        TEXT NOT NULL DEFAULT 'open',
         source        TEXT NOT NULL DEFAULT 'manual',
         message_at    TIMESTAMPTZ,
+        email_import_key TEXT,
+        email_message_id TEXT,
+        email_mailbox_uid TEXT,
+        email_ingested_at TIMESTAMPTZ,
         tags          TEXT[] NOT NULL DEFAULT '{}',
         assigned_to   TEXT NOT NULL DEFAULT '',
         created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -28,6 +32,10 @@ export async function POST() {
     `;
 
     await db`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS message_at TIMESTAMPTZ`;
+    await db`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_import_key TEXT`;
+    await db`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_message_id TEXT`;
+    await db`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_mailbox_uid TEXT`;
+    await db`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_ingested_at TIMESTAMPTZ`;
     await db`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}'`;
     await db`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS assigned_to TEXT NOT NULL DEFAULT ''`;
 
@@ -37,6 +45,13 @@ export async function POST() {
     await db`CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets (status)`;
     await db`CREATE INDEX IF NOT EXISTS idx_tickets_message_at ON tickets (message_at DESC NULLS LAST)`;
     await db`CREATE INDEX IF NOT EXISTS idx_tickets_tags ON tickets USING GIN (tags)`;
+    await db`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_email_import_key
+      ON tickets (email_import_key)
+      WHERE email_import_key IS NOT NULL
+    `;
+    await db`CREATE INDEX IF NOT EXISTS idx_tickets_email_message_id ON tickets (email_message_id)`;
+    await db`CREATE INDEX IF NOT EXISTS idx_tickets_email_mailbox_uid ON tickets (email_mailbox_uid)`;
 
     await db`
       CREATE TABLE IF NOT EXISTS reply_templates (

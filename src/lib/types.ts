@@ -19,7 +19,7 @@ export type TicketCategory = LegacyTicketCategory;
 
 export type TicketStatus = "open" | "in_progress" | "closed";
 
-export type TicketSource = "import" | "manual";
+export type TicketSource = "import" | "manual" | "email";
 export type TicketPriority = 1 | 2 | 3 | 4 | 5;
 
 export interface Ticket {
@@ -38,6 +38,9 @@ export interface Ticket {
   assignedTo: string;
   /** Business/event timestamp from source data; falls back to createdAt in UI when null. */
   messageAt: string | null;
+  emailMessageId?: string;
+  emailMailboxUid?: string;
+  emailIngestedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
