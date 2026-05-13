@@ -58,7 +58,7 @@ body {
 }
 
 .brand-logo-inner {
-  @apply flex size-24 items-center justify-center rounded-[1.6rem] bg-transparent shadow-sm;
+  @apply flex size-20 items-center justify-center rounded-[1.4rem] bg-transparent shadow-sm md:size-24;
 }
 
 .crm-bento-card {

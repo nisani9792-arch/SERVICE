@@ -32,8 +32,8 @@ export function AppHeader({ actions, onRefresh, refreshing, lastSyncedAt }: AppH
             "radial-gradient(120% 80% at 100% 0%, rgba(90, 90, 201, 0.18) 0%, transparent 55%), radial-gradient(90% 70% at 0% 100%, rgba(13, 148, 136, 0.12) 0%, transparent 50%), linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(248,247,251,0.85) 100%)"
         }}
       />
-      <div className="relative z-10 flex flex-col gap-5 p-4 md:flex-row md:items-center md:justify-between md:p-7">
-        <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center sm:gap-5">
+      <div className="relative z-10 flex flex-col gap-4 p-3 md:flex-row md:items-center md:justify-between md:p-5">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
           <div className="brand-logo-aura mx-auto shrink-0 sm:mx-0">
             <div className="brand-logo-inner">
               <span className="relative z-10 block aspect-square w-full">
@@ -55,14 +55,14 @@ export function AppHeader({ actions, onRefresh, refreshing, lastSyncedAt }: AppH
               <Sparkles className="size-3 text-accent" aria-hidden />
               <span>מרכז פיקוד חכם</span>
             </div>
-            <h1 className="crm-display-title text-balance bg-gradient-to-l from-on-surface via-primary to-accent bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-3xl">
-              Jusic Nexus
+            <h1 className="crm-display-title text-balance bg-gradient-to-l from-on-surface via-primary to-accent bg-clip-text text-xl font-bold tracking-tight text-transparent md:text-2xl">
+              SERVICE
             </h1>
-            <p className="mt-1 max-w-xl text-sm leading-relaxed text-on-surface-variant md:text-[0.95rem]">
+            <p className="mt-1 max-w-xl text-xs leading-relaxed text-on-surface-variant md:text-sm">
               ניהול פניות, סיווג ותפעול בשיטה אחת — ממשק שנבנה כדי להקטין רעש, להגדיל בהירות
               ולזרז החלטות בזמן אמת.
             </p>
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-3 text-xs text-on-surface-variant sm:justify-start">
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-2 text-[11px] text-on-surface-variant sm:justify-start">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-1 font-medium text-success">
                 <span className="relative flex size-2">
                   <span className="relative inline-flex size-2 rounded-full bg-success" />

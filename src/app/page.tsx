@@ -296,8 +296,8 @@ export default function DashboardPage() {
   );
 
   return (
-    <main className="crm-workspace min-h-screen px-3 pb-28 pt-3 sm:px-4 md:px-6 md:pb-12 md:pt-6">
-      <div className="mx-auto max-w-[1680px] space-y-6">
+    <main className="crm-workspace min-h-screen px-2 pb-20 pt-2 sm:px-3 md:px-5 md:pb-10 md:pt-4">
+      <div className="mx-auto max-w-[1680px] space-y-4">
         <AppHeader
           actions={headerActions}
           onRefresh={handleHeaderRefresh}
@@ -317,16 +317,18 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
-        <DashboardStats
-          stats={stats}
-          activeStatus={activeStatus}
-          onStatusFilter={(s) => {
-            setActiveStatus(s);
-            setPage(1);
-          }}
-        />
+        <div className="hidden md:block">
+          <DashboardStats
+            stats={stats}
+            activeStatus={activeStatus}
+            onStatusFilter={(s) => {
+              setActiveStatus(s);
+              setPage(1);
+            }}
+          />
+        </div>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,17.5rem),1fr] xl:gap-5">
+        <section className="grid gap-3 xl:grid-cols-[minmax(0,16rem),1fr] xl:gap-4">
           <Sidebar
             activeCategory={activeCategory}
             dynamicCategories={dynamicCategories}
@@ -337,11 +339,11 @@ export default function DashboardPage() {
             }}
           />
 
-          <div className="min-w-0 space-y-3 md:space-y-4">
-            <div className="flex flex-col gap-1 border-b border-outline/50 pb-2 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0 space-y-2 md:space-y-3">
+            <div className="flex flex-col gap-2 border-b border-outline/50 pb-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h2 className="text-lg font-bold text-on-surface md:text-xl">זרימת פניות</h2>
-                <p className="text-sm text-on-surface-variant">
+                <h2 className="text-base font-bold text-on-surface md:text-lg">זרימת פניות</h2>
+                <p className="text-xs text-on-surface-variant md:text-sm">
                   לוח קנבן לטיפול מהיר, עם תוכן הפנייה גלוי כבר בכרטיס
                 </p>
               </div>
@@ -353,11 +355,11 @@ export default function DashboardPage() {
                     <span className="text-primary">{isLoading ? "…" : items.length}</span>
                   </span>
                 </div>
-                <div className="inline-flex rounded-full border border-outline bg-white p-1 text-xs shadow-sm">
+                <div className="inline-flex rounded-full border border-outline bg-white p-0.5 text-[11px] shadow-sm">
                   <button
                     type="button"
                     onClick={() => setViewMode("kanban")}
-                    className={`rounded-full px-3 py-1.5 font-semibold transition ${
+                    className={`rounded-full px-2.5 py-1 font-semibold transition ${
                       viewMode === "kanban"
                         ? "bg-primary text-white"
                         : "text-on-surface-variant hover:bg-surface-container"
@@ -368,7 +370,7 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={() => setViewMode("table")}
-                    className={`rounded-full px-3 py-1.5 font-semibold transition ${
+                    className={`rounded-full px-2.5 py-1 font-semibold transition ${
                       viewMode === "table"
                         ? "bg-primary text-white"
                         : "text-on-surface-variant hover:bg-surface-container"
@@ -380,36 +382,42 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <SearchBar value={searchValue} onChange={setSearchValue} />
-
-            <div className="lux-card grid gap-3 rounded-2xl p-3 sm:grid-cols-2 sm:p-4 lg:grid-cols-4">
-              <label className="block text-xs font-medium text-on-surface-variant">
-                מתאריך
-                <input
-                  type="date"
-                  className="mt-1.5 w-full rounded-xl border border-outline/80 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                />
-              </label>
-              <label className="block text-xs font-medium text-on-surface-variant">
-                עד תאריך
-                <input
-                  type="date"
-                  className="mt-1.5 w-full rounded-xl border border-outline/80 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                />
-              </label>
-              <label className="block text-xs font-medium text-on-surface-variant sm:col-span-2">
-                תגיות (מופרדות בפסיק)
-                <input
-                  className="mt-1.5 w-full rounded-xl border border-outline/80 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
-                  placeholder="לדוגמה: vip, billing"
-                  value={tagsFilter}
-                  onChange={(e) => setTagsFilter(e.target.value)}
-                />
-              </label>
+            <div className="grid gap-2 md:grid-cols-[minmax(0,1fr),auto] md:items-start">
+              <SearchBar value={searchValue} onChange={setSearchValue} />
+              <details className="lux-card rounded-2xl p-2 md:min-w-[19rem]">
+                <summary className="cursor-pointer select-none px-2 py-1.5 text-xs font-semibold text-on-surface">
+                  סינון מתקדם
+                </summary>
+                <div className="mt-2 grid gap-2 sm:grid-cols-3 md:grid-cols-1">
+                  <label className="block text-[11px] font-medium text-on-surface-variant">
+                    מתאריך
+                    <input
+                      type="date"
+                      className="mt-1 w-full rounded-lg border border-outline/80 bg-white px-2 py-2 text-xs outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                    />
+                  </label>
+                  <label className="block text-[11px] font-medium text-on-surface-variant">
+                    עד תאריך
+                    <input
+                      type="date"
+                      className="mt-1 w-full rounded-lg border border-outline/80 bg-white px-2 py-2 text-xs outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                    />
+                  </label>
+                  <label className="block text-[11px] font-medium text-on-surface-variant">
+                    תגיות
+                    <input
+                      className="mt-1 w-full rounded-lg border border-outline/80 bg-white px-2 py-2 text-xs outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
+                      placeholder="vip, billing"
+                      value={tagsFilter}
+                      onChange={(e) => setTagsFilter(e.target.value)}
+                    />
+                  </label>
+                </div>
+              </details>
             </div>
 
             {viewMode === "kanban" ? (

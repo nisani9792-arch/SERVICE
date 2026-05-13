@@ -9,20 +9,20 @@ const heebo = Heebo({
 });
 
 export const metadata: Metadata = {
-  title: "Jusic Nexus — מרכז פיקוד חכם",
-  description: "מערכת שירות, CRM ותובנות תפעול — Jusic Nexus Command Center",
+  title: "SERVICE — מרכז פניות",
+  description: "מערכת SERVICE לניהול פניות, סיווג ותפעול",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Jusic Nexus",
+    title: "SERVICE",
     statusBarStyle: "default"
   },
   icons: {
     icon: [
-      { url: "/favicon.ico" },
+      { url: "/favicon.png", type: "image/png", sizes: "1024x1024" },
       { url: "/jusic-logo.png", type: "image/png", sizes: "1024x1024" }
     ],
-    shortcut: "/favicon.ico",
+    shortcut: "/favicon.png",
     apple: "/apple-touch-icon.png"
   }
 };

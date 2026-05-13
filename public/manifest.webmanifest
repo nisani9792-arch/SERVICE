@@ -1,7 +1,7 @@
 {
-  "name": "Jusic Nexus",
-  "short_name": "Jusic",
-  "description": "מערכת שירות, CRM ותובנות תפעול של Jusic",
+  "name": "SERVICE",
+  "short_name": "SERVICE",
+  "description": "מערכת SERVICE לניהול פניות, סיווג ותפעול",
   "lang": "he",
   "dir": "rtl",
   "start_url": "/",

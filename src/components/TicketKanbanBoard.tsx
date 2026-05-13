@@ -77,65 +77,65 @@ function KanbanCard({
   const preview = ticketPreview(ticket);
 
   return (
-    <article className="rounded-2xl border border-outline/70 bg-white p-3 shadow-sm transition hover:border-primary/30 hover:shadow-soft">
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <span className="text-[11px] text-on-surface-variant">{when}</span>
-        <span className="rounded-full bg-surface-container px-2 py-0.5 text-[11px] font-medium text-on-surface-variant">
+    <article className="rounded-xl border border-outline/70 bg-white p-2.5 shadow-sm transition hover:border-primary/30 hover:shadow-soft">
+      <div className="mb-1.5 flex items-start justify-between gap-2">
+        <span className="text-[10px] text-on-surface-variant">{when}</span>
+        <span className="rounded-full bg-surface-container px-2 py-0.5 text-[10px] font-medium text-on-surface-variant">
           {statusLabel(ticket.status)}
         </span>
       </div>
 
-      <h3 className="line-clamp-2 text-sm font-bold leading-snug text-on-surface">
+      <h3 className="line-clamp-2 text-xs font-bold leading-snug text-on-surface md:text-[13px]">
         {ticket.subject}
       </h3>
-      <p className="mt-1 line-clamp-1 text-xs text-on-surface-variant">
+      <p className="mt-0.5 line-clamp-1 text-[11px] text-on-surface-variant">
         {ticket.senderName || "ללא שם"} · {ticket.senderEmail || "ללא אימייל"}
       </p>
 
-      <div className="mt-3 rounded-xl bg-surface-container/70 p-3">
-        <p className="line-clamp-2 text-xs font-semibold leading-snug text-on-surface">
+      <div className="mt-2 rounded-lg bg-surface-container/70 p-2">
+        <p className="line-clamp-1 text-[11px] font-semibold leading-snug text-on-surface">
           {ticket.aiSummary || ticket.subject}
         </p>
-        <p className="mt-1 line-clamp-5 text-xs leading-relaxed text-on-surface-variant">
+        <p className="mt-1 line-clamp-3 text-[11px] leading-relaxed text-on-surface-variant md:line-clamp-4">
           {preview}
         </p>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <CategoryBadge category={ticket.category} />
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      <div className="mt-2 grid grid-cols-4 gap-1.5">
         <button
           type="button"
-          className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-2 py-2 text-xs font-semibold text-amber-950"
+          className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-1.5 py-1.5 text-[10px] font-semibold text-amber-950"
           onClick={() => onSetStatus(ticket.id, "in_progress")}
         >
-          <CircleDot className="size-3.5" />
+          <CircleDot className="size-3" />
           בטיפול
         </button>
         <button
           type="button"
-          className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl border border-success/30 bg-success/10 px-2 py-2 text-xs font-semibold text-success"
+          className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-success/30 bg-success/10 px-1.5 py-1.5 text-[10px] font-semibold text-success"
           onClick={() => onMarkClosed(ticket.id)}
         >
-          <CheckCheck className="size-3.5" />
+          <CheckCheck className="size-3" />
           טופל
         </button>
         <button
           type="button"
-          className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl border border-outline bg-white px-2 py-2 text-xs font-semibold text-on-surface"
+          className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-outline bg-white px-1.5 py-1.5 text-[10px] font-semibold text-on-surface"
           onClick={() => onEdit(ticket)}
         >
-          <Pencil className="size-3.5" />
+          <Pencil className="size-3" />
           עריכה
         </button>
         <button
           type="button"
-          className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl border border-danger/30 bg-danger/10 px-2 py-2 text-xs font-semibold text-danger"
+          className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-danger/30 bg-danger/10 px-1.5 py-1.5 text-[10px] font-semibold text-danger"
           onClick={() => onDelete(ticket.id)}
         >
-          <Trash2 className="size-3.5" />
+          <Trash2 className="size-3" />
           מחיקה
         </button>
       </div>
@@ -170,20 +170,20 @@ export function TicketKanbanBoard({
   }
 
   return (
-    <div className="overflow-x-auto pb-3">
-      <div className="grid min-w-full gap-3 lg:auto-cols-[minmax(18rem,1fr)] lg:grid-flow-col lg:grid-cols-none">
+    <div className="overflow-x-auto pb-2">
+      <div className="grid min-w-full gap-2 lg:auto-cols-[minmax(15.5rem,1fr)] lg:grid-flow-col lg:grid-cols-none">
         {columns.map((column) => (
           <section
             key={column.id}
-            className="flex max-h-[72vh] min-h-[18rem] flex-col rounded-3xl border border-outline/70 bg-surface-high/90 shadow-card"
+            className="flex max-h-[70vh] min-h-[12rem] flex-col rounded-2xl border border-outline/70 bg-surface-high/90 shadow-card"
           >
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-t-3xl border-b border-outline/70 bg-surface-high/95 px-4 py-3 backdrop-blur">
-              <h3 className="text-sm font-bold text-on-surface">{column.label}</h3>
-              <span className="rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-2 rounded-t-2xl border-b border-outline/70 bg-surface-high/95 px-3 py-2 backdrop-blur">
+              <h3 className="text-xs font-bold text-on-surface md:text-sm">{column.label}</h3>
+              <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary">
                 {column.tickets.length.toLocaleString("he-IL")}
               </span>
             </div>
-            <div className="space-y-3 overflow-y-auto p-3">
+            <div className="space-y-2 overflow-y-auto p-2">
               {column.tickets.map((ticket) => (
                 <KanbanCard
                   key={ticket.id}
