@@ -50,6 +50,8 @@ function StatusChip({ status }: { status: TicketStatus }) {
 }
 
 interface TicketWorkbenchProps {
+  title?: string;
+  subtitle?: string;
   tickets: Ticket[];
   total: number;
   page: number;
@@ -71,6 +73,8 @@ interface TicketWorkbenchProps {
 }
 
 export function TicketWorkbench({
+  title = "פניות פעילות",
+  subtitle,
   tickets,
   total,
   page,
@@ -99,9 +103,9 @@ export function TicketWorkbench({
       <div className="min-w-0 rounded-2xl border border-outline/70 bg-white/95">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-outline/70 px-3 py-2">
           <div>
-            <h2 className="text-sm font-bold text-on-surface">כל הפניות</h2>
+            <h2 className="text-sm font-bold text-on-surface">{title}</h2>
             <p className="text-[11px] text-on-surface-variant">
-              {total.toLocaleString("he-IL")} תוצאות · בלי טבלה רחבה ובלי גלילה אופקית
+              {subtitle ?? `${total.toLocaleString("he-IL")} תוצאות מסודרות לעבודה`}
             </p>
           </div>
           <label className="inline-flex items-center gap-2 rounded-full border border-outline bg-white px-3 py-1.5 text-[11px] font-semibold text-on-surface-variant">

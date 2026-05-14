@@ -21,7 +21,8 @@ export async function GET(request: NextRequest) {
     const categoryFilter = category && category !== "all" ? category : null;
 
     const status = searchParams.get("status");
-    const statusFilter = status && status !== "all" ? status : null;
+    const activeStatusFilter = status === "active";
+    const statusFilter = status && status !== "all" && status !== "active" ? status : null;
 
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
@@ -47,6 +48,7 @@ export async function GET(request: NextRequest) {
       SELECT count(*)::int AS c
       FROM tickets
       WHERE (${categoryFilter}::text IS NULL OR category = ${categoryFilter})
+        AND (${activeStatusFilter}::boolean = false OR status <> 'closed')
         AND (${statusFilter}::text IS NULL OR status = ${statusFilter})
         AND (
           ${dateFromTs}::timestamptz IS NULL
@@ -81,6 +83,7 @@ export async function GET(request: NextRequest) {
              created_at, updated_at
       FROM tickets
       WHERE (${categoryFilter}::text IS NULL OR category = ${categoryFilter})
+        AND (${activeStatusFilter}::boolean = false OR status <> 'closed')
         AND (${statusFilter}::text IS NULL OR status = ${statusFilter})
         AND (
           ${dateFromTs}::timestamptz IS NULL

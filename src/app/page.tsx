@@ -34,6 +34,8 @@ import { CloseTicketModal } from "@/components/CloseTicketModal";
 import { categoryLabel } from "@/lib/categories";
 import type { Ticket, TicketStatus } from "@/lib/types";
 
+type WorkbenchStatusFilter = TicketStatus | "active";
+
 type EmailSyncResponse = {
   imported?: number;
   skipped?: number;
@@ -45,7 +47,7 @@ type EmailSyncResponse = {
 
 export default function DashboardPage() {
   const [activeCategory, setActiveCategory] = useState<string | "all">("all");
-  const [activeStatus, setActiveStatus] = useState<TicketStatus | "all">("all");
+  const [activeStatus, setActiveStatus] = useState<WorkbenchStatusFilter>("active");
   const [searchValue, setSearchValue] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -310,12 +312,20 @@ export default function DashboardPage() {
   };
 
   const dynamicCategories = stats?.byCategory ?? [];
-  const statusFilters: { id: TicketStatus | "all"; label: string; count: number }[] = [
-    { id: "all", label: "הכל", count: stats?.total ?? 0 },
-    { id: "open", label: "פתוחות", count: stats?.statusCounts.open ?? 0 },
-    { id: "in_progress", label: "בטיפול", count: stats?.statusCounts.in_progress ?? 0 },
-    { id: "closed", label: "סגורות", count: stats?.statusCounts.closed ?? 0 }
-  ];
+  const openCount = stats?.statusCounts.open ?? 0;
+  const inProgressCount = stats?.statusCounts.in_progress ?? 0;
+  const closedCount = stats?.statusCounts.closed ?? 0;
+  const activeCount = openCount + inProgressCount;
+  const triageCount =
+    dynamicCategories.find((item) => item.category === "Customer_Support")?.count ?? 0;
+  const workbenchTitle =
+    activeStatus === "closed"
+      ? "פניות שנסגרו"
+      : activeCategory === "Customer_Support" && activeStatus === "open"
+        ? "תור מיון"
+        : activeStatus === "in_progress"
+          ? "פניות בטיפול"
+          : "פניות פעילות";
 
   const headerActions = (
     <>
@@ -396,46 +406,24 @@ export default function DashboardPage() {
         ) : null}
 
         <section className="space-y-2">
-          <div className="rounded-2xl border border-outline/70 bg-white/95 p-2 shadow-sm">
-            <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-              <div className="min-w-0 flex-1">
-                <SearchBar value={searchValue} onChange={setSearchValue} />
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {statusFilters.map((filter) => (
-                  <button
-                    key={filter.id}
-                    type="button"
-                    onClick={() => {
-                      setActiveStatus(filter.id);
-                      setPage(1);
-                    }}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
-                      activeStatus === filter.id
-                        ? "border-primary bg-primary text-white"
-                        : "border-outline bg-white text-on-surface-variant hover:bg-surface-container"
-                    }`}
-                  >
-                    {filter.label} · {filter.count.toLocaleString("he-IL")}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
+          <div className="rounded-3xl border border-outline/70 bg-white/95 p-3 shadow-sm">
+            <div className="grid gap-2 lg:grid-cols-4">
               <button
                 type="button"
                 onClick={() => {
                   setActiveCategory("all");
+                  setActiveStatus("active");
                   setPage(1);
                 }}
-                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-bold ${
-                  activeCategory === "all"
-                    ? "border-primary bg-primary-soft text-primary"
-                    : "border-outline bg-white text-on-surface-variant"
+                className={`rounded-2xl border p-3 text-right transition ${
+                  activeStatus === "active" && activeCategory === "all"
+                    ? "border-primary bg-primary text-white shadow-soft"
+                    : "border-outline bg-white text-on-surface hover:border-primary/35"
                 }`}
               >
-                כל הקטגוריות
+                <span className="block text-xs font-semibold opacity-80">עבודה יומית</span>
+                <span className="mt-1 block text-lg font-black">פניות פעילות</span>
+                <span className="text-xs opacity-80">{activeCount.toLocaleString("he-IL")} פתוחות ובטיפול</span>
               </button>
               <button
                 type="button"
@@ -444,34 +432,78 @@ export default function DashboardPage() {
                   setActiveStatus("open");
                   setPage(1);
                 }}
-                className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-950"
+                className={`rounded-2xl border p-3 text-right transition ${
+                  activeCategory === "Customer_Support" && activeStatus === "open"
+                    ? "border-amber-300 bg-amber-100 text-amber-950 shadow-sm"
+                    : "border-outline bg-white text-on-surface hover:border-amber-300"
+                }`}
               >
-                תור מיון
+                <span className="block text-xs font-semibold opacity-80">כניסה חדשה</span>
+                <span className="mt-1 block text-lg font-black">תור מיון</span>
+                <span className="text-xs opacity-80">{triageCount.toLocaleString("he-IL")} לשיוך ובדיקה</span>
               </button>
-              {dynamicCategories.slice(0, 10).map((item) => (
-                <button
-                  key={item.category}
-                  type="button"
-                  onClick={() => {
-                    setActiveCategory(item.category);
-                    setPage(1);
-                  }}
-                  className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-bold ${
-                    activeCategory === item.category
-                      ? "border-primary bg-primary-soft text-primary"
-                      : "border-outline bg-white text-on-surface-variant"
-                  }`}
-                >
-                  {categoryLabel(item.category)} · {item.count.toLocaleString("he-IL")}
-                </button>
-              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveCategory("all");
+                  setActiveStatus("in_progress");
+                  setPage(1);
+                }}
+                className={`rounded-2xl border p-3 text-right transition ${
+                  activeStatus === "in_progress" && activeCategory === "all"
+                    ? "border-sky-300 bg-sky-100 text-sky-950 shadow-sm"
+                    : "border-outline bg-white text-on-surface hover:border-sky-300"
+                }`}
+              >
+                <span className="block text-xs font-semibold opacity-80">במעקב</span>
+                <span className="mt-1 block text-lg font-black">בטיפול</span>
+                <span className="text-xs opacity-80">{inProgressCount.toLocaleString("he-IL")} פניות פעילות</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveCategory("all");
+                  setActiveStatus("closed");
+                  setPage(1);
+                }}
+                className={`rounded-2xl border p-3 text-right transition ${
+                  activeStatus === "closed"
+                    ? "border-emerald-300 bg-emerald-100 text-emerald-950 shadow-sm"
+                    : "border-outline bg-white text-on-surface hover:border-emerald-300"
+                }`}
+              >
+                <span className="block text-xs font-semibold opacity-80">ארכיון</span>
+                <span className="mt-1 block text-lg font-black">פניות שנסגרו</span>
+                <span className="text-xs opacity-80">{closedCount.toLocaleString("he-IL")} טופלו ונשמרו</span>
+              </button>
             </div>
 
-            <details className="mt-1">
-              <summary className="cursor-pointer select-none px-2 py-1 text-[11px] font-semibold text-on-surface-variant">
-                סינון מתקדם
+            <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr),auto] lg:items-start">
+              <SearchBar value={searchValue} onChange={setSearchValue} />
+              <details className="rounded-2xl border border-outline bg-surface-high px-3 py-2 lg:w-72">
+                <summary className="cursor-pointer select-none text-xs font-bold text-on-surface">
+                  סינון מתקדם וקטגוריות
               </summary>
-              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+              <div className="mt-3 space-y-3">
+                <label className="block text-[11px] font-medium text-on-surface-variant">
+                  קטגוריה
+                  <select
+                    className="mt-1 w-full rounded-lg border border-outline/80 bg-white px-2 py-2 text-xs outline-none focus:border-primary/50"
+                    value={activeCategory}
+                    onChange={(event) => {
+                      setActiveCategory(event.target.value);
+                      setPage(1);
+                    }}
+                  >
+                    <option value="all">כל הקטגוריות</option>
+                    {dynamicCategories.map((item) => (
+                      <option key={item.category} value={item.category}>
+                        {categoryLabel(item.category)} ({item.count.toLocaleString("he-IL")})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
                 <label className="block text-[11px] font-medium text-on-surface-variant">
                   מתאריך
                   <input
@@ -499,11 +531,19 @@ export default function DashboardPage() {
                     onChange={(e) => setTagsFilter(e.target.value)}
                   />
                 </label>
+                </div>
               </div>
             </details>
+            </div>
           </div>
 
           <TicketWorkbench
+            title={workbenchTitle}
+            subtitle={
+              activeStatus === "closed"
+                ? "רק פניות שטופלו, נסגרו או קיבלו מענה"
+                : "פניות פתוחות ובטיפול בלבד, ללא סגורות"
+            }
             tickets={items}
             total={total}
             page={page}
