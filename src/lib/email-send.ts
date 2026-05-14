@@ -22,19 +22,21 @@ function positiveInt(value: string | undefined, fallback: number): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function firstNonEmpty(...values: Array<string | undefined>): string | undefined {
+  return values.map((value) => value?.trim()).find(Boolean);
+}
+
 function getEmailSendConfig(): EmailSendConfig {
-  const user = (
-    process.env.EMAIL_SMTP_USER ??
-    process.env.EMAIL_IMAP_USER ??
+  const user = firstNonEmpty(
+    process.env.EMAIL_SMTP_USER,
+    process.env.EMAIL_IMAP_USER,
     process.env.GMAIL_USER
-  )?.trim();
-  const appPassword = (
-    process.env.EMAIL_SMTP_APP_PASSWORD ??
-    process.env.EMAIL_IMAP_APP_PASSWORD ??
+  );
+  const appPassword = firstNonEmpty(
+    process.env.EMAIL_SMTP_APP_PASSWORD,
+    process.env.EMAIL_IMAP_APP_PASSWORD,
     process.env.GMAIL_APP_PASSWORD
-  )
-    ?.replace(/\s+/g, "")
-    .trim();
+  )?.replace(/\s+/g, "");
 
   if (!user || !appPassword) {
     throw new Error("EMAIL_SMTP_USER/EMAIL_IMAP_USER and app password must be configured");
@@ -51,6 +53,26 @@ function getEmailSendConfig(): EmailSendConfig {
   };
 }
 
+function emailSendConfigs(): EmailSendConfig[] {
+  const configured = getEmailSendConfig();
+  const candidates: EmailSendConfig[] = [configured];
+
+  if (configured.host === "smtp.gmail.com") {
+    candidates.push(
+      { ...configured, port: 587, secure: false },
+      { ...configured, port: 465, secure: true }
+    );
+  }
+
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    const key = `${candidate.host}:${candidate.port}:${candidate.secure}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function normalizeSubject(subject: string): string {
   const cleaned = subject.trim() || "פנייה ל-Jusic";
   return /^re\s*:/i.test(cleaned) ? cleaned : `Re: ${cleaned}`;
@@ -63,30 +85,46 @@ export async function sendCustomerReply({
   inReplyTo,
   references
 }: SendCustomerReplyInput): Promise<void> {
-  const config = getEmailSendConfig();
-  const transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    connectionTimeout: config.timeoutMs,
-    greetingTimeout: config.timeoutMs,
-    socketTimeout: config.timeoutMs,
-    auth: {
-      user: config.user,
-      pass: config.appPassword
-    }
-  });
+  let lastError: unknown = null;
 
-  try {
-    await transporter.sendMail({
-      from: config.user,
-      to,
-      subject: normalizeSubject(subject),
-      text: message,
-      inReplyTo: inReplyTo || undefined,
-      references: references?.length ? references : undefined
+  for (const config of emailSendConfigs()) {
+    const transporter = nodemailer.createTransport({
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      requireTLS: config.port === 587,
+      connectionTimeout: config.timeoutMs,
+      greetingTimeout: config.timeoutMs,
+      socketTimeout: config.timeoutMs,
+      auth: {
+        user: config.user,
+        pass: config.appPassword
+      },
+      tls: {
+        servername: config.host
+      }
     });
-  } finally {
-    transporter.close();
+
+    try {
+      await transporter.sendMail({
+        from: config.user,
+        to,
+        subject: normalizeSubject(subject),
+        text: message,
+        inReplyTo: inReplyTo || undefined,
+        references: references?.length ? references : undefined
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+    } finally {
+      transporter.close();
+    }
   }
+
+  throw new Error(
+    lastError instanceof Error
+      ? `Gmail SMTP failed: ${lastError.message}`
+      : "Gmail SMTP failed"
+  );
 }

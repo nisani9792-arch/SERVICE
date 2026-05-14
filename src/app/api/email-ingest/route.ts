@@ -7,13 +7,41 @@ export const runtime = "nodejs";
 
 function isSameOriginPost(request: NextRequest): boolean {
   if (request.method !== "POST") return false;
+
+  const fetchSite = request.headers.get("sec-fetch-site")?.toLowerCase();
+  if (fetchSite === "same-origin" || fetchSite === "same-site") {
+    return true;
+  }
+
   const origin = request.headers.get("origin");
   const referer = request.headers.get("referer");
-  const expected = request.nextUrl.origin;
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const host = forwardedHost || request.headers.get("host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+
+  const expectedOrigins = new Set<string>([request.nextUrl.origin]);
+  if (host) {
+    expectedOrigins.add(`${forwardedProto}://${host}`);
+    expectedOrigins.add(`https://${host}`);
+    expectedOrigins.add(`http://${host}`);
+  }
+
+  for (const envUrl of [
+    process.env.NEXT_PUBLIC_SITE_URL,
+    process.env.RENDER_EXTERNAL_URL,
+    process.env.EMAIL_INGEST_URL
+  ]) {
+    if (!envUrl) continue;
+    try {
+      expectedOrigins.add(new URL(envUrl).origin);
+    } catch {
+      // Ignore malformed optional URLs.
+    }
+  }
 
   try {
-    if (origin && new URL(origin).origin === expected) return true;
-    if (referer && new URL(referer).origin === expected) return true;
+    if (origin && expectedOrigins.has(new URL(origin).origin)) return true;
+    if (referer && expectedOrigins.has(new URL(referer).origin)) return true;
   } catch {
     return false;
   }

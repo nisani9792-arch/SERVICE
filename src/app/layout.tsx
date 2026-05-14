@@ -12,6 +12,9 @@ export const metadata: Metadata = {
   title: "SERVICE — מרכז פניות",
   description: "מערכת SERVICE לניהול פניות, סיווג ותפעול",
   manifest: "/manifest.webmanifest",
+  other: {
+    "mobile-web-app-capable": "yes"
+  },
   appleWebApp: {
     capable: true,
     title: "SERVICE",

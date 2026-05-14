@@ -145,6 +145,7 @@ export default function DashboardPage() {
     try {
       const res = await fetch("/api/email-ingest", {
         method: "POST",
+        headers: { "x-service-dashboard": "true" },
         cache: "no-store",
         signal: controller.signal
       });

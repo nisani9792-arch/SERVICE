@@ -117,7 +117,7 @@ export const updateTicket = async (ticketId: string, input: TicketUpdateInput) =
 
 export const sendTicketReply = async (ticketId: string, message: string) => {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 25000);
+  const timeout = window.setTimeout(() => controller.abort(), 65000);
   const res = await fetch(`${API}/${ticketId}/reply`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
