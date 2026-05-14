@@ -31,11 +31,11 @@ services:
       - key: EMAIL_SMTP_HOST
         value: "smtp.gmail.com"
       - key: EMAIL_SMTP_PORT
-        value: "465"
+        value: "587"
       - key: EMAIL_SMTP_SECURE
-        value: "true"
+        value: "false"
       - key: EMAIL_SMTP_TIMEOUT_MS
-        value: "15000"
+        value: "7000"
       - key: EMAIL_INGEST_SECRET
         sync: false
       - key: EMAIL_IMAP_MAILBOX

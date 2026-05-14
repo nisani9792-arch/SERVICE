@@ -3,6 +3,7 @@ import { sendCustomerReply } from "@/lib/email-send";
 import { sql } from "@/lib/neon";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 function parseReferences(value: unknown): string[] {
   if (!value) return [];

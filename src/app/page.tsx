@@ -181,6 +181,16 @@ export default function DashboardPage() {
   }, [refreshAll]);
 
   useEffect(() => {
+    const key = "jusic:auto-email-sync:v1";
+    if (typeof window === "undefined" || window.sessionStorage.getItem(key)) {
+      return;
+    }
+
+    window.sessionStorage.setItem(key, new Date().toISOString());
+    void handleEmailSync();
+  }, [handleEmailSync]);
+
+  useEffect(() => {
     setPage(1);
   }, [activeCategory, activeStatus, debouncedSearch, dateFrom, dateTo, tagsFilter]);
 

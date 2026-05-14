@@ -42,26 +42,29 @@ function getEmailSendConfig(): EmailSendConfig {
     throw new Error("EMAIL_SMTP_USER/EMAIL_IMAP_USER and app password must be configured");
   }
 
-  const port = positiveInt(process.env.EMAIL_SMTP_PORT, 465);
+  const port = positiveInt(process.env.EMAIL_SMTP_PORT, 587);
   return {
     user,
     appPassword,
     host: process.env.EMAIL_SMTP_HOST?.trim() || "smtp.gmail.com",
     port,
-    secure: (process.env.EMAIL_SMTP_SECURE ?? "true") !== "false",
-    timeoutMs: positiveInt(process.env.EMAIL_SMTP_TIMEOUT_MS, 15000)
+    secure: (process.env.EMAIL_SMTP_SECURE ?? "false") === "true",
+    timeoutMs: positiveInt(process.env.EMAIL_SMTP_TIMEOUT_MS, 7000)
   };
 }
 
 function emailSendConfigs(): EmailSendConfig[] {
   const configured = getEmailSendConfig();
-  const candidates: EmailSendConfig[] = [configured];
+  const candidates: EmailSendConfig[] = [];
 
   if (configured.host === "smtp.gmail.com") {
     candidates.push(
       { ...configured, port: 587, secure: false },
+      configured,
       { ...configured, port: 465, secure: true }
     );
+  } else {
+    candidates.push(configured);
   }
 
   const seen = new Set<string>();
@@ -76,6 +79,19 @@ function emailSendConfigs(): EmailSendConfig[] {
 function normalizeSubject(subject: string): string {
   const cleaned = subject.trim() || "פנייה ל-Jusic";
   return /^re\s*:/i.test(cleaned) ? cleaned : `Re: ${cleaned}`;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs / 1000}s`)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 export async function sendCustomerReply({
@@ -106,14 +122,18 @@ export async function sendCustomerReply({
     });
 
     try {
-      await transporter.sendMail({
-        from: config.user,
-        to,
-        subject: normalizeSubject(subject),
-        text: message,
-        inReplyTo: inReplyTo || undefined,
-        references: references?.length ? references : undefined
-      });
+      await withTimeout(
+        transporter.sendMail({
+          from: config.user,
+          to,
+          subject: normalizeSubject(subject),
+          text: message,
+          inReplyTo: inReplyTo || undefined,
+          references: references?.length ? references : undefined
+        }),
+        config.timeoutMs,
+        `Gmail SMTP ${config.port}`
+      );
       return;
     } catch (error) {
       lastError = error;
