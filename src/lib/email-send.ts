@@ -49,20 +49,23 @@ function getEmailSendConfig(): EmailSendConfig {
     host: process.env.EMAIL_SMTP_HOST?.trim() || "smtp.gmail.com",
     port,
     secure: (process.env.EMAIL_SMTP_SECURE ?? "false") === "true",
-    timeoutMs: positiveInt(process.env.EMAIL_SMTP_TIMEOUT_MS, 7000)
+    /** Overall budget for a single send attempt (connect + auth + send). */
+    timeoutMs: positiveInt(process.env.EMAIL_SMTP_TIMEOUT_MS, 25000)
   };
 }
 
 function emailSendConfigs(): EmailSendConfig[] {
   const configured = getEmailSendConfig();
   const candidates: EmailSendConfig[] = [];
+  const try465 =
+    (process.env.EMAIL_SMTP_TRY_465 ?? "false").trim().toLowerCase() === "true";
 
   if (configured.host === "smtp.gmail.com") {
-    candidates.push(
-      { ...configured, port: 587, secure: false },
-      configured,
-      { ...configured, port: 465, secure: true }
-    );
+    // Gmail: STARTTLS on 587 is the reliable path from cloud hosts. 465 often hangs or is blocked.
+    candidates.push({ ...configured, port: 587, secure: false });
+    if (try465) {
+      candidates.push({ ...configured, port: 465, secure: true });
+    }
   } else {
     candidates.push(configured);
   }
@@ -101,16 +104,19 @@ export async function sendCustomerReply({
   inReplyTo,
   references
 }: SendCustomerReplyInput): Promise<void> {
-  let lastError: unknown = null;
+  const attemptErrors: string[] = [];
+  const configs = emailSendConfigs();
+  const isGmail = configs.some((c) => c.host === "smtp.gmail.com");
 
-  for (const config of emailSendConfigs()) {
+  for (const config of configs) {
+    const connectMs = Math.min(20000, Math.max(8000, Math.floor(config.timeoutMs * 0.45)));
     const transporter = nodemailer.createTransport({
       host: config.host,
       port: config.port,
       secure: config.secure,
       requireTLS: config.port === 587,
-      connectionTimeout: config.timeoutMs,
-      greetingTimeout: config.timeoutMs,
+      connectionTimeout: connectMs,
+      greetingTimeout: connectMs,
       socketTimeout: config.timeoutMs,
       auth: {
         user: config.user,
@@ -132,19 +138,26 @@ export async function sendCustomerReply({
           references: references?.length ? references : undefined
         }),
         config.timeoutMs,
-        `Gmail SMTP ${config.port}`
+        `SMTP ${config.host}:${config.port}`
       );
       return;
     } catch (error) {
-      lastError = error;
+      const msg = error instanceof Error ? error.message : String(error);
+      attemptErrors.push(`${config.host}:${config.port} (${config.secure ? "SSL" : "STARTTLS"}) — ${msg}`);
     } finally {
       transporter.close();
     }
   }
 
-  throw new Error(
-    lastError instanceof Error
-      ? `Gmail SMTP failed: ${lastError.message}`
-      : "Gmail SMTP failed"
-  );
+  const hint =
+    process.env.RENDER === "true"
+      ? isGmail
+        ? " אם זה נמשך: בדוק ב-Render ש־Outbound SMTP לא חסום, וש־App Password של Gmail תקף (2FA). אפשר גם להגדיר EMAIL_SMTP_TRY_465=true רק אם 587 לא זמין."
+        : " אם זה נמשך: בדוק ב-Render ש־Outbound SMTP לא חסום ושפרטי SMTP ב-env תקינים."
+      : isGmail
+        ? " בדוק App Password של Gmail (2FA), וש־EMAIL_SMTP_APP_PASSWORD או EMAIL_IMAP_APP_PASSWORD מוגדרים בשרת."
+        : " בדוק host/port/secure וסיסמת SMTP בשרת.";
+
+  const prefix = isGmail ? "Gmail SMTP failed" : "SMTP failed";
+  throw new Error(`${prefix} after ${attemptErrors.length} attempt(s). ${attemptErrors.join(" | ")}.${hint}`);
 }
