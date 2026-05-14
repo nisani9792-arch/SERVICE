@@ -65,6 +65,23 @@ export async function POST() {
       )
     `;
 
+    await db`
+      CREATE TABLE IF NOT EXISTS saved_inquiries (
+        id           TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        ticket_id    TEXT,
+        title        TEXT NOT NULL DEFAULT '',
+        content      TEXT NOT NULL DEFAULT '',
+        note         TEXT NOT NULL DEFAULT '',
+        status       TEXT NOT NULL DEFAULT 'open',
+        source_email TEXT NOT NULL DEFAULT '',
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `;
+    await db`CREATE INDEX IF NOT EXISTS idx_saved_inquiries_created_at ON saved_inquiries (created_at DESC)`;
+    await db`CREATE INDEX IF NOT EXISTS idx_saved_inquiries_status ON saved_inquiries (status)`;
+    await db`CREATE INDEX IF NOT EXISTS idx_saved_inquiries_ticket_id ON saved_inquiries (ticket_id)`;
+
     await db`UPDATE tickets SET status = 'closed' WHERE status = 'handled'`;
 
     return NextResponse.json({ ok: true, message: "Database initialized successfully" });

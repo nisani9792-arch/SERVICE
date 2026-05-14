@@ -24,6 +24,16 @@ services:
         value: "imap.gmail.com"
       - key: EMAIL_IMAP_PORT
         value: "993"
+      - key: EMAIL_SMTP_USER
+        value: "EDITOR@JUSIC.CO"
+      - key: EMAIL_SMTP_APP_PASSWORD
+        sync: false
+      - key: EMAIL_SMTP_HOST
+        value: "smtp.gmail.com"
+      - key: EMAIL_SMTP_PORT
+        value: "465"
+      - key: EMAIL_SMTP_SECURE
+        value: "true"
       - key: EMAIL_INGEST_SECRET
         sync: false
       - key: EMAIL_IMAP_MAILBOX

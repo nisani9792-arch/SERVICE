@@ -6,6 +6,8 @@ import {
   CircleDot,
   ExternalLink,
   Pencil,
+  Save,
+  Send,
   Tag,
   Trash2
 } from "lucide-react";
@@ -64,6 +66,8 @@ interface TicketWorkbenchProps {
   onDelete: (id: string) => void;
   onSetStatus: (id: string, status: TicketStatus) => void;
   onChangeCategory: (id: string, category: string) => void;
+  onReply: (ticket: Ticket) => void;
+  onSaveInquiry: (ticket: Ticket) => void;
 }
 
 export function TicketWorkbench({
@@ -82,7 +86,9 @@ export function TicketWorkbench({
   onMarkClosed,
   onDelete,
   onSetStatus,
-  onChangeCategory
+  onChangeCategory,
+  onReply,
+  onSaveInquiry
 }: TicketWorkbenchProps) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const allSelected = tickets.length > 0 && tickets.every((ticket) => selectedIds.has(ticket.id));
@@ -255,6 +261,25 @@ export function TicketWorkbench({
                 >
                   <CircleDot className="size-3.5" />
                   העבר לטיפול
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center gap-1 rounded-xl border border-primary/25 bg-primary-soft px-2 py-2 text-xs font-bold text-primary"
+                  onClick={() => onReply(focusedTicket)}
+                >
+                  <Send className="size-3.5" />
+                  מענה ללקוח
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center gap-1 rounded-xl border border-outline bg-white px-2 py-2 text-xs font-bold text-on-surface"
+                  onClick={() => onSaveInquiry(focusedTicket)}
+                >
+                  <Save className="size-3.5" />
+                  שמירת הפנייה
                 </button>
                 <button
                   type="button"

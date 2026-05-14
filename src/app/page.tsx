@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Download,
   Filter,
@@ -16,9 +17,12 @@ import { BulkActionBar } from "@/components/BulkActionBar";
 import { DashboardStats, type DashboardStatsModel } from "@/components/DashboardStats";
 import { TriageInbox } from "@/components/TriageInbox";
 import { TicketWorkbench } from "@/components/TicketWorkbench";
+import { ReplyTicketModal } from "@/components/ReplyTicketModal";
 import {
   deleteTicket,
   deleteTicketsBulk,
+  saveInquiryForAction,
+  sendTicketReply,
   updateTicket,
   updateTicketsBulk
 } from "@/lib/firebase";
@@ -56,6 +60,7 @@ export default function DashboardPage() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showReplyTemplates, setShowReplyTemplates] = useState(false);
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
+  const [replyingTicket, setReplyingTicket] = useState<Ticket | null>(null);
   const [closingTicketIds, setClosingTicketIds] = useState<string[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
@@ -306,6 +311,17 @@ export default function DashboardPage() {
     await refreshAll();
   };
 
+  const onSendReply = async (message: string) => {
+    if (!replyingTicket) return;
+    await sendTicketReply(replyingTicket.id, message);
+    await refreshAll();
+  };
+
+  const onSaveInquiry = async (ticket: Ticket) => {
+    await saveInquiryForAction(ticket);
+    window.alert("הפנייה נשמרה לרשימת דברים לביצוע ותובנות.");
+  };
+
   const dynamicCategories = stats?.byCategory ?? [];
 
   const headerActions = (
@@ -341,6 +357,9 @@ export default function DashboardPage() {
           </button>
         </div>
       </details>
+      <Link href="/saved-inquiries" className="lux-button rounded-xl px-3 py-1.5 text-xs">
+        פניות שמורות
+      </Link>
       <button
         type="button"
         onClick={handleEmailSync}
@@ -497,6 +516,10 @@ export default function DashboardPage() {
                 onChangeCategory={(id, category) => {
                   void onChangeSingleCategory(id, category);
                 }}
+                onReply={setReplyingTicket}
+                onSaveInquiry={(ticket) => {
+                  void onSaveInquiry(ticket);
+                }}
               />
             </div>
 
@@ -534,6 +557,11 @@ export default function DashboardPage() {
           setEditingTicket(null);
           void refreshAll();
         }}
+      />
+      <ReplyTicketModal
+        ticket={replyingTicket}
+        onClose={() => setReplyingTicket(null)}
+        onSubmit={onSendReply}
       />
       <CloseTicketModal
         isOpen={closingTicketIds !== null}

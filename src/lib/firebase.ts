@@ -1,4 +1,11 @@
-import type { HistoricalTicketJson, Ticket, TicketListResponse, TicketUpdateInput } from "@/lib/types";
+import type {
+  HistoricalTicketJson,
+  SavedInquiry,
+  SavedInquiryStatus,
+  Ticket,
+  TicketListResponse,
+  TicketUpdateInput
+} from "@/lib/types";
 
 const API = "/api/tickets";
 
@@ -108,6 +115,15 @@ export const updateTicket = async (ticketId: string, input: TicketUpdateInput) =
   if (!res.ok) throw new Error("Failed to update ticket");
 };
 
+export const sendTicketReply = async (ticketId: string, message: string) => {
+  const res = await fetch(`${API}/${ticketId}/reply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message })
+  });
+  if (!res.ok) throw new Error("Failed to send reply");
+};
+
 export const deleteTicket = async (ticketId: string) => {
   const res = await fetch(`${API}/${ticketId}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Failed to delete ticket");
@@ -141,4 +157,48 @@ export const exportContactsUrl = (category?: string | "all") => {
   if (category && category !== "all") sp.set("category", category);
   const q = sp.toString();
   return `/api/export/contacts${q ? `?${q}` : ""}`;
+};
+
+const SAVED_API = "/api/saved-inquiries";
+
+export const fetchSavedInquiries = async (): Promise<SavedInquiry[]> => {
+  const res = await fetch(SAVED_API, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch saved inquiries");
+  const data = (await res.json()) as { items: SavedInquiry[] };
+  return data.items;
+};
+
+export const saveInquiryForAction = async (ticket: Ticket) => {
+  const res = await fetch(SAVED_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ticketId: ticket.id,
+      title: ticket.subject,
+      content: ticket.aiSummary || ticket.body || ticket.subject,
+      sourceEmail: ticket.senderEmail
+    })
+  });
+  if (!res.ok) throw new Error("Failed to save inquiry");
+};
+
+export const updateSavedInquiry = async (
+  id: string,
+  input: Partial<Pick<SavedInquiry, "title" | "content" | "note">> & {
+    status?: SavedInquiryStatus;
+  }
+) => {
+  const res = await fetch(SAVED_API, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, ...input })
+  });
+  if (!res.ok) throw new Error("Failed to update saved inquiry");
+};
+
+export const deleteSavedInquiry = async (id: string) => {
+  const res = await fetch(`${SAVED_API}?${new URLSearchParams({ id }).toString()}`, {
+    method: "DELETE"
+  });
+  if (!res.ok) throw new Error("Failed to delete saved inquiry");
 };

@@ -114,3 +114,17 @@ export interface ReplyTemplate {
   shortcut: string;
   createdAt: string;
 }
+
+export type SavedInquiryStatus = "open" | "in_progress" | "done";
+
+export interface SavedInquiry {
+  id: string;
+  ticketId: string | null;
+  title: string;
+  content: string;
+  note: string;
+  status: SavedInquiryStatus;
+  sourceEmail: string;
+  createdAt: string;
+  updatedAt: string;
+}
