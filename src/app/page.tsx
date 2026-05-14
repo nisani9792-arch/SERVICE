@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CheckSquare,
   Download,
   Filter,
   MailCheck,
@@ -15,9 +14,8 @@ import { SearchBar } from "@/components/SearchBar";
 import { Sidebar } from "@/components/Sidebar";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { DashboardStats, type DashboardStatsModel } from "@/components/DashboardStats";
-import { TicketKanbanBoard } from "@/components/TicketKanbanBoard";
-import { TicketsDataTable } from "@/components/TicketsDataTable";
 import { TriageInbox } from "@/components/TriageInbox";
+import { TicketWorkbench } from "@/components/TicketWorkbench";
 import {
   deleteTicket,
   deleteTicketsBulk,
@@ -51,8 +49,7 @@ export default function DashboardPage() {
   const [dateTo, setDateTo] = useState("");
   const [tagsFilter, setTagsFilter] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(500);
-  const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
+  const [pageSize] = useState(80);
 
   const [showImportModal, setShowImportModal] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
@@ -61,6 +58,7 @@ export default function DashboardPage() {
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
   const [closingTicketIds, setClosingTicketIds] = useState<string[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
 
   const [headerRefreshing, setHeaderRefreshing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
@@ -95,6 +93,10 @@ export default function DashboardPage() {
   );
 
   const { items, total, isLoading, refresh } = useTicketList(listQuery);
+  const activeTicket = useMemo(
+    () => items.find((ticket) => ticket.id === activeTicketId) ?? items[0] ?? null,
+    [activeTicketId, items]
+  );
   const triageQuery = useMemo(
     () => ({
       page: 1,
@@ -186,6 +188,16 @@ export default function DashboardPage() {
   useEffect(() => {
     setSelectedIds(new Set());
   }, [activeCategory, activeStatus, debouncedSearch, dateFrom, dateTo, tagsFilter, page]);
+
+  useEffect(() => {
+    if (items.length === 0) {
+      setActiveTicketId(null);
+      return;
+    }
+    if (!activeTicketId || !items.some((ticket) => ticket.id === activeTicketId)) {
+      setActiveTicketId(items[0].id);
+    }
+  }, [activeTicketId, items]);
 
   const onToggleSelect = useCallback((ticketId: string) => {
     setSelectedIds((prev) => {
@@ -289,30 +301,46 @@ export default function DashboardPage() {
     await refreshAll();
   };
 
+  const onChangeSingleCategory = async (ticketId: string, category: string) => {
+    await updateTicket(ticketId, { category });
+    await refreshAll();
+  };
+
   const dynamicCategories = stats?.byCategory ?? [];
 
   const headerActions = (
     <>
-      <button type="button" onClick={onClearSelection} className="lux-button rounded-xl px-3 py-1.5 text-xs">
-        <CheckSquare className="size-4 opacity-80" />
-        נקה בחירה
-      </button>
-      <button
-        type="button"
-        onClick={() => setShowReplyTemplates(true)}
-        className="lux-button rounded-xl px-3 py-1.5 text-xs"
-      >
-        <MessageSquareText className="size-4 opacity-80" />
-        תבניות
-      </button>
-      <button type="button" onClick={() => setShowExportModal(true)} className="lux-button rounded-xl px-3 py-1.5 text-xs">
-        <Download className="size-4 opacity-80" />
-        ייצוא
-      </button>
-      <button type="button" onClick={() => setShowImportModal(true)} className="lux-button rounded-xl px-3 py-1.5 text-xs">
-        <Upload className="size-4 opacity-80" />
-        יבוא
-      </button>
+      <details className="relative">
+        <summary className="lux-button cursor-pointer list-none rounded-xl px-3 py-1.5 text-xs">
+          כלים
+        </summary>
+        <div className="absolute left-0 z-50 mt-2 w-36 rounded-xl border border-outline bg-white p-1 shadow-card">
+          <button
+            type="button"
+            onClick={() => setShowReplyTemplates(true)}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
+          >
+            <MessageSquareText className="size-3.5 opacity-80" />
+            תבניות
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowExportModal(true)}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
+          >
+            <Download className="size-3.5 opacity-80" />
+            ייצוא
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowImportModal(true)}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
+          >
+            <Upload className="size-3.5 opacity-80" />
+            יבוא
+          </button>
+        </div>
+      </details>
       <button
         type="button"
         onClick={handleEmailSync}
@@ -382,7 +410,7 @@ export default function DashboardPage() {
               <div>
                 <h2 className="text-sm font-bold text-on-surface md:text-base">שולחן עבודה לטיפול</h2>
                 <p className="text-[11px] text-on-surface-variant md:text-xs">
-                  מיין פניות חדשות, גרור לקטגוריה ועבוד בכרטיסים קומפקטיים.
+                  מיון, טיפול וסגירה בלי טבלה רחבה ובלי כפתורים כפולים.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -392,30 +420,6 @@ export default function DashboardPage() {
                     {total.toLocaleString("he-IL")} תוצאות · מוצגות{" "}
                     <span className="text-primary">{isLoading ? "…" : items.length}</span>
                   </span>
-                </div>
-                <div className="inline-flex rounded-full border border-outline bg-white p-0.5 text-[11px] shadow-sm">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("kanban")}
-                    className={`rounded-full px-2.5 py-1 font-semibold transition ${
-                      viewMode === "kanban"
-                        ? "bg-primary text-white"
-                        : "text-on-surface-variant hover:bg-surface-container"
-                    }`}
-                  >
-                    קנבן
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("table")}
-                    className={`rounded-full px-2.5 py-1 font-semibold transition ${
-                      viewMode === "table"
-                        ? "bg-primary text-white"
-                        : "text-on-surface-variant hover:bg-surface-container"
-                    }`}
-                  >
-                    טבלה
-                  </button>
                 </div>
               </div>
             </div>
@@ -458,7 +462,7 @@ export default function DashboardPage() {
               </details>
             </div>
 
-            <div className="grid gap-2 2xl:grid-cols-[20rem,minmax(0,1fr)]">
+            <div className="grid gap-2 2xl:grid-cols-[19rem,minmax(0,1fr)]">
               <TriageInbox
                 title="תיבת שירות מהירה"
                 subtitle={`${triageTotal.toLocaleString("he-IL")} פניות שירות פתוחות למיון/טיפול`}
@@ -470,41 +474,30 @@ export default function DashboardPage() {
                 onRefresh={refreshTriage}
               />
 
-              {viewMode === "kanban" ? (
-                <TicketKanbanBoard
-                  tickets={items}
-                  isLoading={isLoading}
-                  onEdit={setEditingTicket}
-                  onSetStatus={(id, status) => {
-                    void onSetTicketStatus(id, status);
-                  }}
-                  onMarkClosed={(id) => {
-                    onMarkClosed(id);
-                  }}
-                  onDelete={(id) => {
-                    void onDelete(id);
-                  }}
-                />
-              ) : (
-                <TicketsDataTable
-                  tickets={items}
-                  total={total}
-                  page={page}
-                  pageSize={pageSize}
-                  isLoading={isLoading}
-                  selectedIds={selectedIds}
-                  onToggleSelect={onToggleSelect}
-                  onSelectPage={onSelectPage}
-                  onPageChange={setPage}
-                  onEdit={setEditingTicket}
-                  onMarkClosed={async (id) => {
-                    onMarkClosed(id);
-                  }}
-                  onDelete={async (id) => {
-                    await onDelete(id);
-                  }}
-                />
-              )}
+              <TicketWorkbench
+                tickets={items}
+                total={total}
+                page={page}
+                pageSize={pageSize}
+                isLoading={isLoading}
+                selectedIds={selectedIds}
+                activeTicket={activeTicket}
+                onSetActiveTicket={(ticket) => setActiveTicketId(ticket.id)}
+                onToggleSelect={onToggleSelect}
+                onSelectPage={onSelectPage}
+                onPageChange={setPage}
+                onEdit={setEditingTicket}
+                onMarkClosed={onMarkClosed}
+                onDelete={(id) => {
+                  void onDelete(id);
+                }}
+                onSetStatus={(id, status) => {
+                  void onSetTicketStatus(id, status);
+                }}
+                onChangeCategory={(id, category) => {
+                  void onChangeSingleCategory(id, category);
+                }}
+              />
             </div>
 
             <BulkActionBar

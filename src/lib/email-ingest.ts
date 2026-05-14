@@ -47,11 +47,20 @@ type ParsedEmailMessage = {
   importKey: string;
   messageId: string | null;
   mailboxUid: string;
+  inReplyTo: string | null;
+  references: string[];
   senderEmail: string;
   senderName: string;
   subject: string;
   body: string;
   messageAt: string | null;
+};
+
+type ForcedClassification = {
+  category: "spam";
+  priority: 1;
+  summary: string;
+  status: "closed";
 };
 
 export type EmailIngestResult = {
@@ -156,6 +165,46 @@ function isSystemOrListMessage(message: ParsedEmailMessage): boolean {
   return SYSTEM_MESSAGE_PATTERNS.some((pattern) => pattern.test(text));
 }
 
+function isOutgoingOrReply(message: ParsedEmailMessage, ownEmail: string): boolean {
+  if (message.senderEmail.toLowerCase() === ownEmail.toLowerCase()) {
+    return true;
+  }
+
+  const subject = message.subject.trim();
+  return (
+    /^(re|fw|fwd)\s*:/i.test(subject) &&
+    (Boolean(message.inReplyTo) || message.references.length > 0)
+  );
+}
+
+function forcedClassificationFor(message: ParsedEmailMessage): ForcedClassification | null {
+  const text = `${message.senderEmail} ${message.senderName} ${message.subject} ${message.body}`.toLowerCase();
+  const emptyBody = message.body.trim().length === 0;
+  const emptySubject = message.subject === "(ללא נושא)" || message.subject.trim().length === 0;
+
+  if (emptyBody && emptySubject) {
+    return {
+      category: "spam",
+      priority: 1,
+      summary: "מייל ריק שנכנס אוטומטית לספאם.",
+      status: "closed"
+    };
+  }
+
+  if (
+    /יחסי ציבור|pr@|bafront|irpr|zingmusic|overtone|badash|natibadash|סינגל חדש|אלבום חדש|קליפ חדש|משיק/.test(text)
+  ) {
+    return {
+      category: "spam",
+      priority: 1,
+      summary: "מייל יחסי ציבור שסווג אוטומטית לספאם.",
+      status: "closed"
+    };
+  }
+
+  return null;
+}
+
 async function alreadyImported(importKey: string): Promise<boolean> {
   const rows = await sql()`
     SELECT id
@@ -183,13 +232,16 @@ async function ensureEmailIngestSchema(): Promise<void> {
 
 async function insertEmailTicket(
   message: ParsedEmailMessage,
-  sourceTag: string
+  sourceTag: string,
+  forcedClassification?: ForcedClassification | null
 ): Promise<boolean> {
-  const classification = await classifyTicketContent(
-    message.senderEmail,
-    message.subject,
-    message.body
-  );
+  const classification =
+    forcedClassification ??
+    (await classifyTicketContent(
+      message.senderEmail,
+      message.subject,
+      message.body
+    ));
 
   const rows = await sql()`
     INSERT INTO tickets (
@@ -217,7 +269,7 @@ async function insertEmailTicket(
       ${classification.category},
       ${classification.priority},
       ${classification.summary},
-      ${"open"},
+      ${forcedClassification?.status ?? "open"},
       ${"email"},
       ${message.messageAt},
       ARRAY[${sourceTag}]::text[],
@@ -254,11 +306,21 @@ async function parseFetchedMessage(
 
   const messageId = normalizeMessageId(parsed.messageId);
   const mailboxUid = `${mailbox}:${uid}`;
+  const rawReferences = Array.isArray(parsed.references)
+    ? parsed.references
+    : parsed.references
+      ? [parsed.references]
+      : [];
+  const references = rawReferences
+    .map((ref) => normalizeMessageId(ref))
+    .filter((ref): ref is string => Boolean(ref));
 
   return {
     importKey: importKeyFor(messageId, mailboxUid),
     messageId,
     mailboxUid,
+    inReplyTo: normalizeMessageId(parsed.inReplyTo),
+    references,
     senderEmail: sender.email,
     senderName: sender.name,
     subject,
@@ -331,14 +393,15 @@ export async function ingestGmailInbox(): Promise<EmailIngestResult> {
           continue;
         }
 
-        if (isSystemOrListMessage(message)) {
+        if (isSystemOrListMessage(message) || isOutgoingOrReply(message, config.user)) {
           result.skipped += 1;
           processedUids.push(uid);
           continue;
         }
 
         const duplicate = await alreadyImported(message.importKey);
-        const inserted = duplicate ? false : await insertEmailTicket(message, config.sourceTag);
+        const forcedClassification = forcedClassificationFor(message);
+        const inserted = duplicate ? false : await insertEmailTicket(message, config.sourceTag, forcedClassification);
 
         if (inserted || duplicate) {
           processedUids.push(uid);
