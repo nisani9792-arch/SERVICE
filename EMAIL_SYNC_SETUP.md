@@ -16,32 +16,36 @@
 להוסיף/לוודא את המשתנים הבאים:
 
 ```text
-GMAIL_USER=your-address@gmail.com
-GMAIL_APP_PASSWORD=your-google-app-password
+EMAIL_IMAP_USER=EDITOR@JUSIC.CO
+EMAIL_IMAP_APP_PASSWORD=your-google-app-password-without-spaces
+EMAIL_IMAP_HOST=imap.gmail.com
+EMAIL_IMAP_PORT=993
 EMAIL_INGEST_SECRET=long-random-secret
-GMAIL_MAILBOX=INBOX
+EMAIL_IMAP_MAILBOX=INBOX
+EMAIL_INGEST_SOURCE_TAG=EDITOR
 EMAIL_INGEST_LOOKBACK_DAYS=14
 EMAIL_INGEST_MAX_MESSAGES=25
+EMAIL_INGEST_URL=https://YOUR_RENDER_URL
 ```
 
 `EMAIL_INGEST_SECRET` הוא קוד סודי לקרון החיצוני. אפשר ליצור ערך ארוך ואקראי, למשל 32 תווים ומעלה.
 
 ## 3. הפעלה ידנית
 
-בדשבורד נוסף כפתור `סנכרן מיילים`. הוא מפעיל את הסנכרון מיידית ומציג כמה פניות חדשות נוספו.
+בדשבורד נוסף כפתור `סנכרן מיילים`. הוא מבקש את `EMAIL_INGEST_SECRET`, מפעיל את הסנכרון מיידית ומציג כמה פניות חדשות נוספו וכמה מיילים נמחקו מה-Inbox אחרי עיבוד מוצלח.
 
 ## 4. הפעלה כל 5 דקות
 
-בכל שירות Cron חיצוני, למשל cron-job.org או Render Cron, להגדיר קריאת GET כל 5 דקות לכתובת:
+ב-`render.yaml` מוגדר Render Cron שמריץ כל 10 דקות:
 
 ```text
-https://YOUR_RENDER_URL/api/email-ingest?secret=EMAIL_INGEST_SECRET
+npm run email-ingest:trigger
 ```
 
-להחליף את `YOUR_RENDER_URL` בכתובת האמיתית של השירות ואת `EMAIL_INGEST_SECRET` בערך שהוגדר ב-Render.
+ה-Cron קורא ל-`/api/email-ingest` עם header סודי. צריך להגדיר ב-Render גם `EMAIL_INGEST_URL` וגם `EMAIL_INGEST_SECRET` באותו ערך כמו שירות ה-Web.
 
 ## 5. איך המערכת מונעת כפילויות
 
-כל מייל נשמר עם מזהה ייחודי מה-Gmail Message-ID, ואם אין כזה אז לפי UID של ה-Inbox. לכן גם אם הקרון רץ שוב על אותם מיילים, הם ידולגו ולא ייצרו פניות כפולות.
+כל מייל נשמר עם מזהה ייחודי מה-Gmail Message-ID, ואם אין כזה אז לפי UID של ה-Inbox. אחרי שמייל נשמר בהצלחה או זוהה ככפילות קיימת, הוא מסומן כ-`\Deleted` ונמחק מה-Inbox.
 
 ברירת המחדל היא לבדוק עד 25 מיילים מה-14 ימים האחרונים בכל ריצה. אפשר לשנות זאת עם `EMAIL_INGEST_MAX_MESSAGES` ו-`EMAIL_INGEST_LOOKBACK_DAYS`.
