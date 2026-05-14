@@ -34,6 +34,8 @@ services:
         value: "465"
       - key: EMAIL_SMTP_SECURE
         value: "true"
+      - key: EMAIL_SMTP_TIMEOUT_MS
+        value: "15000"
       - key: EMAIL_INGEST_SECRET
         sync: false
       - key: EMAIL_IMAP_MAILBOX
@@ -44,6 +46,8 @@ services:
         value: "14"
       - key: EMAIL_INGEST_MAX_MESSAGES
         value: "25"
+      - key: EMAIL_INGEST_TIMEOUT_MS
+        value: "45000"
   - type: cron
     name: jusic-email-ingest
     runtime: node

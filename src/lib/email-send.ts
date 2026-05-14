@@ -6,6 +6,7 @@ type EmailSendConfig = {
   host: string;
   port: number;
   secure: boolean;
+  timeoutMs: number;
 };
 
 export type SendCustomerReplyInput = {
@@ -45,7 +46,8 @@ function getEmailSendConfig(): EmailSendConfig {
     appPassword,
     host: process.env.EMAIL_SMTP_HOST?.trim() || "smtp.gmail.com",
     port,
-    secure: (process.env.EMAIL_SMTP_SECURE ?? "true") !== "false"
+    secure: (process.env.EMAIL_SMTP_SECURE ?? "true") !== "false",
+    timeoutMs: positiveInt(process.env.EMAIL_SMTP_TIMEOUT_MS, 15000)
   };
 }
 
@@ -66,18 +68,25 @@ export async function sendCustomerReply({
     host: config.host,
     port: config.port,
     secure: config.secure,
+    connectionTimeout: config.timeoutMs,
+    greetingTimeout: config.timeoutMs,
+    socketTimeout: config.timeoutMs,
     auth: {
       user: config.user,
       pass: config.appPassword
     }
   });
 
-  await transporter.sendMail({
-    from: config.user,
-    to,
-    subject: normalizeSubject(subject),
-    text: message,
-    inReplyTo: inReplyTo || undefined,
-    references: references?.length ? references : undefined
-  });
+  try {
+    await transporter.sendMail({
+      from: config.user,
+      to,
+      subject: normalizeSubject(subject),
+      text: message,
+      inReplyTo: inReplyTo || undefined,
+      references: references?.length ? references : undefined
+    });
+  } finally {
+    transporter.close();
+  }
 }

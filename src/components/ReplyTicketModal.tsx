@@ -13,13 +13,16 @@ interface ReplyTicketModalProps {
 export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModalProps) {
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ticket) {
       setMessage("");
+      setError(null);
       return;
     }
     setMessage("");
+    setError(null);
   }, [ticket]);
 
   if (!ticket) return null;
@@ -30,10 +33,13 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
     if (!trimmed) return;
 
     setIsSending(true);
+    setError(null);
     try {
       await onSubmit(trimmed);
       setMessage("");
       onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שליחת המענה נכשלה");
     } finally {
       setIsSending(false);
     }
@@ -65,6 +71,12 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
               autoFocus
             />
           </label>
+
+          {error ? (
+            <div className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-xs font-semibold text-danger">
+              השליחה נכשלה: {error}
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[11px] text-on-surface-variant">

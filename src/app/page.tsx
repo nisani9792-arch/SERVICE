@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Download,
-  Filter,
   MailCheck,
   MessageSquareText,
   Plus,
@@ -12,10 +11,8 @@ import {
 } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { SearchBar } from "@/components/SearchBar";
-import { Sidebar } from "@/components/Sidebar";
 import { BulkActionBar } from "@/components/BulkActionBar";
-import { DashboardStats, type DashboardStatsModel } from "@/components/DashboardStats";
-import { TriageInbox } from "@/components/TriageInbox";
+import type { DashboardStatsModel } from "@/components/DashboardStats";
 import { TicketWorkbench } from "@/components/TicketWorkbench";
 import { ReplyTicketModal } from "@/components/ReplyTicketModal";
 import {
@@ -34,6 +31,7 @@ import { EditTicketModal } from "@/components/EditTicketModal";
 import { ExportContactsModal } from "@/components/ExportContactsModal";
 import { ReplyTemplatesModal } from "@/components/ReplyTemplatesModal";
 import { CloseTicketModal } from "@/components/CloseTicketModal";
+import { categoryLabel } from "@/lib/categories";
 import type { Ticket, TicketStatus } from "@/lib/types";
 
 type EmailSyncResponse = {
@@ -102,22 +100,6 @@ export default function DashboardPage() {
     () => items.find((ticket) => ticket.id === activeTicketId) ?? items[0] ?? null,
     [activeTicketId, items]
   );
-  const triageQuery = useMemo(
-    () => ({
-      page: 1,
-      pageSize: 100,
-      category: "Customer_Support",
-      status: "open"
-    }),
-    []
-  );
-  const {
-    items: triageItems,
-    total: triageTotal,
-    isLoading: triageLoading,
-    refresh: refreshTriage
-  } = useTicketList(triageQuery);
-
   const [stats, setStats] = useState<DashboardStatsModel | null>(null);
 
   const refreshStats = useCallback(async () => {
@@ -142,8 +124,7 @@ export default function DashboardPage() {
   const refreshAll = useCallback(async () => {
     await refreshStats();
     await refresh();
-    await refreshTriage();
-  }, [refresh, refreshStats, refreshTriage]);
+  }, [refresh, refreshStats]);
 
   const handleHeaderRefresh = useCallback(async () => {
     setHeaderRefreshing(true);
@@ -158,11 +139,14 @@ export default function DashboardPage() {
   const handleEmailSync = useCallback(async () => {
     setEmailSyncing(true);
     setEmailSyncMessage(null);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 60000);
 
     try {
       const res = await fetch("/api/email-ingest", {
         method: "POST",
-        cache: "no-store"
+        cache: "no-store",
+        signal: controller.signal
       });
       const data = (await res.json()) as EmailSyncResponse;
 
@@ -179,9 +163,16 @@ export default function DashboardPage() {
     } catch (error) {
       setEmailSyncMessage({
         kind: "error",
-        text: `סנכרון המייל נכשל: ${error instanceof Error ? error.message : "שגיאה לא ידועה"}`
+        text: `סנכרון המייל נכשל: ${
+          error instanceof Error && error.name === "AbortError"
+            ? "הפעולה נתקעה מעל דקה. בדוק את הגדרות Gmail/Render ונסה שוב."
+            : error instanceof Error
+              ? error.message
+              : "שגיאה לא ידועה"
+        }`
       });
     } finally {
+      window.clearTimeout(timeout);
       setEmailSyncing(false);
     }
   }, [refreshAll]);
@@ -301,11 +292,6 @@ export default function DashboardPage() {
     await refreshAll();
   };
 
-  const onMoveTriageToCategory = async (ticketId: string, category: string) => {
-    await updateTicket(ticketId, { category });
-    await refreshAll();
-  };
-
   const onChangeSingleCategory = async (ticketId: string, category: string) => {
     await updateTicket(ticketId, { category });
     await refreshAll();
@@ -323,6 +309,12 @@ export default function DashboardPage() {
   };
 
   const dynamicCategories = stats?.byCategory ?? [];
+  const statusFilters: { id: TicketStatus | "all"; label: string; count: number }[] = [
+    { id: "all", label: "הכל", count: stats?.total ?? 0 },
+    { id: "open", label: "פתוחות", count: stats?.statusCounts.open ?? 0 },
+    { id: "in_progress", label: "בטיפול", count: stats?.statusCounts.in_progress ?? 0 },
+    { id: "closed", label: "סגורות", count: stats?.statusCounts.closed ?? 0 }
+  ];
 
   const headerActions = (
     <>
@@ -382,7 +374,7 @@ export default function DashboardPage() {
 
   return (
     <main className="crm-workspace min-h-screen px-2 pb-16 pt-2 text-[13px] sm:px-3 md:px-4 md:pb-8">
-      <div className="mx-auto max-w-[1760px] space-y-2">
+      <div className="mx-auto max-w-[1380px] space-y-2">
         <AppHeader
           actions={headerActions}
           onRefresh={handleHeaderRefresh}
@@ -402,138 +394,153 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
-        <div className="hidden md:block">
-          <DashboardStats
-            stats={stats}
-            activeStatus={activeStatus}
-            onStatusFilter={(s) => {
-              setActiveStatus(s);
-              setPage(1);
-            }}
-          />
-        </div>
-
-        <section className="grid gap-2 xl:grid-cols-[minmax(0,13rem),1fr]">
-          <Sidebar
-            activeCategory={activeCategory}
-            dynamicCategories={dynamicCategories}
-            total={stats?.total ?? 0}
-            onSelectCategory={(c) => {
-              setActiveCategory(c);
-              setPage(1);
-            }}
-          />
-
-          <div className="min-w-0 space-y-2">
-            <div className="flex flex-col gap-2 border-b border-outline/50 pb-1.5 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-sm font-bold text-on-surface md:text-base">שולחן עבודה לטיפול</h2>
-                <p className="text-[11px] text-on-surface-variant md:text-xs">
-                  מיון, טיפול וסגירה בלי טבלה רחבה ובלי כפתורים כפולים.
-                </p>
+        <section className="space-y-2">
+          <div className="rounded-2xl border border-outline/70 bg-white/95 p-2 shadow-sm">
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+              <div className="min-w-0 flex-1">
+                <SearchBar value={searchValue} onChange={setSearchValue} />
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-2 text-xs font-medium text-on-surface-variant">
-                  <Filter className="size-3.5" aria-hidden />
-                  <span>
-                    {total.toLocaleString("he-IL")} תוצאות · מוצגות{" "}
-                    <span className="text-primary">{isLoading ? "…" : items.length}</span>
-                  </span>
-                </div>
+              <div className="flex flex-wrap gap-1.5">
+                {statusFilters.map((filter) => (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveStatus(filter.id);
+                      setPage(1);
+                    }}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                      activeStatus === filter.id
+                        ? "border-primary bg-primary text-white"
+                        : "border-outline bg-white text-on-surface-variant hover:bg-surface-container"
+                    }`}
+                  >
+                    {filter.label} · {filter.count.toLocaleString("he-IL")}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div className="grid gap-2 md:grid-cols-[minmax(0,1fr),auto] md:items-start">
-              <SearchBar value={searchValue} onChange={setSearchValue} />
-              <details className="lux-card rounded-2xl p-2 md:min-w-[19rem]">
-                <summary className="cursor-pointer select-none px-2 py-1.5 text-xs font-semibold text-on-surface">
-                  סינון מתקדם
-                </summary>
-                <div className="mt-2 grid gap-2 sm:grid-cols-3 md:grid-cols-1">
-                  <label className="block text-[11px] font-medium text-on-surface-variant">
-                    מתאריך
-                    <input
-                      type="date"
-                      className="mt-1 w-full rounded-lg border border-outline/80 bg-white px-2 py-2 text-xs outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
-                      value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
-                    />
-                  </label>
-                  <label className="block text-[11px] font-medium text-on-surface-variant">
-                    עד תאריך
-                    <input
-                      type="date"
-                      className="mt-1 w-full rounded-lg border border-outline/80 bg-white px-2 py-2 text-xs outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
-                      value={dateTo}
-                      onChange={(e) => setDateTo(e.target.value)}
-                    />
-                  </label>
-                  <label className="block text-[11px] font-medium text-on-surface-variant">
-                    תגיות
-                    <input
-                      className="mt-1 w-full rounded-lg border border-outline/80 bg-white px-2 py-2 text-xs outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
-                      placeholder="vip, billing"
-                      value={tagsFilter}
-                      onChange={(e) => setTagsFilter(e.target.value)}
-                    />
-                  </label>
-                </div>
-              </details>
+            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveCategory("all");
+                  setPage(1);
+                }}
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-bold ${
+                  activeCategory === "all"
+                    ? "border-primary bg-primary-soft text-primary"
+                    : "border-outline bg-white text-on-surface-variant"
+                }`}
+              >
+                כל הקטגוריות
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveCategory("Customer_Support");
+                  setActiveStatus("open");
+                  setPage(1);
+                }}
+                className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-950"
+              >
+                תור מיון
+              </button>
+              {dynamicCategories.slice(0, 10).map((item) => (
+                <button
+                  key={item.category}
+                  type="button"
+                  onClick={() => {
+                    setActiveCategory(item.category);
+                    setPage(1);
+                  }}
+                  className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-bold ${
+                    activeCategory === item.category
+                      ? "border-primary bg-primary-soft text-primary"
+                      : "border-outline bg-white text-on-surface-variant"
+                  }`}
+                >
+                  {categoryLabel(item.category)} · {item.count.toLocaleString("he-IL")}
+                </button>
+              ))}
             </div>
 
-            <div className="grid gap-2 2xl:grid-cols-[19rem,minmax(0,1fr)]">
-              <TriageInbox
-                title="תיבת שירות מהירה"
-                subtitle={`${triageTotal.toLocaleString("he-IL")} פניות שירות פתוחות למיון/טיפול`}
-                tickets={triageItems}
-                total={triageTotal}
-                isLoading={triageLoading}
-                onEdit={setEditingTicket}
-                onMoveToCategory={onMoveTriageToCategory}
-                onRefresh={refreshTriage}
-              />
-
-              <TicketWorkbench
-                tickets={items}
-                total={total}
-                page={page}
-                pageSize={pageSize}
-                isLoading={isLoading}
-                selectedIds={selectedIds}
-                activeTicket={activeTicket}
-                onSetActiveTicket={(ticket) => setActiveTicketId(ticket.id)}
-                onToggleSelect={onToggleSelect}
-                onSelectPage={onSelectPage}
-                onPageChange={setPage}
-                onEdit={setEditingTicket}
-                onMarkClosed={onMarkClosed}
-                onDelete={(id) => {
-                  void onDelete(id);
-                }}
-                onSetStatus={(id, status) => {
-                  void onSetTicketStatus(id, status);
-                }}
-                onChangeCategory={(id, category) => {
-                  void onChangeSingleCategory(id, category);
-                }}
-                onReply={setReplyingTicket}
-                onSaveInquiry={(ticket) => {
-                  void onSaveInquiry(ticket);
-                }}
-              />
-            </div>
-
-            <BulkActionBar
-              count={selectedIds.size}
-              onCloseTickets={onBulkClose}
-              onDelete={onBulkDelete}
-              onChangeCategory={onBulkChangeCategory}
-              onSetStatus={onBulkSetStatus}
-              onAddTags={onBulkAddTags}
-              onMoveToSpam={onBulkSpam}
-              onClearSelection={onClearSelection}
-            />
+            <details className="mt-1">
+              <summary className="cursor-pointer select-none px-2 py-1 text-[11px] font-semibold text-on-surface-variant">
+                סינון מתקדם
+              </summary>
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                <label className="block text-[11px] font-medium text-on-surface-variant">
+                  מתאריך
+                  <input
+                    type="date"
+                    className="mt-1 w-full rounded-lg border border-outline/80 bg-white px-2 py-2 text-xs outline-none focus:border-primary/50"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                  />
+                </label>
+                <label className="block text-[11px] font-medium text-on-surface-variant">
+                  עד תאריך
+                  <input
+                    type="date"
+                    className="mt-1 w-full rounded-lg border border-outline/80 bg-white px-2 py-2 text-xs outline-none focus:border-primary/50"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                  />
+                </label>
+                <label className="block text-[11px] font-medium text-on-surface-variant">
+                  תגיות
+                  <input
+                    className="mt-1 w-full rounded-lg border border-outline/80 bg-white px-2 py-2 text-xs outline-none focus:border-primary/50"
+                    placeholder="vip, billing"
+                    value={tagsFilter}
+                    onChange={(e) => setTagsFilter(e.target.value)}
+                  />
+                </label>
+              </div>
+            </details>
           </div>
+
+          <TicketWorkbench
+            tickets={items}
+            total={total}
+            page={page}
+            pageSize={pageSize}
+            isLoading={isLoading}
+            selectedIds={selectedIds}
+            activeTicket={activeTicket}
+            onSetActiveTicket={(ticket) => setActiveTicketId(ticket.id)}
+            onToggleSelect={onToggleSelect}
+            onSelectPage={onSelectPage}
+            onPageChange={setPage}
+            onEdit={setEditingTicket}
+            onMarkClosed={onMarkClosed}
+            onDelete={(id) => {
+              void onDelete(id);
+            }}
+            onSetStatus={(id, status) => {
+              void onSetTicketStatus(id, status);
+            }}
+            onChangeCategory={(id, category) => {
+              void onChangeSingleCategory(id, category);
+            }}
+            onReply={setReplyingTicket}
+            onSaveInquiry={(ticket) => {
+              void onSaveInquiry(ticket);
+            }}
+          />
+
+          <BulkActionBar
+            count={selectedIds.size}
+            onCloseTickets={onBulkClose}
+            onDelete={onBulkDelete}
+            onChangeCategory={onBulkChangeCategory}
+            onSetStatus={onBulkSetStatus}
+            onAddTags={onBulkAddTags}
+            onMoveToSpam={onBulkSpam}
+            onClearSelection={onClearSelection}
+          />
         </section>
       </div>
 

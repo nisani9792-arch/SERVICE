@@ -7,6 +7,7 @@ const DEFAULT_MAILBOX = "INBOX";
 const DEFAULT_LOOKBACK_DAYS = 14;
 const DEFAULT_MAX_MESSAGES = 25;
 const DEFAULT_SOURCE_TAG = "EDITOR";
+const DEFAULT_INGEST_TIMEOUT_MS = 45000;
 
 const SYSTEM_SENDER_DOMAINS = [
   "instagram.com",
@@ -41,6 +42,7 @@ type GmailConfig = {
   lookbackDays: number;
   maxMessages: number;
   sourceTag: string;
+  timeoutMs: number;
 };
 
 type ParsedEmailMessage = {
@@ -97,8 +99,22 @@ function getGmailConfig(): GmailConfig {
     mailbox: (process.env.EMAIL_IMAP_MAILBOX ?? process.env.GMAIL_MAILBOX)?.trim() || DEFAULT_MAILBOX,
     lookbackDays: positiveInt(process.env.EMAIL_INGEST_LOOKBACK_DAYS, DEFAULT_LOOKBACK_DAYS),
     maxMessages: positiveInt(process.env.EMAIL_INGEST_MAX_MESSAGES, DEFAULT_MAX_MESSAGES),
-    sourceTag: process.env.EMAIL_INGEST_SOURCE_TAG?.trim() || DEFAULT_SOURCE_TAG
+    sourceTag: process.env.EMAIL_INGEST_SOURCE_TAG?.trim() || DEFAULT_SOURCE_TAG,
+    timeoutMs: positiveInt(process.env.EMAIL_INGEST_TIMEOUT_MS, DEFAULT_INGEST_TIMEOUT_MS)
   };
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs / 1000}s`)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function normalizeMessageId(value: string | null | undefined): string | null {
@@ -165,16 +181,8 @@ function isSystemOrListMessage(message: ParsedEmailMessage): boolean {
   return SYSTEM_MESSAGE_PATTERNS.some((pattern) => pattern.test(text));
 }
 
-function isOutgoingOrReply(message: ParsedEmailMessage, ownEmail: string): boolean {
-  if (message.senderEmail.toLowerCase() === ownEmail.toLowerCase()) {
-    return true;
-  }
-
-  const subject = message.subject.trim();
-  return (
-    /^(re|fw|fwd)\s*:/i.test(subject) &&
-    (Boolean(message.inReplyTo) || message.references.length > 0)
-  );
+function isOwnOutgoingMessage(message: ParsedEmailMessage, ownEmail: string): boolean {
+  return message.senderEmail.toLowerCase() === ownEmail.toLowerCase();
 }
 
 function forcedClassificationFor(message: ParsedEmailMessage): ForcedClassification | null {
@@ -329,14 +337,16 @@ async function parseFetchedMessage(
   };
 }
 
-export async function ingestGmailInbox(): Promise<EmailIngestResult> {
-  const config = getGmailConfig();
+async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailIngestResult> {
   await ensureEmailIngestSchema();
 
   const client = new ImapFlow({
     host: config.host,
     port: config.port,
     secure: true,
+    connectionTimeout: config.timeoutMs,
+    greetingTimeout: config.timeoutMs,
+    socketTimeout: config.timeoutMs,
     auth: {
       user: config.user,
       pass: config.appPassword
@@ -353,12 +363,16 @@ export async function ingestGmailInbox(): Promise<EmailIngestResult> {
     errors: []
   };
 
-  await client.connect();
+  await withTimeout(client.connect(), config.timeoutMs, "IMAP connect");
 
   const lock = await client.getMailboxLock(config.mailbox);
   try {
     const since = new Date(Date.now() - config.lookbackDays * 24 * 60 * 60 * 1000);
-    const foundUids = await client.search({ since }, { uid: true });
+    const foundUids = await withTimeout(
+      client.search({ since }, { uid: true }),
+      config.timeoutMs,
+      "IMAP search"
+    );
     const uidsToFetch = (Array.isArray(foundUids) ? foundUids : [])
       .sort((a, b) => a - b)
       .slice(-config.maxMessages);
@@ -393,7 +407,7 @@ export async function ingestGmailInbox(): Promise<EmailIngestResult> {
           continue;
         }
 
-        if (isSystemOrListMessage(message) || isOutgoingOrReply(message, config.user)) {
+        if (isSystemOrListMessage(message) || isOwnOutgoingMessage(message, config.user)) {
           result.skipped += 1;
           processedUids.push(uid);
           continue;
@@ -424,8 +438,17 @@ export async function ingestGmailInbox(): Promise<EmailIngestResult> {
     }
   } finally {
     lock.release();
-    await client.logout();
+    await withTimeout(client.logout(), 8000, "IMAP logout").catch(() => undefined);
   }
 
   return result;
+}
+
+export async function ingestGmailInbox(): Promise<EmailIngestResult> {
+  const config = getGmailConfig();
+  return withTimeout(
+    ingestGmailInboxInternal(config),
+    config.timeoutMs + 10000,
+    "Email ingest"
+  );
 }

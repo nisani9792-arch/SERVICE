@@ -116,12 +116,19 @@ export const updateTicket = async (ticketId: string, input: TicketUpdateInput) =
 };
 
 export const sendTicketReply = async (ticketId: string, message: string) => {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 25000);
   const res = await fetch(`${API}/${ticketId}/reply`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message })
-  });
-  if (!res.ok) throw new Error("Failed to send reply");
+    body: JSON.stringify({ message }),
+    signal: controller.signal
+  }).finally(() => window.clearTimeout(timeout));
+
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { details?: string; error?: string } | null;
+    throw new Error(data?.details || data?.error || "Failed to send reply");
+  }
 };
 
 export const deleteTicket = async (ticketId: string) => {
