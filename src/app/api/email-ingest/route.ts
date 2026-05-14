@@ -5,6 +5,22 @@ import { ingestGmailInbox } from "@/lib/email-ingest";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+function isSameOriginPost(request: NextRequest): boolean {
+  if (request.method !== "POST") return false;
+  const origin = request.headers.get("origin");
+  const referer = request.headers.get("referer");
+  const expected = request.nextUrl.origin;
+
+  try {
+    if (origin && new URL(origin).origin === expected) return true;
+    if (referer && new URL(referer).origin === expected) return true;
+  } catch {
+    return false;
+  }
+
+  return false;
+}
+
 function hasValidSecret(request: NextRequest): boolean {
   const configured = process.env.EMAIL_INGEST_SECRET?.trim();
   const authorization = request.headers.get("authorization")?.trim();
@@ -31,7 +47,7 @@ function hasValidSecret(request: NextRequest): boolean {
 }
 
 async function runEmailIngest(request: NextRequest) {
-  if (!hasValidSecret(request)) {
+  if (!hasValidSecret(request) && !isSameOriginPost(request)) {
     return NextResponse.json(
       { error: "Unauthorized email ingest request" },
       { status: 401 }

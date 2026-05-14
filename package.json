@@ -13,6 +13,7 @@
     "import:historical": "node scripts/import-historical.cjs",
     "import:mail-batches": "node scripts/import-mail-batches-info.cjs",
     "import:gemini-json": "node scripts/import-gemini-json.cjs",
+    "classify:general": "node scripts/classify-general-tickets.cjs",
     "repair:email-domains": "node scripts/repair-email-domains.cjs",
     "email-ingest:trigger": "node scripts/trigger-email-ingest.cjs"
   },

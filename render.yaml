@@ -37,7 +37,7 @@ services:
   - type: cron
     name: jusic-email-ingest
     runtime: node
-    schedule: "*/10 * * * *"
+    schedule: "*/5 * * * *"
     buildCommand: npm install
     startCommand: npm run email-ingest:trigger
     envVars:
@@ -47,3 +47,5 @@ services:
         sync: false
       - key: EMAIL_INGEST_SECRET
         sync: false
+      - key: NODE_ENV
+        value: "production"

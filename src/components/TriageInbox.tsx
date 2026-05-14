@@ -17,6 +17,8 @@ function preview(ticket: Ticket): string {
 }
 
 interface TriageInboxProps {
+  title?: string;
+  subtitle?: string;
   tickets: Ticket[];
   isLoading: boolean;
   total: number;
@@ -26,6 +28,8 @@ interface TriageInboxProps {
 }
 
 export function TriageInbox({
+  title = "פניות חדשות למיון",
+  subtitle,
   tickets,
   isLoading,
   total,
@@ -55,9 +59,9 @@ export function TriageInbox({
       <div className="border-b border-outline/70 bg-surface-high/95 px-3 py-2">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm font-bold text-on-surface">פניות חדשות למיון</h2>
+            <h2 className="text-sm font-bold text-on-surface">{title}</h2>
             <p className="text-[11px] text-on-surface-variant">
-              {total.toLocaleString("he-IL")} פתוחות בקטגוריה כללית
+              {subtitle ?? `${total.toLocaleString("he-IL")} פתוחות לטיפול מהיר`}
             </p>
           </div>
           <button

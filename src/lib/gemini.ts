@@ -15,6 +15,7 @@ const ALLOWED_CATEGORIES = [
   "premium",
   "copyright",
   "artist",
+  "Customer_Support",
   "spam"
 ] as const;
 
@@ -61,6 +62,20 @@ const ARTIST_KEYWORDS = [
   "סינגל חדש",
   "קישור יוטיוב",
   "קריוקי"
+];
+
+const SUPPORT_KEYWORDS = [
+  "איך נכנסים",
+  "איך אפשר",
+  "מתי",
+  "צור קשר",
+  "צרו קשר",
+  "חזרו אלי",
+  "חזרו אליי",
+  "שלום",
+  "בדיקה",
+  "לאיפה המייל",
+  "שירות"
 ];
 
 const coercePriority = (priority: unknown): TicketPriority => {
@@ -110,6 +125,14 @@ const quickHeuristic = (subject: string, body: string): GeminiClassification | n
     };
   }
 
+  if (SUPPORT_KEYWORDS.some((word) => text.includes(word))) {
+    return {
+      category: "Customer_Support",
+      priority: 3,
+      summary: "פניית שירות לקוחות כללית למיון וטיפול."
+    };
+  }
+
   return null;
 };
 
@@ -149,6 +172,7 @@ Allowed categories:
 - premium
 - copyright
 - artist
+- Customer_Support
 - spam
 
 Rules:

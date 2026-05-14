@@ -99,7 +99,7 @@ export default function DashboardPage() {
     () => ({
       page: 1,
       pageSize: 100,
-      category: "suggestions",
+      category: "Customer_Support",
       status: "open"
     }),
     []
@@ -149,18 +149,12 @@ export default function DashboardPage() {
   }, [refreshAll]);
 
   const handleEmailSync = useCallback(async () => {
-    const ingestSecret = window.prompt("הזן EMAIL_INGEST_SECRET להרצת סנכרון מיילים");
-    if (!ingestSecret) return;
-
     setEmailSyncing(true);
     setEmailSyncMessage(null);
 
     try {
       const res = await fetch("/api/email-ingest", {
         method: "POST",
-        headers: {
-          "x-email-ingest-secret": ingestSecret
-        },
         cache: "no-store"
       });
       const data = (await res.json()) as EmailSyncResponse;
@@ -361,21 +355,16 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
-        <details className="hidden rounded-2xl border border-outline/70 bg-white/70 p-2 md:block">
-          <summary className="cursor-pointer select-none px-2 py-1 text-xs font-semibold text-on-surface-variant">
-            מדדי דשבורד
-          </summary>
-          <div className="pt-2">
-            <DashboardStats
-              stats={stats}
-              activeStatus={activeStatus}
-              onStatusFilter={(s) => {
-                setActiveStatus(s);
-                setPage(1);
-              }}
-            />
-          </div>
-        </details>
+        <div className="hidden md:block">
+          <DashboardStats
+            stats={stats}
+            activeStatus={activeStatus}
+            onStatusFilter={(s) => {
+              setActiveStatus(s);
+              setPage(1);
+            }}
+          />
+        </div>
 
         <section className="grid gap-2 xl:grid-cols-[minmax(0,13rem),1fr]">
           <Sidebar
@@ -471,6 +460,8 @@ export default function DashboardPage() {
 
             <div className="grid gap-2 2xl:grid-cols-[20rem,minmax(0,1fr)]">
               <TriageInbox
+                title="תיבת שירות מהירה"
+                subtitle={`${triageTotal.toLocaleString("he-IL")} פניות שירות פתוחות למיון/טיפול`}
                 tickets={triageItems}
                 total={triageTotal}
                 isLoading={triageLoading}

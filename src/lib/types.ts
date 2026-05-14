@@ -68,7 +68,7 @@ export interface TicketUpdateInput {
 
 /** Gemini classifier output (internal buckets). */
 export interface GeminiClassification {
-  category: Exclude<LegacyTicketCategory, "handled" | "Customer_Support" | "Billing" | "Spam">;
+  category: Exclude<LegacyTicketCategory, "handled" | "Billing" | "Spam">;
   priority: TicketPriority;
   summary: string;
 }
