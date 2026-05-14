@@ -35,6 +35,7 @@ export function rowToTicket(r: Record<string, unknown>): Ticket {
     source: (String(r.source ?? "manual") as TicketSource) || "manual",
     tags: parseTags(r.tags),
     assignedTo: String(r.assigned_to ?? ""),
+    closureNote: String(r.closure_note ?? ""),
     messageAt: r.message_at ? String(r.message_at) : null,
     emailMessageId: r.email_message_id ? String(r.email_message_id) : undefined,
     emailMailboxUid: r.email_mailbox_uid ? String(r.email_mailbox_uid) : undefined,

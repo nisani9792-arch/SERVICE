@@ -20,6 +20,7 @@ export function EditTicketModal({ ticket, onClose }: EditTicketModalProps) {
   const [status, setStatus] = useState<TicketStatus>("open");
   const [tags, setTags] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
+  const [closureNote, setClosureNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export function EditTicketModal({ ticket, onClose }: EditTicketModalProps) {
     setStatus(ticket.status);
     setTags(ticket.tags.join(", "));
     setAssignedTo(ticket.assignedTo);
+    setClosureNote(ticket.closureNote);
   }, [ticket]);
 
   if (!ticket) {
@@ -55,7 +57,8 @@ export function EditTicketModal({ ticket, onClose }: EditTicketModalProps) {
       priority,
       status,
       tags: tagList,
-      assignedTo: assignedTo.trim()
+      assignedTo: assignedTo.trim(),
+      closureNote: closureNote.trim()
     });
     setIsSaving(false);
     onClose();
@@ -157,6 +160,16 @@ export function EditTicketModal({ ticket, onClose }: EditTicketModalProps) {
               className="mt-1 w-full rounded-xl border border-outline bg-white px-3 py-2 text-sm outline-none focus:border-primary"
               value={assignedTo}
               onChange={(e) => setAssignedTo(e.target.value)}
+            />
+          </label>
+
+          <label className="block text-xs text-on-surface-variant">
+            הערת סגירה / טיפול
+            <textarea
+              className="mt-1 h-20 w-full resize-none rounded-xl border border-outline bg-white px-3 py-2 text-sm outline-none focus:border-primary"
+              placeholder="מה נעשה עם הפנייה ולמה היא נסגרה"
+              value={closureNote}
+              onChange={(e) => setClosureNote(e.target.value)}
             />
           </label>
 

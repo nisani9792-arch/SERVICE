@@ -107,6 +107,11 @@ function MobileTicketCard({
           <p className="mt-1 line-clamp-4 text-xs leading-relaxed text-on-surface-variant">
             {preview}
           </p>
+          {ticket.closureNote ? (
+            <p className="mt-2 line-clamp-2 rounded-lg bg-white/70 px-2 py-1 text-[11px] leading-snug text-on-surface-variant">
+              הערת סגירה: {ticket.closureNote}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -287,6 +292,11 @@ export function TicketsDataTable({
                         <p className="line-clamp-3 text-xs leading-snug text-on-surface-variant">
                           {preview}
                         </p>
+                        {ticket.closureNote ? (
+                          <p className="line-clamp-2 text-[11px] leading-snug text-on-surface-variant">
+                            הערת סגירה: {ticket.closureNote}
+                          </p>
+                        ) : null}
                       </div>
                     </td>
                     <td className="px-3 py-2 align-middle">

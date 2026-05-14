@@ -1,23 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { ingestGmailInbox } from "@/lib/email-ingest";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-function isSameOriginRequest(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-
-  try {
-    return new URL(origin).origin === request.nextUrl.origin;
-  } catch {
-    return false;
-  }
-}
-
 function hasValidSecret(request: NextRequest): boolean {
   const configured = process.env.EMAIL_INGEST_SECRET?.trim();
+  const authorization = request.headers.get("authorization")?.trim();
+  const bearer = authorization?.toLowerCase().startsWith("bearer ")
+    ? authorization.slice("bearer ".length).trim()
+    : "";
   const provided =
+    bearer ||
     request.headers.get("x-email-ingest-secret")?.trim() ||
     request.nextUrl.searchParams.get("secret")?.trim();
 
@@ -25,15 +20,18 @@ function hasValidSecret(request: NextRequest): boolean {
     return process.env.NODE_ENV !== "production";
   }
 
-  return provided === configured;
+  if (!provided) return false;
+
+  const configuredBytes = Buffer.from(configured);
+  const providedBytes = Buffer.from(provided);
+  return (
+    configuredBytes.length === providedBytes.length &&
+    timingSafeEqual(configuredBytes, providedBytes)
+  );
 }
 
-async function runEmailIngest(request: NextRequest, allowSameOriginPost: boolean) {
-  const authorized =
-    hasValidSecret(request) ||
-    (allowSameOriginPost && request.method === "POST" && isSameOriginRequest(request));
-
-  if (!authorized) {
+async function runEmailIngest(request: NextRequest) {
+  if (!hasValidSecret(request)) {
     return NextResponse.json(
       { error: "Unauthorized email ingest request" },
       { status: 401 }
@@ -55,9 +53,9 @@ async function runEmailIngest(request: NextRequest, allowSameOriginPost: boolean
 }
 
 export async function GET(request: NextRequest) {
-  return runEmailIngest(request, false);
+  return runEmailIngest(request);
 }
 
 export async function POST(request: NextRequest) {
-  return runEmailIngest(request, true);
+  return runEmailIngest(request);
 }

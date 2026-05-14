@@ -26,7 +26,17 @@ const SPAM_KEYWORDS = [
   "adult",
   "click here",
   "guaranteed income",
-  "free trial"
+  "free trial",
+  "contact form marketing",
+  "automate your income",
+  "money-making",
+  "expensive ads",
+  "ai-driven",
+  "earn 35%",
+  "visa or mastercard",
+  "reputation video",
+  "millions of websites",
+  "blast your message"
 ];
 
 const URGENT_KEYWORDS = [
@@ -38,6 +48,19 @@ const URGENT_KEYWORDS = [
   "cannot login",
   "לא מצליח להתחבר",
   "copyright infringement"
+];
+
+const ARTIST_KEYWORDS = [
+  "זמר",
+  "אמן",
+  "להעלות שיר",
+  "העלאת שיר",
+  "להכניס שירים",
+  "פרסום שיר",
+  "שיר חדש",
+  "סינגל חדש",
+  "קישור יוטיוב",
+  "קריוקי"
 ];
 
 const coercePriority = (priority: unknown): TicketPriority => {
@@ -76,6 +99,14 @@ const quickHeuristic = (subject: string, body: string): GeminiClassification | n
       category: "bugs",
       priority: 5,
       summary: "זוהתה פנייה דחופה בנושא תקלה או השבתת שימוש."
+    };
+  }
+
+  if (ARTIST_KEYWORDS.some((word) => text.includes(word))) {
+    return {
+      category: "artist",
+      priority: 3,
+      summary: "פנייה בנושא שירים, אמנים או העלאת מוזיקה לג׳וזיק."
     };
   }
 

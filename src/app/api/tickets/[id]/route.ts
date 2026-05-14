@@ -15,6 +15,7 @@ export async function PATCH(
       status?: string;
       tags?: string[];
       assignedTo?: string;
+      closureNote?: string;
     };
 
     let effectiveStatus = body.status ?? undefined;
@@ -36,6 +37,7 @@ export async function PATCH(
         status       = COALESCE(${effectiveStatus ?? null}, status),
         tags         = ${tags}::text[],
         assigned_to  = COALESCE(${body.assignedTo ?? null}, assigned_to),
+        closure_note = COALESCE(${body.closureNote ?? null}, closure_note),
         updated_at   = now()
       WHERE id = ${params.id}
       RETURNING id
@@ -49,6 +51,7 @@ export async function PATCH(
         ai_summary   = COALESCE(${body.aiSummary ?? null}, ai_summary),
         status       = COALESCE(${effectiveStatus ?? null}, status),
         assigned_to  = COALESCE(${body.assignedTo ?? null}, assigned_to),
+        closure_note = COALESCE(${body.closureNote ?? null}, closure_note),
         updated_at   = now()
       WHERE id = ${params.id}
       RETURNING id

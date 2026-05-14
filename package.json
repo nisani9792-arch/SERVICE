@@ -11,8 +11,10 @@
     "postinstall": "node scripts/postinstall.js",
     "render-build": "npm install && npm run build",
     "import:historical": "node scripts/import-historical.cjs",
-    "import:mail-batches": "node scripts/import-mail-batches.cjs",
-    "import:gemini-json": "node scripts/import-gemini-json.cjs"
+    "import:mail-batches": "node scripts/import-mail-batches-info.cjs",
+    "import:gemini-json": "node scripts/import-gemini-json.cjs",
+    "repair:email-domains": "node scripts/repair-email-domains.cjs",
+    "email-ingest:trigger": "node scripts/trigger-email-ingest.cjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

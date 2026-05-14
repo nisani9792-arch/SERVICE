@@ -16,15 +16,34 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      - key: GMAIL_USER
+      - key: EMAIL_IMAP_USER
+        value: "EDITOR@JUSIC.CO"
+      - key: EMAIL_IMAP_APP_PASSWORD
         sync: false
-      - key: GMAIL_APP_PASSWORD
-        sync: false
+      - key: EMAIL_IMAP_HOST
+        value: "imap.gmail.com"
+      - key: EMAIL_IMAP_PORT
+        value: "993"
       - key: EMAIL_INGEST_SECRET
         sync: false
-      - key: GMAIL_MAILBOX
+      - key: EMAIL_IMAP_MAILBOX
         value: "INBOX"
+      - key: EMAIL_INGEST_SOURCE_TAG
+        value: "EDITOR"
       - key: EMAIL_INGEST_LOOKBACK_DAYS
         value: "14"
       - key: EMAIL_INGEST_MAX_MESSAGES
         value: "25"
+  - type: cron
+    name: jusic-email-ingest
+    runtime: node
+    schedule: "*/10 * * * *"
+    buildCommand: npm install
+    startCommand: npm run email-ingest:trigger
+    envVars:
+      - key: NODE_VERSION
+        value: "20.18.0"
+      - key: EMAIL_INGEST_URL
+        sync: false
+      - key: EMAIL_INGEST_SECRET
+        sync: false

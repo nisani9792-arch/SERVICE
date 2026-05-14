@@ -36,6 +36,7 @@ export interface Ticket {
   source: TicketSource;
   tags: string[];
   assignedTo: string;
+  closureNote: string;
   /** Business/event timestamp from source data; falls back to createdAt in UI when null. */
   messageAt: string | null;
   emailMessageId?: string;
@@ -62,6 +63,7 @@ export interface TicketUpdateInput {
   status?: TicketStatus;
   tags?: string[];
   assignedTo?: string;
+  closureNote?: string;
 }
 
 /** Gemini classifier output (internal buckets). */

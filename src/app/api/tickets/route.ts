@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
     const rows = await sql()`
       SELECT id, sender_email, sender_name, subject, body,
              category, priority, ai_summary, status, source,
-             message_at, tags, assigned_to,
+             message_at, tags, assigned_to, closure_note,
              email_message_id, email_mailbox_uid, email_ingested_at,
              created_at, updated_at
       FROM tickets
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
               ${classification.category}, ${classification.priority}, ${classification.summary},
               ${"open"}, ${source})
       RETURNING id, sender_email, sender_name, subject, body, category, priority, ai_summary, status, source,
-                message_at, tags, assigned_to, email_message_id, email_mailbox_uid, email_ingested_at,
+                message_at, tags, assigned_to, closure_note, email_message_id, email_mailbox_uid, email_ingested_at,
                 created_at, updated_at
     `;
 

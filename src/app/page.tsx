@@ -17,6 +17,7 @@ import { BulkActionBar } from "@/components/BulkActionBar";
 import { DashboardStats, type DashboardStatsModel } from "@/components/DashboardStats";
 import { TicketKanbanBoard } from "@/components/TicketKanbanBoard";
 import { TicketsDataTable } from "@/components/TicketsDataTable";
+import { TriageInbox } from "@/components/TriageInbox";
 import {
   deleteTicket,
   deleteTicketsBulk,
@@ -30,12 +31,14 @@ import { NewTicketModal } from "@/components/NewTicketModal";
 import { EditTicketModal } from "@/components/EditTicketModal";
 import { ExportContactsModal } from "@/components/ExportContactsModal";
 import { ReplyTemplatesModal } from "@/components/ReplyTemplatesModal";
+import { CloseTicketModal } from "@/components/CloseTicketModal";
 import type { Ticket, TicketStatus } from "@/lib/types";
 
 type EmailSyncResponse = {
   imported?: number;
   skipped?: number;
   scanned?: number;
+  deleted?: number;
   error?: string;
   details?: string;
 };
@@ -56,6 +59,7 @@ export default function DashboardPage() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showReplyTemplates, setShowReplyTemplates] = useState(false);
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
+  const [closingTicketIds, setClosingTicketIds] = useState<string[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const [headerRefreshing, setHeaderRefreshing] = useState(false);
@@ -91,6 +95,21 @@ export default function DashboardPage() {
   );
 
   const { items, total, isLoading, refresh } = useTicketList(listQuery);
+  const triageQuery = useMemo(
+    () => ({
+      page: 1,
+      pageSize: 100,
+      category: "suggestions",
+      status: "open"
+    }),
+    []
+  );
+  const {
+    items: triageItems,
+    total: triageTotal,
+    isLoading: triageLoading,
+    refresh: refreshTriage
+  } = useTicketList(triageQuery);
 
   const [stats, setStats] = useState<DashboardStatsModel | null>(null);
 
@@ -116,7 +135,8 @@ export default function DashboardPage() {
   const refreshAll = useCallback(async () => {
     await refreshStats();
     await refresh();
-  }, [refresh, refreshStats]);
+    await refreshTriage();
+  }, [refresh, refreshStats, refreshTriage]);
 
   const handleHeaderRefresh = useCallback(async () => {
     setHeaderRefreshing(true);
@@ -129,12 +149,18 @@ export default function DashboardPage() {
   }, [refreshAll]);
 
   const handleEmailSync = useCallback(async () => {
+    const ingestSecret = window.prompt("הזן EMAIL_INGEST_SECRET להרצת סנכרון מיילים");
+    if (!ingestSecret) return;
+
     setEmailSyncing(true);
     setEmailSyncMessage(null);
 
     try {
       const res = await fetch("/api/email-ingest", {
         method: "POST",
+        headers: {
+          "x-email-ingest-secret": ingestSecret
+        },
         cache: "no-store"
       });
       const data = (await res.json()) as EmailSyncResponse;
@@ -147,7 +173,7 @@ export default function DashboardPage() {
       setLastSyncedAt(new Date());
       setEmailSyncMessage({
         kind: "success",
-        text: `סנכרון מיילים הושלם: ${data.imported ?? 0} פניות חדשות נוספו, ${data.skipped ?? 0} דולגו.`
+        text: `סנכרון מיילים הושלם: ${data.imported ?? 0} פניות חדשות נוספו, ${data.skipped ?? 0} דולגו, ${data.deleted ?? 0} נמחקו מהאינבוקס.`
       });
     } catch (error) {
       setEmailSyncMessage({
@@ -193,8 +219,22 @@ export default function DashboardPage() {
 
   const onClearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
-  const onMarkClosed = async (ticketId: string) => {
-    await updateTicket(ticketId, { category: "handled" });
+  const onMarkClosed = (ticketId: string) => {
+    setClosingTicketIds([ticketId]);
+  };
+
+  const onSubmitCloseTickets = async (closureNote: string) => {
+    const ids = closingTicketIds ?? [];
+    if (ids.length === 0) return;
+
+    if (ids.length === 1) {
+      await updateTicket(ids[0], { category: "handled", closureNote });
+    } else {
+      await updateTicketsBulk(ids, { category: "handled", closureNote });
+      setSelectedIds(new Set());
+    }
+
+    setClosingTicketIds(null);
     await refreshAll();
   };
 
@@ -211,9 +251,8 @@ export default function DashboardPage() {
 
   const onBulkClose = async () => {
     const ids = Array.from(selectedIds);
-    await updateTicketsBulk(ids, { category: "handled" });
-    setSelectedIds(new Set());
-    await refreshAll();
+    if (ids.length === 0) return;
+    setClosingTicketIds(ids);
   };
 
   const onBulkDelete = async () => {
@@ -251,27 +290,32 @@ export default function DashboardPage() {
     await refreshAll();
   };
 
+  const onMoveTriageToCategory = async (ticketId: string, category: string) => {
+    await updateTicket(ticketId, { category });
+    await refreshAll();
+  };
+
   const dynamicCategories = stats?.byCategory ?? [];
 
   const headerActions = (
     <>
-      <button type="button" onClick={onClearSelection} className="lux-button rounded-xl">
+      <button type="button" onClick={onClearSelection} className="lux-button rounded-xl px-3 py-1.5 text-xs">
         <CheckSquare className="size-4 opacity-80" />
         נקה בחירה
       </button>
       <button
         type="button"
         onClick={() => setShowReplyTemplates(true)}
-        className="lux-button rounded-xl"
+        className="lux-button rounded-xl px-3 py-1.5 text-xs"
       >
         <MessageSquareText className="size-4 opacity-80" />
         תבניות
       </button>
-      <button type="button" onClick={() => setShowExportModal(true)} className="lux-button rounded-xl">
+      <button type="button" onClick={() => setShowExportModal(true)} className="lux-button rounded-xl px-3 py-1.5 text-xs">
         <Download className="size-4 opacity-80" />
         ייצוא
       </button>
-      <button type="button" onClick={() => setShowImportModal(true)} className="lux-button rounded-xl">
+      <button type="button" onClick={() => setShowImportModal(true)} className="lux-button rounded-xl px-3 py-1.5 text-xs">
         <Upload className="size-4 opacity-80" />
         יבוא
       </button>
@@ -279,7 +323,7 @@ export default function DashboardPage() {
         type="button"
         onClick={handleEmailSync}
         disabled={emailSyncing}
-        className="lux-button rounded-xl disabled:cursor-not-allowed disabled:opacity-60"
+        className="lux-button rounded-xl px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
       >
         <MailCheck className={`size-4 opacity-80 ${emailSyncing ? "animate-pulse" : ""}`} />
         {emailSyncing ? "מסנכרן מיילים…" : "סנכרן מיילים"}
@@ -287,7 +331,7 @@ export default function DashboardPage() {
       <button
         type="button"
         onClick={() => setShowNewModal(true)}
-        className="lux-button-primary rounded-xl px-4 py-2.5 shadow-md"
+        className="lux-button-primary rounded-xl px-3 py-1.5 text-xs shadow-md"
       >
         <Plus className="size-4" />
         פנייה חדשה
@@ -296,8 +340,8 @@ export default function DashboardPage() {
   );
 
   return (
-    <main className="crm-workspace min-h-screen px-2 pb-20 pt-2 sm:px-3 md:px-5 md:pb-10 md:pt-4">
-      <div className="mx-auto max-w-[1680px] space-y-4">
+    <main className="crm-workspace min-h-screen px-2 pb-16 pt-2 text-[13px] sm:px-3 md:px-4 md:pb-8">
+      <div className="mx-auto max-w-[1760px] space-y-2">
         <AppHeader
           actions={headerActions}
           onRefresh={handleHeaderRefresh}
@@ -317,18 +361,23 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
-        <div className="hidden md:block">
-          <DashboardStats
-            stats={stats}
-            activeStatus={activeStatus}
-            onStatusFilter={(s) => {
-              setActiveStatus(s);
-              setPage(1);
-            }}
-          />
-        </div>
+        <details className="hidden rounded-2xl border border-outline/70 bg-white/70 p-2 md:block">
+          <summary className="cursor-pointer select-none px-2 py-1 text-xs font-semibold text-on-surface-variant">
+            מדדי דשבורד
+          </summary>
+          <div className="pt-2">
+            <DashboardStats
+              stats={stats}
+              activeStatus={activeStatus}
+              onStatusFilter={(s) => {
+                setActiveStatus(s);
+                setPage(1);
+              }}
+            />
+          </div>
+        </details>
 
-        <section className="grid gap-3 xl:grid-cols-[minmax(0,16rem),1fr] xl:gap-4">
+        <section className="grid gap-2 xl:grid-cols-[minmax(0,13rem),1fr]">
           <Sidebar
             activeCategory={activeCategory}
             dynamicCategories={dynamicCategories}
@@ -339,12 +388,12 @@ export default function DashboardPage() {
             }}
           />
 
-          <div className="min-w-0 space-y-2 md:space-y-3">
-            <div className="flex flex-col gap-2 border-b border-outline/50 pb-2 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0 space-y-2">
+            <div className="flex flex-col gap-2 border-b border-outline/50 pb-1.5 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h2 className="text-base font-bold text-on-surface md:text-lg">זרימת פניות</h2>
-                <p className="text-xs text-on-surface-variant md:text-sm">
-                  לוח קנבן לטיפול מהיר, עם תוכן הפנייה גלוי כבר בכרטיס
+                <h2 className="text-sm font-bold text-on-surface md:text-base">שולחן עבודה לטיפול</h2>
+                <p className="text-[11px] text-on-surface-variant md:text-xs">
+                  מיין פניות חדשות, גרור לקטגוריה ועבוד בכרטיסים קומפקטיים.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -420,41 +469,52 @@ export default function DashboardPage() {
               </details>
             </div>
 
-            {viewMode === "kanban" ? (
-              <TicketKanbanBoard
-                tickets={items}
-                isLoading={isLoading}
+            <div className="grid gap-2 2xl:grid-cols-[20rem,minmax(0,1fr)]">
+              <TriageInbox
+                tickets={triageItems}
+                total={triageTotal}
+                isLoading={triageLoading}
                 onEdit={setEditingTicket}
-                onSetStatus={(id, status) => {
-                  void onSetTicketStatus(id, status);
-                }}
-                onMarkClosed={(id) => {
-                  void onMarkClosed(id);
-                }}
-                onDelete={(id) => {
-                  void onDelete(id);
-                }}
+                onMoveToCategory={onMoveTriageToCategory}
+                onRefresh={refreshTriage}
               />
-            ) : (
-              <TicketsDataTable
-                tickets={items}
-                total={total}
-                page={page}
-                pageSize={pageSize}
-                isLoading={isLoading}
-                selectedIds={selectedIds}
-                onToggleSelect={onToggleSelect}
-                onSelectPage={onSelectPage}
-                onPageChange={setPage}
-                onEdit={setEditingTicket}
-                onMarkClosed={async (id) => {
-                  await onMarkClosed(id);
-                }}
-                onDelete={async (id) => {
-                  await onDelete(id);
-                }}
-              />
-            )}
+
+              {viewMode === "kanban" ? (
+                <TicketKanbanBoard
+                  tickets={items}
+                  isLoading={isLoading}
+                  onEdit={setEditingTicket}
+                  onSetStatus={(id, status) => {
+                    void onSetTicketStatus(id, status);
+                  }}
+                  onMarkClosed={(id) => {
+                    onMarkClosed(id);
+                  }}
+                  onDelete={(id) => {
+                    void onDelete(id);
+                  }}
+                />
+              ) : (
+                <TicketsDataTable
+                  tickets={items}
+                  total={total}
+                  page={page}
+                  pageSize={pageSize}
+                  isLoading={isLoading}
+                  selectedIds={selectedIds}
+                  onToggleSelect={onToggleSelect}
+                  onSelectPage={onSelectPage}
+                  onPageChange={setPage}
+                  onEdit={setEditingTicket}
+                  onMarkClosed={async (id) => {
+                    onMarkClosed(id);
+                  }}
+                  onDelete={async (id) => {
+                    await onDelete(id);
+                  }}
+                />
+              )}
+            </div>
 
             <BulkActionBar
               count={selectedIds.size}
@@ -490,6 +550,12 @@ export default function DashboardPage() {
           setEditingTicket(null);
           void refreshAll();
         }}
+      />
+      <CloseTicketModal
+        isOpen={closingTicketIds !== null}
+        count={closingTicketIds?.length ?? 0}
+        onCancel={() => setClosingTicketIds(null)}
+        onSubmit={onSubmitCloseTickets}
       />
       <ExportContactsModal isOpen={showExportModal} onClose={() => setShowExportModal(false)} />
       <ReplyTemplatesModal isOpen={showReplyTemplates} onClose={() => setShowReplyTemplates(false)} />

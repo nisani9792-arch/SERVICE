@@ -111,6 +111,7 @@ export async function PATCH(request: NextRequest) {
       tags?: string[];
       replaceTags?: boolean;
       assignedTo?: string;
+      closureNote?: string;
     };
 
     const ids = body.ids;
@@ -125,6 +126,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const assignedTo = body.assignedTo ?? null;
+    const closureNote = body.closureNote ?? null;
     const tagList = Array.isArray(body.tags) ? body.tags.map((t) => String(t).trim()).filter(Boolean) : null;
     const replaceTags = Boolean(body.replaceTags);
 
@@ -135,6 +137,7 @@ export async function PATCH(request: NextRequest) {
             category     = COALESCE(${category}, category),
             status       = COALESCE(${status}, status),
             assigned_to  = COALESCE(${assignedTo}, assigned_to),
+            closure_note = COALESCE(${closureNote}, closure_note),
             tags         = ${tagList}::text[],
             updated_at   = now()
           WHERE id = ANY(${ids})
@@ -145,6 +148,7 @@ export async function PATCH(request: NextRequest) {
             category     = COALESCE(${category}, category),
             status       = COALESCE(${status}, status),
             assigned_to  = COALESCE(${assignedTo}, assigned_to),
+            closure_note = COALESCE(${closureNote}, closure_note),
             tags         = COALESCE(
               (
                 SELECT array_agg(DISTINCT e)
@@ -162,6 +166,7 @@ export async function PATCH(request: NextRequest) {
           category     = COALESCE(${category}, category),
           status       = COALESCE(${status}, status),
           assigned_to  = COALESCE(${assignedTo}, assigned_to),
+          closure_note = COALESCE(${closureNote}, closure_note),
           updated_at   = now()
         WHERE id = ANY(${ids})
       `;

@@ -6,6 +6,31 @@ import { sql } from "@/lib/neon";
 const DEFAULT_MAILBOX = "INBOX";
 const DEFAULT_LOOKBACK_DAYS = 14;
 const DEFAULT_MAX_MESSAGES = 25;
+const DEFAULT_SOURCE_TAG = "EDITOR";
+
+const SYSTEM_SENDER_DOMAINS = [
+  "instagram.com",
+  "mail.instagram.com",
+  "facebook.com",
+  "facebookmail.com",
+  "google.com",
+  "accounts.google.com",
+  "workspace.google.com"
+];
+
+const SYSTEM_MESSAGE_PATTERNS = [
+  /google workspace/i,
+  /admin alert/i,
+  /monthly security/i,
+  /data protection insights/i,
+  /jusic_2025/i,
+  /instagram/i,
+  /אינסטגרם/i,
+  /חשבון google/i,
+  /unsubscribe/i,
+  /newsletter/i,
+  /mailing list/i
+];
 
 type GmailConfig = {
   user: string;
@@ -15,6 +40,7 @@ type GmailConfig = {
   mailbox: string;
   lookbackDays: number;
   maxMessages: number;
+  sourceTag: string;
 };
 
 type ParsedEmailMessage = {
@@ -33,6 +59,7 @@ export type EmailIngestResult = {
   scanned: number;
   imported: number;
   skipped: number;
+  deleted: number;
   errors: string[];
 };
 
@@ -42,21 +69,26 @@ function positiveInt(value: string | undefined, fallback: number): number {
 }
 
 function getGmailConfig(): GmailConfig {
-  const user = process.env.GMAIL_USER?.trim();
-  const appPassword = process.env.GMAIL_APP_PASSWORD?.trim();
+  const user = (process.env.EMAIL_IMAP_USER ?? process.env.GMAIL_USER)?.trim();
+  const appPassword = (
+    process.env.EMAIL_IMAP_APP_PASSWORD ?? process.env.GMAIL_APP_PASSWORD
+  )
+    ?.replace(/\s+/g, "")
+    .trim();
 
   if (!user || !appPassword) {
-    throw new Error("GMAIL_USER and GMAIL_APP_PASSWORD must be configured");
+    throw new Error("EMAIL_IMAP_USER and EMAIL_IMAP_APP_PASSWORD must be configured");
   }
 
   return {
     user,
     appPassword,
-    host: process.env.GMAIL_IMAP_HOST?.trim() || "imap.gmail.com",
-    port: positiveInt(process.env.GMAIL_IMAP_PORT, 993),
-    mailbox: process.env.GMAIL_MAILBOX?.trim() || DEFAULT_MAILBOX,
+    host: (process.env.EMAIL_IMAP_HOST ?? process.env.GMAIL_IMAP_HOST)?.trim() || "imap.gmail.com",
+    port: positiveInt(process.env.EMAIL_IMAP_PORT ?? process.env.GMAIL_IMAP_PORT, 993),
+    mailbox: (process.env.EMAIL_IMAP_MAILBOX ?? process.env.GMAIL_MAILBOX)?.trim() || DEFAULT_MAILBOX,
     lookbackDays: positiveInt(process.env.EMAIL_INGEST_LOOKBACK_DAYS, DEFAULT_LOOKBACK_DAYS),
-    maxMessages: positiveInt(process.env.EMAIL_INGEST_MAX_MESSAGES, DEFAULT_MAX_MESSAGES)
+    maxMessages: positiveInt(process.env.EMAIL_INGEST_MAX_MESSAGES, DEFAULT_MAX_MESSAGES),
+    sourceTag: process.env.EMAIL_INGEST_SOURCE_TAG?.trim() || DEFAULT_SOURCE_TAG
   };
 }
 
@@ -106,6 +138,24 @@ function importKeyFor(messageId: string | null, mailboxUid: string): string {
   return messageId ? `message-id:${messageId}` : `uid:${mailboxUid}`;
 }
 
+function senderDomain(email: string): string {
+  return email.split("@")[1]?.toLowerCase() ?? "";
+}
+
+function isSystemOrListMessage(message: ParsedEmailMessage): boolean {
+  const domain = senderDomain(message.senderEmail);
+  if (SYSTEM_SENDER_DOMAINS.some((systemDomain) => domain === systemDomain || domain.endsWith(`.${systemDomain}`))) {
+    return true;
+  }
+
+  if (/no-?reply|noreply|notification|workspace|accounts/i.test(message.senderEmail)) {
+    return true;
+  }
+
+  const text = `${message.senderName} ${message.subject} ${message.body}`;
+  return SYSTEM_MESSAGE_PATTERNS.some((pattern) => pattern.test(text));
+}
+
 async function alreadyImported(importKey: string): Promise<boolean> {
   const rows = await sql()`
     SELECT id
@@ -116,7 +166,25 @@ async function alreadyImported(importKey: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-async function insertEmailTicket(message: ParsedEmailMessage): Promise<boolean> {
+async function ensureEmailIngestSchema(): Promise<void> {
+  await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_import_key TEXT`;
+  await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_message_id TEXT`;
+  await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_mailbox_uid TEXT`;
+  await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_ingested_at TIMESTAMPTZ`;
+  await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}'`;
+  await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS assigned_to TEXT NOT NULL DEFAULT ''`;
+  await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS closure_note TEXT NOT NULL DEFAULT ''`;
+  await sql()`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_email_import_key
+    ON tickets (email_import_key)
+    WHERE email_import_key IS NOT NULL
+  `;
+}
+
+async function insertEmailTicket(
+  message: ParsedEmailMessage,
+  sourceTag: string
+): Promise<boolean> {
   const classification = await classifyTicketContent(
     message.senderEmail,
     message.subject,
@@ -135,6 +203,7 @@ async function insertEmailTicket(message: ParsedEmailMessage): Promise<boolean> 
       status,
       source,
       message_at,
+      tags,
       email_import_key,
       email_message_id,
       email_mailbox_uid,
@@ -151,6 +220,7 @@ async function insertEmailTicket(message: ParsedEmailMessage): Promise<boolean> 
       ${"open"},
       ${"email"},
       ${message.messageAt},
+      ARRAY[${sourceTag}]::text[],
       ${message.importKey},
       ${message.messageId},
       ${message.mailboxUid},
@@ -161,6 +231,12 @@ async function insertEmailTicket(message: ParsedEmailMessage): Promise<boolean> 
   `;
 
   return rows.length > 0;
+}
+
+async function deleteProcessedMessages(client: ImapFlow, uids: number[]): Promise<number> {
+  if (uids.length === 0) return 0;
+  const deleted = await client.messageDelete(uids, { uid: true });
+  return deleted ? uids.length : 0;
 }
 
 async function parseFetchedMessage(
@@ -193,6 +269,8 @@ async function parseFetchedMessage(
 
 export async function ingestGmailInbox(): Promise<EmailIngestResult> {
   const config = getGmailConfig();
+  await ensureEmailIngestSchema();
+
   const client = new ImapFlow({
     host: config.host,
     port: config.port,
@@ -209,6 +287,7 @@ export async function ingestGmailInbox(): Promise<EmailIngestResult> {
     scanned: 0,
     imported: 0,
     skipped: 0,
+    deleted: 0,
     errors: []
   };
 
@@ -217,7 +296,7 @@ export async function ingestGmailInbox(): Promise<EmailIngestResult> {
   const lock = await client.getMailboxLock(config.mailbox);
   try {
     const since = new Date(Date.now() - config.lookbackDays * 24 * 60 * 60 * 1000);
-    const foundUids = await client.search({ since });
+    const foundUids = await client.search({ since }, { uid: true });
     const uidsToFetch = (Array.isArray(foundUids) ? foundUids : [])
       .sort((a, b) => a - b)
       .slice(-config.maxMessages);
@@ -225,6 +304,8 @@ export async function ingestGmailInbox(): Promise<EmailIngestResult> {
     if (uidsToFetch.length === 0) {
       return result;
     }
+
+    const processedUids: number[] = [];
 
     for await (const fetched of client.fetch(
       uidsToFetch,
@@ -245,12 +326,24 @@ export async function ingestGmailInbox(): Promise<EmailIngestResult> {
         }
 
         const message = await parseFetchedMessage(config.mailbox, uid, source);
-        if (!message || (await alreadyImported(message.importKey))) {
+        if (!message) {
           result.skipped += 1;
           continue;
         }
 
-        const inserted = await insertEmailTicket(message);
+        if (isSystemOrListMessage(message)) {
+          result.skipped += 1;
+          processedUids.push(uid);
+          continue;
+        }
+
+        const duplicate = await alreadyImported(message.importKey);
+        const inserted = duplicate ? false : await insertEmailTicket(message, config.sourceTag);
+
+        if (inserted || duplicate) {
+          processedUids.push(uid);
+        }
+
         if (inserted) {
           result.imported += 1;
         } else {
@@ -259,6 +352,12 @@ export async function ingestGmailInbox(): Promise<EmailIngestResult> {
       } catch (error) {
         result.errors.push(error instanceof Error ? error.message : "Unknown email parsing error");
       }
+    }
+
+    const deletedCount = await deleteProcessedMessages(client, processedUids);
+    result.deleted += deletedCount;
+    if (deletedCount !== processedUids.length) {
+      result.errors.push("Some processed emails could not be deleted from the mailbox");
     }
   } finally {
     lock.release();

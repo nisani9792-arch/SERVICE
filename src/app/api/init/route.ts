@@ -26,6 +26,7 @@ export async function POST() {
         email_ingested_at TIMESTAMPTZ,
         tags          TEXT[] NOT NULL DEFAULT '{}',
         assigned_to   TEXT NOT NULL DEFAULT '',
+        closure_note  TEXT NOT NULL DEFAULT '',
         created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
       )
@@ -38,6 +39,7 @@ export async function POST() {
     await db`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_ingested_at TIMESTAMPTZ`;
     await db`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}'`;
     await db`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS assigned_to TEXT NOT NULL DEFAULT ''`;
+    await db`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS closure_note TEXT NOT NULL DEFAULT ''`;
 
     await db`CREATE INDEX IF NOT EXISTS idx_tickets_created_at ON tickets (created_at DESC)`;
     await db`CREATE INDEX IF NOT EXISTS idx_tickets_category ON tickets (category)`;
