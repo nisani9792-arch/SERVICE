@@ -22,7 +22,9 @@ export async function GET(request: NextRequest) {
 
     const status = searchParams.get("status");
     const activeStatusFilter = status === "active";
-    const statusFilter = status && status !== "all" && status !== "active" ? status : null;
+    const closedStatusFilter = status === "closed";
+    const exactStatusFilter =
+      status && status !== "all" && status !== "active" && status !== "closed" ? status : null;
 
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
@@ -48,8 +50,18 @@ export async function GET(request: NextRequest) {
       SELECT count(*)::int AS c
       FROM tickets
       WHERE (${categoryFilter}::text IS NULL OR category = ${categoryFilter})
-        AND (${activeStatusFilter}::boolean = false OR status <> 'closed')
-        AND (${statusFilter}::text IS NULL OR status = ${statusFilter})
+        AND (
+          ${activeStatusFilter}::boolean = false
+          OR (status NOT IN ('closed', 'handled'))
+        )
+        AND (
+          ${closedStatusFilter}::boolean = false
+          OR (status IN ('closed', 'handled'))
+        )
+        AND (
+          ${exactStatusFilter}::text IS NULL
+          OR status = ${exactStatusFilter}
+        )
         AND (
           ${dateFromTs}::timestamptz IS NULL
           OR COALESCE(message_at, created_at) >= ${dateFromTs}::timestamptz
@@ -83,8 +95,18 @@ export async function GET(request: NextRequest) {
              created_at, updated_at
       FROM tickets
       WHERE (${categoryFilter}::text IS NULL OR category = ${categoryFilter})
-        AND (${activeStatusFilter}::boolean = false OR status <> 'closed')
-        AND (${statusFilter}::text IS NULL OR status = ${statusFilter})
+        AND (
+          ${activeStatusFilter}::boolean = false
+          OR (status NOT IN ('closed', 'handled'))
+        )
+        AND (
+          ${closedStatusFilter}::boolean = false
+          OR (status IN ('closed', 'handled'))
+        )
+        AND (
+          ${exactStatusFilter}::text IS NULL
+          OR status = ${exactStatusFilter}
+        )
         AND (
           ${dateFromTs}::timestamptz IS NULL
           OR COALESCE(message_at, created_at) >= ${dateFromTs}::timestamptz

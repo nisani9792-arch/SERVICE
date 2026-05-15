@@ -4,14 +4,17 @@ import {
   Bug,
   CreditCard,
   Crown,
+  Inbox,
   MessageSquareHeart,
   MicVocal,
   ShieldAlert,
   LayoutGrid
 } from "lucide-react";
 import type { LegacyTicketCategory } from "@/lib/types";
+import { PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
 
-export const CATEGORY_LABELS_HE: Record<LegacyTicketCategory, string> = {
+export const CATEGORY_LABELS_HE: Record<string, string> = {
+  [PENDING_TRIAGE_CATEGORY]: "ממתין לסינון",
   suggestions: "בקשות / הצעות ייעול",
   bugs: "באגים ובעיות שימוש",
   premium: "מנויי פרימיום / הרשמה",
@@ -24,7 +27,8 @@ export const CATEGORY_LABELS_HE: Record<LegacyTicketCategory, string> = {
   Spam: "ספאם (מובנה)"
 };
 
-export const CATEGORY_COLORS: Record<LegacyTicketCategory, string> = {
+export const CATEGORY_COLORS: Record<string, string> = {
+  [PENDING_TRIAGE_CATEGORY]: "bg-fuchsia-100 text-fuchsia-950 ring-1 ring-fuchsia-300",
   suggestions: "bg-blue-100 text-blue-800",
   bugs: "bg-rose-100 text-rose-800",
   premium: "bg-violet-100 text-violet-800",
@@ -37,7 +41,8 @@ export const CATEGORY_COLORS: Record<LegacyTicketCategory, string> = {
   Spam: "bg-stone-200 text-stone-800"
 };
 
-export const CATEGORY_ICONS: Record<LegacyTicketCategory, typeof BadgeHelp> = {
+export const CATEGORY_ICONS: Record<string, typeof BadgeHelp> = {
+  [PENDING_TRIAGE_CATEGORY]: Inbox,
   suggestions: MessageSquareHeart,
   bugs: Bug,
   premium: Crown,
@@ -64,14 +69,14 @@ export const ACTIVE_CATEGORIES: Exclude<LegacyTicketCategory, "handled">[] = [
 
 export function categoryLabel(category: string): string {
   if (category in CATEGORY_LABELS_HE) {
-    return CATEGORY_LABELS_HE[category as LegacyTicketCategory];
+    return CATEGORY_LABELS_HE[category];
   }
   return category.replace(/_/g, " ");
 }
 
 export function categoryBadgeClass(category: string): string {
   if (category in CATEGORY_COLORS) {
-    return CATEGORY_COLORS[category as LegacyTicketCategory];
+    return CATEGORY_COLORS[category];
   }
   return "bg-primary-soft text-primary";
 }

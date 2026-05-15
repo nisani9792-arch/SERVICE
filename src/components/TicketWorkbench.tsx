@@ -15,8 +15,10 @@ import {
 } from "lucide-react";
 import { CategoryBadge } from "@/components/CategoryBadge";
 import { TicketAttachments } from "@/components/TicketAttachments";
+import { TriageAssignBar } from "@/components/TriageAssignBar";
 import { ACTIVE_CATEGORIES, categoryLabel } from "@/lib/categories";
 import { displayTicketDate } from "@/lib/ticket-row";
+import { isPendingTriage } from "@/lib/triage";
 import type { Ticket, TicketStatus } from "@/lib/types";
 
 const STATUS_LABELS: Record<TicketStatus, string> = {
@@ -80,6 +82,7 @@ interface TicketDetailPanelProps {
   onEdit: (ticket: Ticket) => void;
   onDelete: (id: string) => void;
   onChangeCategory: (id: string, category: string) => void;
+  onTriageAssign?: (id: string, category: string) => void;
   onClose?: () => void;
   compactHeader?: boolean;
 }
@@ -93,6 +96,7 @@ function TicketDetailPanel({
   onEdit,
   onDelete,
   onChangeCategory,
+  onTriageAssign,
   onClose,
   compactHeader
 }: TicketDetailPanelProps) {
@@ -151,6 +155,11 @@ function TicketDetailPanel({
           </div>
         ) : null}
         <TicketAttachments ticketId={ticket.id} />
+        {isPendingTriage(ticket.category) && onTriageAssign ? (
+          <div className="mt-3">
+            <TriageAssignBar onAssign={(category) => onTriageAssign(ticket.id, category)} />
+          </div>
+        ) : null}
       </div>
 
       <div className="space-y-2 border-t border-outline/70 p-3">
@@ -269,6 +278,7 @@ interface TicketWorkbenchProps {
   onChangeCategory: (id: string, category: string) => void;
   onReply: (ticket: Ticket) => void;
   onSaveInquiry: (ticket: Ticket) => void;
+  onTriageAssign?: (id: string, category: string) => void;
 }
 
 export function TicketWorkbench({
@@ -291,7 +301,8 @@ export function TicketWorkbench({
   onSetStatus,
   onChangeCategory,
   onReply,
-  onSaveInquiry
+  onSaveInquiry,
+  onTriageAssign
 }: TicketWorkbenchProps) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const allSelected = tickets.length > 0 && tickets.every((ticket) => selectedIds.has(ticket.id));
@@ -334,6 +345,7 @@ export function TicketWorkbench({
         onEdit,
         onDelete,
         onChangeCategory,
+        onTriageAssign,
         onClose: () => setMobileDetailOpen(false)
       }
     : null;

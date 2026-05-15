@@ -217,3 +217,105 @@ ${compactBody}
     return DEFAULT_RESULT;
   }
 };
+
+const RECLASSIFY_CATEGORIES = [
+  "suggestions",
+  "bugs",
+  "premium",
+  "copyright",
+  "artist",
+  "Customer_Support",
+  "Billing",
+  "spam"
+] as const;
+
+/** Conservative re-check — avoids marking real customers as spam. */
+export type ReclassifyResult = {
+  category: string;
+  priority: TicketPriority;
+  summary: string;
+};
+
+export const reclassifyTicketContent = async (
+  senderEmail: string,
+  subject: string,
+  body: string
+): Promise<ReclassifyResult> => {
+  const apiKey = process.env.GOOGLE_GEMINI_API_KEY ?? process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return classifyTicketContent(senderEmail, subject, body);
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: MODEL_NAME,
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: "application/json"
+    }
+  });
+
+  const compactBody = body.trim().slice(0, 8000);
+  const prompt = `
+You are re-reviewing a Jusic CRM ticket that may have been wrongly marked as spam.
+Classify again into exactly one category. Return strict JSON only.
+
+Allowed categories:
+- suggestions
+- bugs
+- premium
+- copyright
+- artist
+- Customer_Support
+- Billing
+- spam
+
+Rules:
+- Use "spam" ONLY for obvious mass marketing, phishing, or automated junk with no real user request.
+- Real questions, support requests, artists, billing, and Hebrew/English user messages are NOT spam — use Customer_Support or a specific category.
+- priority integer 1..5 (5 = urgent)
+- summary: one sentence, max 24 words
+
+Return exactly:
+{"category":"Customer_Support","priority":3,"summary":"..."}
+
+senderEmail: ${senderEmail}
+subject: ${subject}
+body:
+${compactBody}
+`;
+
+  try {
+    const response = await model.generateContent(prompt);
+    const text = response.response.text();
+    const parsed = JSON.parse(extractJsonBlock(text)) as {
+      category?: string;
+      priority?: number;
+      summary?: string;
+    };
+
+    const normalized = String(parsed.category ?? "")
+      .trim()
+      .replace(/\s+/g, "_");
+    const category = RECLASSIFY_CATEGORIES.includes(
+      normalized as (typeof RECLASSIFY_CATEGORIES)[number]
+    )
+      ? normalized
+      : "Customer_Support";
+
+    return {
+      category,
+      priority: coercePriority(parsed.priority),
+      summary:
+        typeof parsed.summary === "string" && parsed.summary.trim().length > 0
+          ? parsed.summary.trim()
+          : DEFAULT_RESULT.summary
+    };
+  } catch {
+    return {
+      category: "Customer_Support",
+      priority: 3,
+      summary: "פנייה שנבדקה מחדש וממתינה לטיפול."
+    };
+  }
+};

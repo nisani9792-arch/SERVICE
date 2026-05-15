@@ -1,6 +1,6 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser, type AddressObject, type ParsedMail } from "mailparser";
-import { classifyTicketContent } from "@/lib/gemini";
+import { PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
 import {
   extractAttachmentsFromParsedMail,
   saveTicketAttachments,
@@ -9,6 +9,7 @@ import {
 import { sql } from "@/lib/neon";
 
 const DEFAULT_MAILBOX = "INBOX";
+const DEFAULT_GMAIL_ARCHIVE_MAILBOX = "[Gmail]/All Mail";
 const DEFAULT_LOOKBACK_DAYS = 14;
 const DEFAULT_MAX_MESSAGES = 25;
 const DEFAULT_SOURCE_TAG = "EDITOR";
@@ -44,6 +45,7 @@ type GmailConfig = {
   host: string;
   port: number;
   mailbox: string;
+  archiveMailbox: string;
   lookbackDays: number;
   maxMessages: number;
   sourceTag: string;
@@ -65,10 +67,10 @@ type ParsedEmailMessage = {
 };
 
 type ForcedClassification = {
-  category: "spam";
-  priority: 1;
+  category: string;
+  priority: number;
   summary: string;
-  status: "closed";
+  status: "open" | "closed";
 };
 
 export type EmailIngestResult = {
@@ -76,7 +78,8 @@ export type EmailIngestResult = {
   scanned: number;
   imported: number;
   skipped: number;
-  deleted: number;
+  archived: number;
+  archiveMailbox: string;
   errors: string[];
 };
 
@@ -103,6 +106,8 @@ function getGmailConfig(): GmailConfig {
     host: (process.env.EMAIL_IMAP_HOST ?? process.env.GMAIL_IMAP_HOST)?.trim() || "imap.gmail.com",
     port: positiveInt(process.env.EMAIL_IMAP_PORT ?? process.env.GMAIL_IMAP_PORT, 993),
     mailbox: (process.env.EMAIL_IMAP_MAILBOX ?? process.env.GMAIL_MAILBOX)?.trim() || DEFAULT_MAILBOX,
+    archiveMailbox:
+      (process.env.EMAIL_IMAP_ARCHIVE_MAILBOX ?? process.env.GMAIL_ARCHIVE_MAILBOX)?.trim() || "",
     lookbackDays: positiveInt(process.env.EMAIL_INGEST_LOOKBACK_DAYS, DEFAULT_LOOKBACK_DAYS),
     maxMessages: positiveInt(process.env.EMAIL_INGEST_MAX_MESSAGES, DEFAULT_MAX_MESSAGES),
     sourceTag: process.env.EMAIL_INGEST_SOURCE_TAG?.trim() || DEFAULT_SOURCE_TAG,
@@ -192,7 +197,6 @@ function isOwnOutgoingMessage(message: ParsedEmailMessage, ownEmail: string): bo
 }
 
 function forcedClassificationFor(message: ParsedEmailMessage): ForcedClassification | null {
-  const text = `${message.senderEmail} ${message.senderName} ${message.subject} ${message.body}`.toLowerCase();
   const emptyBody = message.body.trim().length === 0;
   const emptySubject = message.subject === "(ללא נושא)" || message.subject.trim().length === 0;
 
@@ -201,17 +205,6 @@ function forcedClassificationFor(message: ParsedEmailMessage): ForcedClassificat
       category: "spam",
       priority: 1,
       summary: "מייל ריק שנכנס אוטומטית לספאם.",
-      status: "closed"
-    };
-  }
-
-  if (
-    /יחסי ציבור|pr@|bafront|irpr|zingmusic|overtone|badash|natibadash|סינגל חדש|אלבום חדש|קליפ חדש|משיק/.test(text)
-  ) {
-    return {
-      category: "spam",
-      priority: 1,
-      summary: "מייל יחסי ציבור שסווג אוטומטית לספאם.",
       status: "closed"
     };
   }
@@ -249,13 +242,12 @@ async function insertEmailTicket(
   sourceTag: string,
   forcedClassification?: ForcedClassification | null
 ): Promise<{ inserted: boolean; ticketId: string | null }> {
-  const classification =
-    forcedClassification ??
-    (await classifyTicketContent(
-      message.senderEmail,
-      message.subject,
-      message.body
-    ));
+  const classification = forcedClassification ?? {
+    category: PENDING_TRIAGE_CATEGORY,
+    priority: 3,
+    summary: "פנייה חדשה ממתינה לסינון ידני.",
+    status: "open" as const
+  };
 
   const rows = await sql()`
     INSERT INTO tickets (
@@ -308,10 +300,49 @@ async function insertEmailTicket(
   return { inserted: true, ticketId };
 }
 
-async function deleteProcessedMessages(client: ImapFlow, uids: number[]): Promise<number> {
+function isGmailHost(host: string): boolean {
+  return host.toLowerCase().includes("gmail.com");
+}
+
+async function resolveArchiveMailbox(client: ImapFlow, config: GmailConfig): Promise<string> {
+  if (config.archiveMailbox) {
+    return config.archiveMailbox;
+  }
+
+  const listed = await client.list();
+  const bySpecialUse = listed.find((box) => {
+    const use = box.specialUse?.replace(/\\/g, "").toLowerCase();
+    return use === "archive";
+  });
+  if (bySpecialUse?.path) {
+    return bySpecialUse.path;
+  }
+
+  const byName = listed.find((box) => {
+    const name = `${box.name} ${box.path}`.toLowerCase();
+    return name.includes("archive") || name.includes("ארכיון");
+  });
+  if (byName?.path) {
+    return byName.path;
+  }
+
+  if (isGmailHost(config.host)) {
+    return DEFAULT_GMAIL_ARCHIVE_MAILBOX;
+  }
+
+  throw new Error(
+    "Could not resolve archive mailbox. Set EMAIL_IMAP_ARCHIVE_MAILBOX to the IMAP folder path."
+  );
+}
+
+async function archiveProcessedMessages(
+  client: ImapFlow,
+  archiveMailbox: string,
+  uids: number[]
+): Promise<number> {
   if (uids.length === 0) return 0;
-  const deleted = await client.messageDelete(uids, { uid: true });
-  return deleted ? uids.length : 0;
+  const moved = await client.messageMove(uids, archiveMailbox, { uid: true });
+  return moved ? uids.length : 0;
 }
 
 async function parseFetchedMessage(
@@ -375,11 +406,17 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
     scanned: 0,
     imported: 0,
     skipped: 0,
-    deleted: 0,
+    archived: 0,
+    archiveMailbox: config.archiveMailbox || DEFAULT_GMAIL_ARCHIVE_MAILBOX,
     errors: []
   };
 
   await withTimeout(client.connect(), config.timeoutMs, "IMAP connect");
+  result.archiveMailbox = await withTimeout(
+    resolveArchiveMailbox(client, config),
+    config.timeoutMs,
+    "IMAP list mailboxes"
+  );
 
   const lock = await client.getMailboxLock(config.mailbox);
   try {
@@ -449,10 +486,14 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
       }
     }
 
-    const deletedCount = await deleteProcessedMessages(client, processedUids);
-    result.deleted += deletedCount;
-    if (deletedCount !== processedUids.length) {
-      result.errors.push("Some processed emails could not be deleted from the mailbox");
+    const archivedCount = await archiveProcessedMessages(
+      client,
+      result.archiveMailbox,
+      processedUids
+    );
+    result.archived += archivedCount;
+    if (archivedCount !== processedUids.length) {
+      result.errors.push("Some processed emails could not be archived in the mailbox");
     }
   } finally {
     lock.release();

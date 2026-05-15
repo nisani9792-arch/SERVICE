@@ -12,6 +12,7 @@ export type DashboardStatsModel = {
   openClosedRatio: { open: number; closed: number };
   spamPercent: number;
   spamCount: number;
+  pendingTriageCount?: number;
 };
 
 interface DashboardStatsProps {

@@ -18,11 +18,13 @@ import { ReplyTicketModal } from "@/components/ReplyTicketModal";
 import {
   deleteTicket,
   deleteTicketsBulk,
+  reclassifyTickets,
   saveInquiryForAction,
   sendTicketReply,
   updateTicket,
   updateTicketsBulk
 } from "@/lib/firebase";
+import { PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
 import { useTicketList } from "@/hooks/useTicketList";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ImportModal } from "@/components/ImportModal";
@@ -40,7 +42,8 @@ type EmailSyncResponse = {
   imported?: number;
   skipped?: number;
   scanned?: number;
-  deleted?: number;
+  archived?: number;
+  archiveMailbox?: string;
   error?: string;
   details?: string;
 };
@@ -72,6 +75,7 @@ export default function DashboardPage() {
     kind: "success" | "error";
     text: string;
   } | null>(null);
+  const [aiReclassifying, setAiReclassifying] = useState(false);
 
   const debouncedSearch = useDebouncedValue(searchValue, 320);
   const tagTokens = useMemo(
@@ -120,6 +124,10 @@ export default function DashboardPage() {
   }, [refreshStats]);
 
   useEffect(() => {
+    void refreshStats();
+  }, [activeCategory, activeStatus, refreshStats]);
+
+  useEffect(() => {
     if (stats !== null) setLastSyncedAt(new Date());
   }, [stats]);
 
@@ -161,7 +169,7 @@ export default function DashboardPage() {
       setLastSyncedAt(new Date());
       setEmailSyncMessage({
         kind: "success",
-        text: `סנכרון מיילים הושלם: ${data.imported ?? 0} פניות חדשות נוספו, ${data.skipped ?? 0} דולגו, ${data.deleted ?? 0} נמחקו מהאינבוקס.`
+        text: `סנכרון מיילים הושלם: ${data.imported ?? 0} פניות חדשות נוספו, ${data.skipped ?? 0} דולגו, ${data.archived ?? 0} הועברו לארכיון במייל${data.archiveMailbox ? ` (${data.archiveMailbox})` : ""}.`
       });
     } catch (error) {
       setEmailSyncMessage({
@@ -310,6 +318,28 @@ export default function DashboardPage() {
     await refreshAll();
   };
 
+  const onTriageAssign = async (ticketId: string, category: string) => {
+    await updateTicket(ticketId, { category, status: "open" });
+    setActiveTicketId(null);
+    await refreshAll();
+  };
+
+  const onReclassifySpamWithAi = async () => {
+    if (!window.confirm("לסרוק מחדש עד 25 פניות שסומנו כספאם עם Gemini? פניות אמיתיות יועברו לקטגוריה מתאימה.")) {
+      return;
+    }
+    setAiReclassifying(true);
+    try {
+      const result = await reclassifyTickets("spam", 25);
+      await refreshAll();
+      window.alert(`סיווג מחדש הושלם: ${result.updated} פניות עודכנו.`);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "סיווג מחדש נכשל");
+    } finally {
+      setAiReclassifying(false);
+    }
+  };
+
   const onSendReply = async (message: string) => {
     if (!replyingTicket) return;
     await sendTicketReply(replyingTicket.id, message);
@@ -326,16 +356,21 @@ export default function DashboardPage() {
   const inProgressCount = stats?.statusCounts.in_progress ?? 0;
   const closedCount = stats?.statusCounts.closed ?? 0;
   const activeCount = openCount + inProgressCount;
-  const triageCount =
-    dynamicCategories.find((item) => item.category === "Customer_Support")?.count ?? 0;
+  const triageCount = stats?.pendingTriageCount ?? 0;
   const workbenchTitle =
-    activeStatus === "closed"
-      ? "פניות שנסגרו"
-      : activeCategory === "Customer_Support" && activeStatus === "open"
-        ? "תור מיון"
+    activeCategory === PENDING_TRIAGE_CATEGORY
+      ? "ממתין לסינון"
+      : activeStatus === "closed"
+        ? "פניות שנסגרו"
         : activeStatus === "in_progress"
           ? "פניות בטיפול"
           : "פניות פעילות";
+  const workbenchSubtitle =
+    activeCategory === PENDING_TRIAGE_CATEGORY
+      ? "פניות חדשות ממייל — בחר קטגוריה בלחיצה אחת"
+      : activeStatus === "closed"
+        ? `מציג ${total.toLocaleString("he-IL")} פניות סגורות (כולל טופלו בעבר)`
+        : undefined;
 
   const headerActions = (
     <>
@@ -367,6 +402,17 @@ export default function DashboardPage() {
           >
             <Upload className="size-3.5 opacity-80" />
             יבוא
+          </button>
+          <button
+            type="button"
+            disabled={aiReclassifying}
+            onClick={() => {
+              void onReclassifySpamWithAi();
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container disabled:opacity-50"
+          >
+            <MessageSquareText className="size-3.5 opacity-80" />
+            {aiReclassifying ? "מסווג מחדש…" : "סיווג מחדש (AI) — ספאם"}
           </button>
         </div>
       </details>
@@ -438,18 +484,18 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setActiveCategory("Customer_Support");
-                  setActiveStatus("open");
+                  setActiveCategory(PENDING_TRIAGE_CATEGORY);
+                  setActiveStatus("active");
                   setPage(1);
                 }}
                 className={`rounded-2xl border p-3 text-right transition ${
-                  activeCategory === "Customer_Support" && activeStatus === "open"
-                    ? "border-amber-300 bg-amber-100 text-amber-950 shadow-sm"
-                    : "border-outline bg-white text-on-surface hover:border-amber-300"
+                  activeCategory === PENDING_TRIAGE_CATEGORY
+                    ? "border-fuchsia-400 bg-fuchsia-100 text-fuchsia-950 shadow-sm"
+                    : "border-outline bg-white text-on-surface hover:border-fuchsia-300"
                 }`}
               >
                 <span className="block text-xs font-semibold opacity-80">כניסה חדשה</span>
-                <span className="mt-1 block text-lg font-black">תור מיון</span>
+                <span className="mt-1 block text-lg font-black">ממתין לסינון</span>
                 <span className="text-xs opacity-80">{triageCount.toLocaleString("he-IL")} לשיוך ובדיקה</span>
               </button>
               <button
@@ -549,11 +595,7 @@ export default function DashboardPage() {
 
           <TicketWorkbench
             title={workbenchTitle}
-            subtitle={
-              activeStatus === "closed"
-                ? "רק פניות שטופלו, נסגרו או קיבלו מענה"
-                : "פניות פתוחות ובטיפול בלבד, ללא סגורות"
-            }
+            subtitle={workbenchSubtitle}
             tickets={items}
             total={total}
             page={page}
@@ -579,6 +621,9 @@ export default function DashboardPage() {
             onReply={setReplyingTicket}
             onSaveInquiry={(ticket) => {
               void onSaveInquiry(ticket);
+            }}
+            onTriageAssign={(id, category) => {
+              void onTriageAssign(id, category);
             }}
           />
 

@@ -61,13 +61,22 @@ export async function GET() {
       closed: statusCounts.closed
     };
 
+    const pendingTriageRows = await sql()`
+      SELECT count(*)::int AS c
+      FROM tickets
+      WHERE category = 'pending_triage'
+        AND status NOT IN ('closed', 'handled')
+    `;
+    const pendingTriageCount = pendingTriageRows[0]?.c ?? 0;
+
     return NextResponse.json({
       total,
       byCategory,
       statusCounts,
       openClosedRatio,
       spamPercent,
-      spamCount: spamLike
+      spamCount: spamLike,
+      pendingTriageCount
     });
   } catch (error) {
     return NextResponse.json(

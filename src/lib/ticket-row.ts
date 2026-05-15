@@ -1,11 +1,5 @@
-import { Ticket, TicketPriority, TicketSource, TicketStatus } from "@/lib/types";
-
-function normalizeStatus(raw: string | null | undefined): TicketStatus {
-  const s = String(raw ?? "open").toLowerCase();
-  if (s === "handled" || s === "closed") return "closed";
-  if (s === "in_progress" || s === "in progress") return "in_progress";
-  return "open";
-}
+import { normalizeTicketStatus as normalizeStatus } from "@/lib/ticket-status";
+import { Ticket, TicketPriority, TicketSource } from "@/lib/types";
 
 function coercePriority(p: unknown): TicketPriority {
   const n = Number(p);

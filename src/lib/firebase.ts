@@ -115,6 +115,24 @@ export const updateTicket = async (ticketId: string, input: TicketUpdateInput) =
   if (!res.ok) throw new Error("Failed to update ticket");
 };
 
+export const reclassifyTickets = async (scope: "spam" | "pending_triage", limit = 25) => {
+  const res = await fetch("/api/tickets/reclassify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scope, limit })
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { details?: string; error?: string } | null;
+    throw new Error(data?.details || data?.error || "Reclassify failed");
+  }
+  return res.json() as Promise<{
+    ok: boolean;
+    scanned: number;
+    updated: number;
+    results: Array<{ id: string; from: string; to: string; summary: string }>;
+  }>;
+};
+
 export const sendTicketReply = async (ticketId: string, message: string) => {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 65000);
