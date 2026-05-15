@@ -99,7 +99,7 @@ export default function DashboardPage() {
 
   const { items, total, isLoading, refresh } = useTicketList(listQuery);
   const activeTicket = useMemo(
-    () => items.find((ticket) => ticket.id === activeTicketId) ?? items[0] ?? null,
+    () => items.find((ticket) => ticket.id === activeTicketId) ?? null,
     [activeTicketId, items]
   );
   const [stats, setStats] = useState<DashboardStatsModel | null>(null);
@@ -203,8 +203,8 @@ export default function DashboardPage() {
       setActiveTicketId(null);
       return;
     }
-    if (!activeTicketId || !items.some((ticket) => ticket.id === activeTicketId)) {
-      setActiveTicketId(items[0].id);
+    if (activeTicketId && !items.some((ticket) => ticket.id === activeTicketId)) {
+      setActiveTicketId(null);
     }
   }, [activeTicketId, items]);
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getEmailDeliveryStatus } from "@/lib/email-send";
 import { sql } from "@/lib/neon";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,12 @@ export async function GET() {
   checks.gemini = {
     ok: Boolean(geminiKey),
     detail: geminiKey ? "API key configured" : "GOOGLE_GEMINI_API_KEY is missing"
+  };
+
+  const email = getEmailDeliveryStatus();
+  checks.email = {
+    ok: email.effectiveProvider === "resend" ? email.resendKeyConfigured : email.smtpConfigured,
+    detail: `provider=${email.effectiveProvider}, resend=${email.resendKeyConfigured}, hosted=${email.hostedRuntime}, from=${email.fromAddress}`
   };
 
   const allOk = Object.values(checks).every((c) => c.ok);

@@ -80,7 +80,7 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
 
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[11px] text-on-surface-variant">
-              השליחה מתבצעת מהשרת דרך תיבת EDITOR, ולא מהדפדפן.
+              השליחה מהשרת (Resend או Gmail SMTP). ב-Render נדרש לרוב RESEND_API_KEY.
             </p>
             <div className="flex gap-2">
               <button type="button" onClick={onClose} className="lux-button">

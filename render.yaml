@@ -35,7 +35,15 @@ services:
       - key: EMAIL_SMTP_SECURE
         value: "false"
       - key: EMAIL_SMTP_TIMEOUT_MS
-        value: "7000"
+        value: "25000"
+      - key: RENDER
+        value: "true"
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: "EDITOR@JUSIC.CO"
+      - key: EMAIL_REPLY_PROVIDER
+        value: "resend"
       - key: EMAIL_INGEST_SECRET
         sync: false
       - key: EMAIL_IMAP_MAILBOX
