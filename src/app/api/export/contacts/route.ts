@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireGateAccess } from "@/lib/api-guard";
 import { sql } from "@/lib/neon";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,9 @@ function csvEscape(value: string): string {
 }
 
 export async function GET(request: NextRequest) {
+  const denied = await requireGateAccess(request);
+  if (denied) return denied;
+
   try {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category");

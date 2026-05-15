@@ -9,11 +9,10 @@ import type {
 
 const API = "/api/tickets";
 
-export const fetchTickets = async (): Promise<Ticket[]> => {
-  const res = await fetch(`${API}?pageSize=5000`, { cache: "no-store" });
-  if (!res.ok) throw new Error("Failed to fetch tickets");
-  const data = (await res.json()) as TicketListResponse;
-  return data.items;
+export const fetchTicketById = async (ticketId: string, signal?: AbortSignal): Promise<Ticket> => {
+  const res = await fetch(`${API}/${ticketId}`, { cache: "no-store", signal });
+  if (!res.ok) throw new Error("Failed to fetch ticket");
+  return res.json() as Promise<Ticket>;
 };
 
 export type TicketListQuery = {
@@ -28,7 +27,10 @@ export type TicketListQuery = {
   email?: string;
 };
 
-export const fetchTicketPage = async (query: TicketListQuery): Promise<TicketListResponse> => {
+export const fetchTicketPage = async (
+  query: TicketListQuery,
+  signal?: AbortSignal
+): Promise<TicketListResponse> => {
   const sp = new URLSearchParams();
   sp.set("page", String(query.page ?? 1));
   sp.set("pageSize", String(query.pageSize ?? 25));
@@ -40,7 +42,7 @@ export const fetchTicketPage = async (query: TicketListQuery): Promise<TicketLis
   if (query.q?.trim()) sp.set("q", query.q.trim());
   if (query.email) sp.set("email", query.email);
 
-  const res = await fetch(`${API}?${sp.toString()}`, { cache: "no-store" });
+  const res = await fetch(`${API}?${sp.toString()}`, { cache: "no-store", signal });
   if (!res.ok) throw new Error("Failed to fetch tickets");
   return res.json();
 };

@@ -1,15 +1,42 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireGateAccess } from "@/lib/api-guard";
 import { sql } from "@/lib/neon";
+import { getStatsCache, setStatsCache, STATS_CACHE_MS } from "@/lib/stats-cache";
 
 export const dynamic = "force-dynamic";
 
-function isSpamRow(category: string): boolean {
+function isSpamCategory(category: string): boolean {
   const c = category.trim().toLowerCase().replace(/\s+/g, "_");
   return c === "spam" || c.includes("pr/media") || c.includes("pr_media");
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const denied = await requireGateAccess(request);
+  if (denied) return denied;
+
   try {
+    const now = Date.now();
+    const cached = getStatsCache();
+    if (cached && now - cached.at < STATS_CACHE_MS) {
+      return NextResponse.json(cached.payload);
+    }
+
+    const aggRows = await sql()`
+      SELECT
+        count(*)::int AS total,
+        count(*) FILTER (WHERE status = 'open')::int AS open_count,
+        count(*) FILTER (WHERE status = 'in_progress')::int AS in_progress_count,
+        count(*) FILTER (WHERE status IN ('closed', 'handled'))::int AS closed_count,
+        count(*) FILTER (
+          WHERE status NOT IN ('closed', 'handled', 'in_progress', 'open')
+        )::int AS other_openish,
+        count(*) FILTER (
+          WHERE category = 'pending_triage'
+            AND status NOT IN ('closed', 'handled')
+        )::int AS pending_triage
+      FROM tickets
+    `;
+
     const catRows = await sql()`
       SELECT category, count(*)::int AS c
       FROM tickets
@@ -17,67 +44,36 @@ export async function GET() {
       ORDER BY c DESC
     `;
 
-    const statusRows = await sql()`
-      SELECT status, count(*)::int AS c
-      FROM tickets
-      GROUP BY status
-    `;
-
-    const totalRows = await sql()`SELECT count(*)::int AS c FROM tickets`;
-    const total = totalRows[0]?.c ?? 0;
+    const agg = aggRows[0];
+    const total = Number(agg?.total ?? 0);
+    const open = Number(agg?.open_count ?? 0) + Number(agg?.other_openish ?? 0);
+    const in_progress = Number(agg?.in_progress_count ?? 0);
+    const closed = Number(agg?.closed_count ?? 0);
 
     const byCategory = catRows.map((r) => ({
       category: String(r.category),
       count: Number(r.c)
     }));
 
-    const statusCounts = {
-      open: 0,
-      in_progress: 0,
-      closed: 0
-    };
-    for (const row of statusRows) {
-      const s = String(row.status).toLowerCase();
-      if (s === "handled") {
-        statusCounts.closed += Number(row.c);
-      } else if (s in statusCounts) {
-        statusCounts[s as keyof typeof statusCounts] += Number(row.c);
-      } else {
-        statusCounts.open += Number(row.c);
-      }
-    }
-
     let spamLike = 0;
     for (const row of catRows) {
-      if (isSpamRow(String(row.category))) {
+      if (isSpamCategory(String(row.category))) {
         spamLike += Number(row.c);
       }
     }
 
-    const spamPercent = total > 0 ? Math.round((spamLike / total) * 1000) / 10 : 0;
-
-    const openClosedRatio = {
-      open: statusCounts.open + statusCounts.in_progress,
-      closed: statusCounts.closed
-    };
-
-    const pendingTriageRows = await sql()`
-      SELECT count(*)::int AS c
-      FROM tickets
-      WHERE category = 'pending_triage'
-        AND status NOT IN ('closed', 'handled')
-    `;
-    const pendingTriageCount = pendingTriageRows[0]?.c ?? 0;
-
-    return NextResponse.json({
+    const payload = {
       total,
       byCategory,
-      statusCounts,
-      openClosedRatio,
-      spamPercent,
+      statusCounts: { open, in_progress, closed },
+      openClosedRatio: { open: open + in_progress, closed },
+      spamPercent: total > 0 ? Math.round((spamLike / total) * 1000) / 10 : 0,
       spamCount: spamLike,
-      pendingTriageCount
-    });
+      pendingTriageCount: Number(agg?.pending_triage ?? 0)
+    };
+
+    setStatsCache(payload);
+    return NextResponse.json(payload);
   } catch (error) {
     return NextResponse.json(
       { error: "stats failed", details: error instanceof Error ? error.message : "Unknown" },

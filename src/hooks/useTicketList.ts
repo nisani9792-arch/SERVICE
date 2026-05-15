@@ -7,7 +7,8 @@ import type { Ticket } from "@/lib/types";
 export function useTicketList(query: TicketListQuery) {
   const qRef = useRef(query);
   qRef.current = query;
-  const inFlightRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const pendingSilentRef = useRef(false);
 
   const stableKey = useMemo(
     () =>
@@ -43,36 +44,54 @@ export function useTicketList(query: TicketListQuery) {
   }>({ items: [], total: 0, page: 1, pageSize: 25 });
 
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
+    if (abortRef.current) {
+      pendingSilentRef.current = Boolean(options?.silent);
+      abortRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     if (!options?.silent) {
       setIsLoading(true);
     }
 
     try {
-      const res = await fetchTicketPage(qRef.current);
+      const res = await fetchTicketPage(qRef.current, controller.signal);
+      if (controller.signal.aborted) return;
       setData({
         items: res.items,
         total: res.total,
         page: res.page,
         pageSize: res.pageSize
       });
-    } catch {
-      /* keep stale */
+      setError(null);
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      if (err instanceof Error && err.name === "AbortError") return;
+      setError("טעינת הפניות נכשלה");
     } finally {
-      inFlightRef.current = false;
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+      }
       setIsLoading(false);
+
+      if (pendingSilentRef.current) {
+        pendingSilentRef.current = false;
+        void load({ silent: true });
+      }
     }
   }, []);
 
   useEffect(() => {
     void load();
+    return () => abortRef.current?.abort();
   }, [stableKey, load]);
 
   const refresh = useCallback(() => load({ silent: true }), [load]);
 
-  return { ...data, isLoading, refresh };
+  return { ...data, isLoading, error, refresh };
 }

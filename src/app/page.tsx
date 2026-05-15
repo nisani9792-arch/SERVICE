@@ -26,6 +26,7 @@ import {
 } from "@/lib/firebase";
 import { PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
 import { useTicketList } from "@/hooks/useTicketList";
+import { usePollWhenVisible } from "@/hooks/usePollWhenVisible";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ImportModal } from "@/components/ImportModal";
 import { NewTicketModal } from "@/components/NewTicketModal";
@@ -101,7 +102,7 @@ export default function DashboardPage() {
     [page, pageSize, activeCategory, activeStatus, dateFrom, dateTo, tagTokens, debouncedSearch]
   );
 
-  const { items, total, isLoading, refresh } = useTicketList(listQuery);
+  const { items, total, isLoading, error: listError, refresh } = useTicketList(listQuery);
   const activeTicket = useMemo(
     () => items.find((ticket) => ticket.id === activeTicketId) ?? null,
     [activeTicketId, items]
@@ -119,22 +120,19 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const refreshAll = useCallback(async () => {
+    await Promise.all([refreshStats(), refresh()]);
+    setLastSyncedAt(new Date());
+  }, [refresh, refreshStats]);
+
   useEffect(() => {
     void refreshStats();
   }, [refreshStats]);
 
-  useEffect(() => {
+  usePollWhenVisible(() => {
     void refreshStats();
-  }, [activeCategory, activeStatus, refreshStats]);
-
-  useEffect(() => {
-    if (stats !== null) setLastSyncedAt(new Date());
-  }, [stats]);
-
-  const refreshAll = useCallback(async () => {
-    await refreshStats();
-    await refresh();
-  }, [refresh, refreshStats]);
+    void refresh();
+  }, 25_000);
 
   const handleHeaderRefresh = useCallback(async () => {
     setHeaderRefreshing(true);
@@ -187,16 +185,6 @@ export default function DashboardPage() {
       setEmailSyncing(false);
     }
   }, [refreshAll]);
-
-  useEffect(() => {
-    const key = "jusic:auto-email-sync:v1";
-    if (typeof window === "undefined" || window.sessionStorage.getItem(key)) {
-      return;
-    }
-
-    window.sessionStorage.setItem(key, new Date().toISOString());
-    void handleEmailSync();
-  }, [handleEmailSync]);
 
   useEffect(() => {
     setPage(1);
@@ -280,6 +268,8 @@ export default function DashboardPage() {
 
   const onBulkDelete = async () => {
     const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`למחוק ${ids.length.toLocaleString("he-IL")} פניות לצמיתות?`)) return;
     await deleteTicketsBulk(ids);
     setSelectedIds(new Set());
     await refreshAll();
@@ -449,6 +439,12 @@ export default function DashboardPage() {
           lastSyncedAt={lastSyncedAt}
         />
 
+        {listError ? (
+          <div className="lux-card rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+            {listError}
+          </div>
+        ) : null}
+
         {emailSyncMessage ? (
           <div
             className={`lux-card rounded-2xl px-4 py-3 text-sm ${
@@ -471,7 +467,7 @@ export default function DashboardPage() {
                   setActiveStatus("active");
                   setPage(1);
                 }}
-                className={`rounded-2xl border p-3 text-right transition ${
+                className={`crm-kpi-card rounded-2xl border p-3 text-right transition ${
                   activeStatus === "active" && activeCategory === "all"
                     ? "border-primary bg-primary text-white shadow-soft"
                     : "border-outline bg-white text-on-surface hover:border-primary/35"

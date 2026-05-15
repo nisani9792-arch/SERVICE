@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireGateAccess } from "@/lib/api-guard";
+import { getClientIp } from "@/lib/client-ip";
 import { sql } from "@/lib/neon";
+import { resolveOperatorName } from "@/lib/operator";
+import { invalidateStatsCache } from "@/lib/stats-cache";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -17,6 +21,9 @@ type BulkInsertRecord = {
 };
 
 export async function POST(request: NextRequest) {
+  const denied = await requireGateAccess(request);
+  if (denied) return denied;
+
   try {
     const body = (await request.json()) as { records?: BulkInsertRecord[] };
     const records = Array.isArray(body.records) ? body.records : [];
@@ -90,6 +97,7 @@ export async function POST(request: NextRequest) {
       )
     `;
 
+    invalidateStatsCache();
     return NextResponse.json({ ok: true, inserted: senderEmails.length });
   } catch (error) {
     return NextResponse.json(
@@ -103,6 +111,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const denied = await requireGateAccess(request);
+  if (denied) return denied;
+
   try {
     const body = (await request.json()) as {
       ids: string[];
@@ -125,7 +136,10 @@ export async function PATCH(request: NextRequest) {
       status = "closed";
     }
 
-    const assignedTo = body.assignedTo ?? null;
+    const ip = getClientIp(request);
+    const operatorName = await resolveOperatorName(ip);
+    const assignedTo =
+      body.assignedTo !== undefined ? (body.assignedTo ?? null) : (operatorName ?? null);
     const closureNote = body.closureNote ?? null;
     const tagList = Array.isArray(body.tags) ? body.tags.map((t) => String(t).trim()).filter(Boolean) : null;
     const replaceTags = Boolean(body.replaceTags);
@@ -172,6 +186,7 @@ export async function PATCH(request: NextRequest) {
       `;
     }
 
+    invalidateStatsCache();
     return NextResponse.json({ ok: true, updated: ids.length });
   } catch (error) {
     return NextResponse.json(
@@ -185,6 +200,9 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const denied = await requireGateAccess(request);
+  if (denied) return denied;
+
   try {
     const body = (await request.json()) as { ids: string[] };
     const ids = body.ids;
@@ -194,6 +212,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     await sql()`DELETE FROM tickets WHERE id = ANY(${ids})`;
+    invalidateStatsCache();
     return NextResponse.json({ ok: true, deleted: ids.length });
   } catch (error) {
     return NextResponse.json(

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { RefreshCw } from "lucide-react";
+import { useOperatorName } from "@/components/AccessGate";
 import { APP_LOGO_SRC } from "@/lib/brand";
 import type { ReactNode } from "react";
 
@@ -23,6 +24,8 @@ function formatSynced(d: Date | null): string {
 }
 
 export function AppHeader({ actions, onRefresh, refreshing, lastSyncedAt }: AppHeaderProps) {
+  const operatorName = useOperatorName();
+
   return (
     <header className="sticky top-2 z-30 rounded-2xl border border-outline/70 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
@@ -42,7 +45,10 @@ export function AppHeader({ actions, onRefresh, refreshing, lastSyncedAt }: AppH
           <div className="min-w-0">
             <h1 className="text-base font-black leading-tight text-on-surface md:text-lg">SERVICE</h1>
             <p className="truncate text-[11px] text-on-surface-variant">
-              CRM פניות מסודר · עודכן: {formatSynced(lastSyncedAt)}
+              CRM פניות מסודר
+              {operatorName ? ` · גורם מטפל: ${operatorName}` : ""}
+              {" · עודכן: "}
+              {formatSynced(lastSyncedAt)}
             </p>
           </div>
         </div>

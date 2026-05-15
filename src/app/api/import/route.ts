@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireGateAccess } from "@/lib/api-guard";
 import { classifyTicketContent } from "@/lib/gemini";
 import { prepareHistoricalBatch } from "@/lib/historical-import";
 import type { ClassifiedImportRecord, HistoricalTicketJson, ImportRecordInput } from "@/lib/types";
@@ -14,6 +15,9 @@ const DEFAULT_FAST_CLASSIFICATION = {
 };
 
 export async function POST(request: NextRequest) {
+  const denied = await requireGateAccess(request);
+  if (denied) return denied;
+
   try {
     const body = (await request.json()) as {
       records?: ImportRecordInput[];
@@ -75,6 +79,9 @@ export async function POST(request: NextRequest) {
  * Fast path for large historical JSON dumps (no Gemini). Uses structured categories & auto-closes spam-like rows.
  */
 export async function PUT(request: NextRequest) {
+  const denied = await requireGateAccess(request);
+  if (denied) return denied;
+
   try {
     const body = (await request.json()) as {
       records?: HistoricalTicketJson[];

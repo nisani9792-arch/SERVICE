@@ -8,17 +8,28 @@ import { APP_LOGO_SRC } from "@/lib/brand";
 import "./LockScreen.css";
 
 interface LockScreenProps {
-  onUnlock: () => void;
+  onBiometricUnlock: () => void | Promise<void>;
+  onGateCode: (value: string) => boolean;
+  unlockError?: string | null;
 }
 
-export function LockScreen({ onUnlock }: LockScreenProps) {
+export function LockScreen({ onBiometricUnlock, onGateCode, unlockError }: LockScreenProps) {
   const [password, setPassword] = useState("");
   const { available: biometricAvailable, busy: biometricBusy, unlock: unlockWithBiometric } =
-    useBiometricUnlock(onUnlock);
+    useBiometricUnlock(() => void onBiometricUnlock());
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    if (onGateCode(value)) {
+      setPassword("");
+    }
+  };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    // שדה הסיסמה לתצוגה בלבד — לא פותח את המערכת
+    if (onGateCode(password)) {
+      setPassword("");
+    }
   };
 
   return (
@@ -48,11 +59,14 @@ export function LockScreen({ onUnlock }: LockScreenProps) {
             autoComplete="off"
             maxLength={20}
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(event) => handlePasswordChange(event.target.value)}
             placeholder="••••••••••••••••••••"
             aria-label="סיסמא"
+            autoFocus
           />
         </form>
+
+        {unlockError ? <p className="lock-error">{unlockError}</p> : null}
 
         {biometricAvailable ? (
           <button

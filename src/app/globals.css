@@ -70,6 +70,15 @@ body {
   min-height: 7.5rem;
 }
 
+.crm-kpi-card {
+  @apply shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md;
+}
+
+.crm-skeleton {
+  @apply animate-pulse bg-gradient-to-r from-surface-container via-white to-surface-container;
+}
+
+
 .crm-donut {
   width: 5.5rem;
   height: 5.5rem;

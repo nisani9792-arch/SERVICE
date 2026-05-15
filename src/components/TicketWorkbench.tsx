@@ -17,6 +17,7 @@ import { CategoryBadge } from "@/components/CategoryBadge";
 import { TicketAttachments } from "@/components/TicketAttachments";
 import { TriageAssignBar } from "@/components/TriageAssignBar";
 import { ACTIVE_CATEGORIES, categoryLabel } from "@/lib/categories";
+import { useTicketDetail } from "@/hooks/useTicketDetail";
 import { displayTicketDate } from "@/lib/ticket-row";
 import { isPendingTriage } from "@/lib/triage";
 import type { Ticket, TicketStatus } from "@/lib/types";
@@ -308,6 +309,7 @@ export function TicketWorkbench({
   const allSelected = tickets.length > 0 && tickets.every((ticket) => selectedIds.has(ticket.id));
   const detailRef = useRef<HTMLElement>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const detailTicket = useTicketDetail(activeTicket);
 
   const groupedTickets = useMemo(() => {
     const groups = new Map<string, Ticket[]>();
@@ -335,9 +337,9 @@ export function TicketWorkbench({
     }
   }, [activeTicket]);
 
-  const detailProps = activeTicket
+  const detailProps = detailTicket
     ? {
-        ticket: activeTicket,
+        ticket: detailTicket,
         onSetStatus,
         onReply,
         onSaveInquiry,
@@ -373,8 +375,10 @@ export function TicketWorkbench({
 
         <div className="max-h-[72vh] min-h-[20rem] overflow-y-auto p-2">
           {isLoading ? (
-            <div className="rounded-xl bg-surface-container px-3 py-10 text-center text-sm text-on-surface-variant">
-              טוען פניות…
+            <div className="space-y-1.5 p-1" aria-busy="true" aria-label="טוען פניות">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="crm-skeleton h-16 rounded-xl" />
+              ))}
             </div>
           ) : tickets.length === 0 ? (
             <div className="rounded-xl bg-surface-container px-3 py-10 text-center text-sm text-on-surface-variant">

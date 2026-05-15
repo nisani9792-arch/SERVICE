@@ -54,6 +54,14 @@ export async function POST() {
     `;
     await db`CREATE INDEX IF NOT EXISTS idx_tickets_email_message_id ON tickets (email_message_id)`;
     await db`CREATE INDEX IF NOT EXISTS idx_tickets_email_mailbox_uid ON tickets (email_mailbox_uid)`;
+    await db`
+      CREATE INDEX IF NOT EXISTS idx_tickets_list_sort
+      ON tickets (COALESCE(message_at, created_at) DESC NULLS LAST)
+    `;
+    await db`
+      CREATE INDEX IF NOT EXISTS idx_tickets_category_status
+      ON tickets (category, status)
+    `;
 
     await db`
       CREATE TABLE IF NOT EXISTS reply_templates (
@@ -113,6 +121,16 @@ export async function POST() {
     `;
 
     await db`UPDATE tickets SET status = 'closed' WHERE status = 'handled'`;
+
+    await db`
+      CREATE TABLE IF NOT EXISTS access_operators (
+        ip_address    TEXT PRIMARY KEY,
+        display_name  TEXT NOT NULL DEFAULT '',
+        gate_unlocked BOOLEAN NOT NULL DEFAULT false,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        last_seen_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `;
 
     return NextResponse.json({ ok: true, message: "Database initialized successfully" });
   } catch (error) {

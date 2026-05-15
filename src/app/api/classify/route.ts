@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireGateAccess } from "@/lib/api-guard";
 import { classifyTicketContent } from "@/lib/gemini";
 
 export async function POST(request: NextRequest) {
+  const denied = await requireGateAccess(request);
+  if (denied) return denied;
+
   try {
     const body = (await request.json()) as {
       senderEmail?: string;
