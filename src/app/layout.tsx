@@ -22,12 +22,9 @@ export const metadata: Metadata = {
     statusBarStyle: "default"
   },
   icons: {
-    icon: [
-      { url: "/favicon.png", type: "image/png", sizes: "1024x1024" },
-      { url: "/jusic-logo.png", type: "image/png", sizes: "1024x1024" }
-    ],
-    shortcut: "/favicon.png",
-    apple: "/apple-touch-icon.png"
+    icon: [{ url: "/jusic-logo.png", type: "image/png", sizes: "1024x1024" }],
+    shortcut: "/jusic-logo.png",
+    apple: "/jusic-logo.png"
   }
 };
 

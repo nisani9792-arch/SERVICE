@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { RefreshCw } from "lucide-react";
+import { APP_LOGO_SRC } from "@/lib/brand";
 import type { ReactNode } from "react";
 
 interface AppHeaderProps {
@@ -28,7 +29,7 @@ export function AppHeader({ actions, onRefresh, refreshing, lastSyncedAt }: AppH
         <div className="flex min-w-0 items-center gap-3">
           <div className="relative size-10 shrink-0 overflow-hidden rounded-xl border border-outline bg-white">
             <Image
-              src="/jusic-logo.png"
+              src={APP_LOGO_SRC}
               alt="Jusic"
               fill
               sizes="40px"

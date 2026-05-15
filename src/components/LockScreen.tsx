@@ -1,8 +1,10 @@
 "use client";
 
 import { Fingerprint, Lock } from "lucide-react";
+import Image from "next/image";
 import { FormEvent, useState } from "react";
 import { useBiometricUnlock } from "@/hooks/useBiometricUnlock";
+import { APP_LOGO_SRC } from "@/lib/brand";
 import "./LockScreen.css";
 
 interface LockScreenProps {
@@ -22,7 +24,15 @@ export function LockScreen({ onUnlock }: LockScreenProps) {
   return (
     <div className="lock-screen" role="dialog" aria-modal="true" aria-label="מסך כניסה">
       <div className="lock-card">
-        <img src="/jusic-logo.svg" className="lock-logo" alt="SERVICE" width={88} height={88} />
+        <Image
+          src={APP_LOGO_SRC}
+          alt="SERVICE"
+          width={88}
+          height={88}
+          className="lock-logo"
+          priority
+          unoptimized
+        />
 
         <div className="lock-icon-wrap" aria-hidden>
           <Lock size={28} strokeWidth={2} />
