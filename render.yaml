@@ -56,6 +56,14 @@ services:
         value: "25"
       - key: EMAIL_INGEST_TIMEOUT_MS
         value: "45000"
+      - key: EMAIL_INGEST_ATTACHMENTS
+        value: "true"
+      - key: EMAIL_ATTACHMENT_MAX_BYTES
+        value: "8388608"
+      - key: EMAIL_ATTACHMENT_MAX_COUNT
+        value: "8"
+      - key: EMAIL_ATTACHMENT_ALLOW
+        value: "image,video"
   - type: cron
     name: jusic-email-ingest
     runtime: node

@@ -1,6 +1,11 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser, type AddressObject, type ParsedMail } from "mailparser";
 import { classifyTicketContent } from "@/lib/gemini";
+import {
+  extractAttachmentsFromParsedMail,
+  saveTicketAttachments,
+  type EmailAttachmentCandidate
+} from "@/lib/ticket-attachments";
 import { sql } from "@/lib/neon";
 
 const DEFAULT_MAILBOX = "INBOX";
@@ -56,6 +61,7 @@ type ParsedEmailMessage = {
   subject: string;
   body: string;
   messageAt: string | null;
+  attachments: EmailAttachmentCandidate[];
 };
 
 type ForcedClassification = {
@@ -242,7 +248,7 @@ async function insertEmailTicket(
   message: ParsedEmailMessage,
   sourceTag: string,
   forcedClassification?: ForcedClassification | null
-): Promise<boolean> {
+): Promise<{ inserted: boolean; ticketId: string | null }> {
   const classification =
     forcedClassification ??
     (await classifyTicketContent(
@@ -290,7 +296,16 @@ async function insertEmailTicket(
     RETURNING id
   `;
 
-  return rows.length > 0;
+  if (rows.length === 0) {
+    return { inserted: false, ticketId: null };
+  }
+
+  const ticketId = String((rows[0] as { id: string }).id);
+  if (message.attachments.length > 0) {
+    await saveTicketAttachments(ticketId, message.attachments);
+  }
+
+  return { inserted: true, ticketId };
 }
 
 async function deleteProcessedMessages(client: ImapFlow, uids: number[]): Promise<number> {
@@ -333,7 +348,8 @@ async function parseFetchedMessage(
     senderName: sender.name,
     subject,
     body: bodyFromParsedMail(parsed),
-    messageAt: parsed.date instanceof Date ? parsed.date.toISOString() : null
+    messageAt: parsed.date instanceof Date ? parsed.date.toISOString() : null,
+    attachments: extractAttachmentsFromParsedMail(parsed.attachments)
   };
 }
 
@@ -415,13 +431,15 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
 
         const duplicate = await alreadyImported(message.importKey);
         const forcedClassification = forcedClassificationFor(message);
-        const inserted = duplicate ? false : await insertEmailTicket(message, config.sourceTag, forcedClassification);
+        const insertResult = duplicate
+          ? { inserted: false, ticketId: null }
+          : await insertEmailTicket(message, config.sourceTag, forcedClassification);
 
-        if (inserted || duplicate) {
+        if (insertResult.inserted || duplicate) {
           processedUids.push(uid);
         }
 
-        if (inserted) {
+        if (insertResult.inserted) {
           result.imported += 1;
         } else {
           result.skipped += 1;

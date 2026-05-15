@@ -14,6 +14,7 @@ import {
   X
 } from "lucide-react";
 import { CategoryBadge } from "@/components/CategoryBadge";
+import { TicketAttachments } from "@/components/TicketAttachments";
 import { ACTIVE_CATEGORIES, categoryLabel } from "@/lib/categories";
 import { displayTicketDate } from "@/lib/ticket-row";
 import type { Ticket, TicketStatus } from "@/lib/types";
@@ -149,6 +150,7 @@ function TicketDetailPanel({
             הערת סגירה: {ticket.closureNote}
           </div>
         ) : null}
+        <TicketAttachments ticketId={ticket.id} />
       </div>
 
       <div className="space-y-2 border-t border-outline/70 p-3">

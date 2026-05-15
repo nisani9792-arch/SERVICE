@@ -22,6 +22,15 @@ export type TicketStatus = "open" | "in_progress" | "closed";
 export type TicketSource = "import" | "manual" | "email";
 export type TicketPriority = 1 | 2 | 3 | 4 | 5;
 
+export interface TicketAttachmentMeta {
+  id: string;
+  ticketId: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  url: string;
+}
+
 export interface Ticket {
   id: string;
   senderEmail: string;

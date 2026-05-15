@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Heebo } from "next/font/google";
+import { AccessGate } from "@/components/AccessGate";
 import { PwaInstallPrompt } from "@/components/PwaInstallPrompt";
 import "@/app/globals.css";
 
@@ -45,7 +46,7 @@ export default function RootLayout({
   return (
     <html lang="he" dir="rtl">
       <body className={`${heebo.variable} font-sans`}>
-        {children}
+        <AccessGate>{children}</AccessGate>
         <PwaInstallPrompt />
       </body>
     </html>
