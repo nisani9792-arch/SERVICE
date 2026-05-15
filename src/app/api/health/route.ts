@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getEmailDeliveryStatus } from "@/lib/email-send";
+import { listBackupSnapshots } from "@/lib/db-backup";
 import { sql } from "@/lib/neon";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,22 @@ export async function GET() {
         : email.smtpConfigured,
     detail: `provider=${email.effectiveProvider}, resendKey=${email.resendKeyConfigured}, from=${email.resendFromFormatted}, domain=${fromDomain}, verified=${verified ?? "n/a"}`
   };
+
+  try {
+    const backups = await listBackupSnapshots(1);
+    checks.backups = {
+      ok: backups.length > 0,
+      detail:
+        backups.length > 0
+          ? `latest=${backups[0]?.backupKey} (${backups[0]?.createdAt})`
+          : "no automatic backup yet — cron runs every 3 days"
+    };
+  } catch (error) {
+    checks.backups = {
+      ok: false,
+      detail: error instanceof Error ? error.message : "backup check failed"
+    };
+  }
 
   const allOk = Object.values(checks).every((c) => c.ok);
 

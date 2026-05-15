@@ -95,6 +95,23 @@ export async function POST() {
     `;
     await db`CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_id ON ticket_attachments (ticket_id)`;
 
+    await db`
+      CREATE TABLE IF NOT EXISTS backup_snapshots (
+        id                  TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        backup_key          TEXT NOT NULL UNIQUE,
+        folder              TEXT NOT NULL DEFAULT 'backups',
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+        table_counts        JSONB NOT NULL DEFAULT '{}'::jsonb,
+        payload_gzip_base64 TEXT NOT NULL,
+        byte_size           INTEGER NOT NULL DEFAULT 0,
+        checksum            TEXT NOT NULL DEFAULT ''
+      )
+    `;
+    await db`
+      CREATE INDEX IF NOT EXISTS idx_backup_snapshots_created_at
+      ON backup_snapshots (created_at DESC)
+    `;
+
     await db`UPDATE tickets SET status = 'closed' WHERE status = 'handled'`;
 
     return NextResponse.json({ ok: true, message: "Database initialized successfully" });

@@ -15,7 +15,8 @@
     "import:gemini-json": "node scripts/import-gemini-json.cjs",
     "classify:general": "node scripts/classify-general-tickets.cjs",
     "repair:email-domains": "node scripts/repair-email-domains.cjs",
-    "email-ingest:trigger": "node scripts/trigger-email-ingest.cjs"
+    "email-ingest:trigger": "node scripts/trigger-email-ingest.cjs",
+    "db-backup:trigger": "node scripts/trigger-db-backup.cjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

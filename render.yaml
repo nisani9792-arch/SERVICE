@@ -64,6 +64,29 @@ services:
         value: "8"
       - key: EMAIL_ATTACHMENT_ALLOW
         value: "image,video"
+      - key: BACKUP_RETENTION_COUNT
+        value: "12"
+      - key: BACKUP_INCLUDE_ATTACHMENTS
+        value: "true"
+  - type: cron
+    name: jusic-db-backup
+    runtime: node
+    schedule: "0 4 */3 * *"
+    buildCommand: npm install
+    startCommand: npm run db-backup:trigger
+    envVars:
+      - key: NODE_VERSION
+        value: "20.18.0"
+      - key: BACKUP_URL
+        sync: false
+      - key: BACKUP_SECRET
+        sync: false
+      - key: EMAIL_INGEST_URL
+        sync: false
+      - key: EMAIL_INGEST_SECRET
+        sync: false
+      - key: NODE_ENV
+        value: "production"
   - type: cron
     name: jusic-email-ingest
     runtime: node
