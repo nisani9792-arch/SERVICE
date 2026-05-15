@@ -20,6 +20,8 @@ export type SendCustomerReplyInput = {
 export type EmailDeliveryStatus = {
   hostedRuntime: boolean;
   resendKeyConfigured: boolean;
+  resendKeyFormatValid: boolean;
+  resendApiKeyValid: boolean | null;
   replyProvider: string;
   effectiveProvider: "resend" | "smtp";
   fromAddress: string;
@@ -55,7 +57,30 @@ function replyProvider(): "resend" | "smtp" | "auto" {
 }
 
 function resendApiKey(): string | undefined {
-  return process.env.RESEND_API_KEY?.trim() || undefined;
+  const raw = process.env.RESEND_API_KEY;
+  if (!raw) return undefined;
+  const cleaned = raw
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .replace(/\s+/g, "");
+  return cleaned || undefined;
+}
+
+function resendKeyFormatValid(key: string | undefined): boolean {
+  return Boolean(key && key.startsWith("re_") && key.length >= 20);
+}
+
+function hintForResendError(detail: string): string {
+  if (/401|unauthorized|invalid.*api.*key/i.test(detail)) {
+    return (
+      " מפתח Resend לא תקין ב-Render: צור API Key חדש ב-resend.com → API Keys, העתק את המפתח המלא (מתחיל ב-re_), " +
+      "הדבק ב-RESEND_API_KEY בלי מרכאות וללא רווחים, שמור ועשה Manual Deploy."
+    );
+  }
+  if (/403|domain.*not verified/i.test(detail)) {
+    return " אמת את הדומיין jusic.co ב-Resend → Domains (כל רשומות DNS ירוקות).";
+  }
+  return "";
 }
 
 function shouldUseResend(): boolean {
@@ -138,9 +163,12 @@ export async function getEmailDeliveryStatus(): Promise<EmailDeliveryStatus> {
   const provider = replyProvider();
   const useResend = shouldUseResend();
   const fromAddress = replyFromAddress();
+  const formatValid = resendKeyFormatValid(key);
   const base: EmailDeliveryStatus = {
     hostedRuntime: isHostedRuntime(),
     resendKeyConfigured: Boolean(key),
+    resendKeyFormatValid: formatValid,
+    resendApiKeyValid: null,
     replyProvider: provider,
     effectiveProvider: useResend ? "resend" : "smtp",
     fromAddress,
@@ -161,8 +189,14 @@ export async function getEmailDeliveryStatus(): Promise<EmailDeliveryStatus> {
 
   if (key) {
     const { domains, error } = await fetchResendDomains();
-    if (domains) base.resendDomains = domains;
-    if (error) base.resendDomainsError = error;
+    if (domains) {
+      base.resendDomains = domains;
+      base.resendApiKeyValid = true;
+    }
+    if (error) {
+      base.resendDomainsError = error;
+      base.resendApiKeyValid = !/401|unauthorized|invalid/i.test(error);
+    }
   }
 
   return base;
@@ -340,7 +374,7 @@ async function sendViaResend(input: SendCustomerReplyInput): Promise<void> {
     if (!retryable) break;
   }
 
-  throw new Error(lastError);
+  throw new Error(`${lastError}${hintForResendError(lastError)}`);
 }
 
 async function sendViaSmtp(input: SendCustomerReplyInput): Promise<void> {

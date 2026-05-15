@@ -12,9 +12,11 @@ export async function GET() {
       (d) => d.name.toLowerCase() === fromDomain.toLowerCase()
     );
 
+    const apiOk = status.resendApiKeyValid === true;
     const ready =
       status.effectiveProvider === "resend" &&
       status.resendKeyConfigured &&
+      apiOk &&
       (domainMatch?.status === "verified" || fromDomain === "resend.dev");
 
     return NextResponse.json({
@@ -23,14 +25,18 @@ export async function GET() {
       fromDomain,
       domainVerified: domainMatch?.status === "verified",
       hint: !status.resendKeyConfigured
-        ? "הוסף RESEND_API_KEY ב-Render"
-        : !domainMatch
-          ? `הוסף/אמת את ${fromDomain} ב-Resend → Domains`
-          : domainMatch.status !== "verified"
-            ? `הדומיין ${fromDomain} במצב: ${domainMatch.status} — השלם DNS`
-            : ready
-              ? "מוכן לשליחה"
-              : "בדוק EMAIL_FROM ו-EMAIL_REPLY_PROVIDER=resend"
+        ? "הוסף RESEND_API_KEY ב-Render (שירות jusic-crm)"
+        : status.resendApiKeyValid === false
+          ? "מפתח Resend לא תקין — צור API Key חדש ב-resend.com, עדכן ב-Render, Deploy מחדש"
+          : !status.resendKeyFormatValid
+            ? "המפתח חייב להתחיל ב-re_ ללא מרכאות או רווחים"
+            : !domainMatch
+              ? `הוסף/אמת את ${fromDomain} ב-Resend → Domains`
+              : domainMatch.status !== "verified"
+                ? `הדומיין ${fromDomain} במצב: ${domainMatch.status} — השלם DNS`
+                : ready
+                  ? "מוכן לשליחה"
+                  : "בדוק EMAIL_FROM=editor@jusic.co ו-EMAIL_REPLY_PROVIDER=resend"
     });
   } catch (error) {
     return NextResponse.json(
