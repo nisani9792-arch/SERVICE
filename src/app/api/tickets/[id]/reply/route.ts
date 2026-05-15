@@ -53,35 +53,64 @@ export async function POST(
       return NextResponse.json({ error: "Ticket has no valid recipient email" }, { status: 400 });
     }
 
-    await sendCustomerReply({
-      to: recipient,
-      subject: String(ticket.subject ?? ""),
-      message,
-      inReplyTo: ticket.email_message_id,
-      references: parseReferences(ticket.email_message_id)
-    });
+    try {
+      await sendCustomerReply({
+        to: recipient,
+        subject: String(ticket.subject ?? ""),
+        message,
+        inReplyTo: ticket.email_message_id,
+        references: parseReferences(ticket.email_message_id)
+      });
+    } catch (error) {
+      const details = error instanceof Error ? error.message : "Unknown send error";
+      console.error("[reply] send failed:", details);
+      return NextResponse.json(
+        {
+          error: "Failed to send reply",
+          step: "send",
+          details
+        },
+        { status: 500 }
+      );
+    }
 
-    await sql()`
-      UPDATE tickets
-      SET status = 'closed',
-          closure_note = ${message},
-          tags = COALESCE(
-            (
-              SELECT array_agg(DISTINCT e)
-              FROM unnest(tags || ARRAY['REPLIED']::text[]) AS e
+    try {
+      await sql()`
+        UPDATE tickets
+        SET status = 'closed',
+            closure_note = ${message},
+            tags = COALESCE(
+              (
+                SELECT array_agg(DISTINCT e)
+                FROM unnest(COALESCE(tags, '{}'::text[]) || ARRAY['REPLIED']::text[]) AS e
+              ),
+              ARRAY['REPLIED']::text[]
             ),
-            ARRAY['REPLIED']::text[]
-          ),
-          updated_at = now()
-      WHERE id = ${params.id}
-    `;
+            updated_at = now()
+        WHERE id = ${params.id}
+      `;
+    } catch (error) {
+      const details = error instanceof Error ? error.message : "Unknown database error";
+      console.error("[reply] db update failed after send:", details);
+      return NextResponse.json(
+        {
+          error: "Email may have been sent, but ticket update failed",
+          step: "database",
+          details
+        },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    const details = error instanceof Error ? error.message : "Unknown";
+    console.error("[reply] unexpected:", details);
     return NextResponse.json(
       {
         error: "Failed to send reply",
-        details: error instanceof Error ? error.message : "Unknown"
+        step: "unknown",
+        details
       },
       { status: 500 }
     );

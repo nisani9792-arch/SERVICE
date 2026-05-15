@@ -24,10 +24,17 @@ export async function GET() {
     detail: geminiKey ? "API key configured" : "GOOGLE_GEMINI_API_KEY is missing"
   };
 
-  const email = getEmailDeliveryStatus();
+  const email = await getEmailDeliveryStatus();
+  const fromDomain = email.fromAddress.split("@")[1] ?? "";
+  const verified = email.resendDomains?.some(
+    (d) => d.name.toLowerCase() === fromDomain.toLowerCase() && d.status === "verified"
+  );
   checks.email = {
-    ok: email.effectiveProvider === "resend" ? email.resendKeyConfigured : email.smtpConfigured,
-    detail: `provider=${email.effectiveProvider}, resend=${email.resendKeyConfigured}, hosted=${email.hostedRuntime}, from=${email.fromAddress}`
+    ok:
+      email.effectiveProvider === "resend"
+        ? email.resendKeyConfigured && (verified === true || fromDomain === "resend.dev")
+        : email.smtpConfigured,
+    detail: `provider=${email.effectiveProvider}, resendKey=${email.resendKeyConfigured}, from=${email.resendFromFormatted}, domain=${fromDomain}, verified=${verified ?? "n/a"}`
   };
 
   const allOk = Object.values(checks).every((c) => c.ok);

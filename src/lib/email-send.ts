@@ -23,7 +23,10 @@ export type EmailDeliveryStatus = {
   replyProvider: string;
   effectiveProvider: "resend" | "smtp";
   fromAddress: string;
+  resendFromFormatted: string;
   smtpConfigured: boolean;
+  resendDomains?: Array<{ name: string; status: string }>;
+  resendDomainsError?: string;
 };
 
 function positiveInt(value: string | undefined, fallback: number): number {
@@ -63,16 +66,85 @@ function shouldUseResend(): boolean {
   return Boolean(key);
 }
 
-export function getEmailDeliveryStatus(): EmailDeliveryStatus {
+/** Lowercase domain part — Resend matches verified domains case-insensitively but this avoids quirks. */
+export function normalizeEmailAddress(raw: string): string {
+  const trimmed = raw.trim();
+  const angleMatch = trimmed.match(/^([^<]*<)([^>]+)(>)$/);
+  if (angleMatch) {
+    const [, prefix, email, suffix] = angleMatch;
+    return `${prefix}${normalizeEmailAddress(email)}${suffix}`;
+  }
+  const at = trimmed.lastIndexOf("@");
+  if (at <= 0) return trimmed.toLowerCase();
+  return `${trimmed.slice(0, at)}@${trimmed.slice(at + 1).toLowerCase()}`;
+}
+
+export function replyFromAddress(): string {
+  const raw =
+    firstNonEmpty(process.env.EMAIL_FROM, process.env.EMAIL_SMTP_USER, process.env.EMAIL_IMAP_USER) ??
+    "editor@jusic.co";
+  return normalizeEmailAddress(raw);
+}
+
+/** Resend expects `Name <email@domain.com>` and a verified domain (or onboarding@resend.dev). */
+export function resendFromAddress(): string {
+  const raw = replyFromAddress();
+  if (raw.includes("<")) return raw;
+  const email = normalizeEmailAddress(raw);
+  if (email === "onboarding@resend.dev") return "Jusic <onboarding@resend.dev>";
+  return `Jusic <${email}>`;
+}
+
+export function formatMessageIdHeader(value: string | null | undefined): string | undefined {
+  const cleaned = String(value ?? "")
+    .trim()
+    .replace(/^<|>$/g, "");
+  if (!cleaned || !cleaned.includes("@")) return undefined;
+  return `<${cleaned}>`;
+}
+
+async function fetchResendDomains(): Promise<{
+  domains?: Array<{ name: string; status: string }>;
+  error?: string;
+}> {
+  const apiKey = resendApiKey();
+  if (!apiKey) return { error: "RESEND_API_KEY not set" };
+
+  try {
+    const response = await fetch("https://api.resend.com/domains", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      cache: "no-store"
+    });
+    const body = (await response.json()) as {
+      data?: Array<{ name: string; status: string }>;
+      message?: string;
+    };
+    if (!response.ok) {
+      return { error: body.message || `${response.status} ${response.statusText}` };
+    }
+    return {
+      domains: (body.data ?? []).map((d) => ({
+        name: d.name,
+        status: d.status
+      }))
+    };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to list domains" };
+  }
+}
+
+export async function getEmailDeliveryStatus(): Promise<EmailDeliveryStatus> {
   const key = resendApiKey();
   const provider = replyProvider();
   const useResend = shouldUseResend();
-  return {
+  const fromAddress = replyFromAddress();
+  const base: EmailDeliveryStatus = {
     hostedRuntime: isHostedRuntime(),
     resendKeyConfigured: Boolean(key),
     replyProvider: provider,
     effectiveProvider: useResend ? "resend" : "smtp",
-    fromAddress: replyFromAddress(),
+    fromAddress,
+    resendFromFormatted: resendFromAddress(),
     smtpConfigured: Boolean(
       firstNonEmpty(
         process.env.EMAIL_SMTP_USER,
@@ -86,6 +158,14 @@ export function getEmailDeliveryStatus(): EmailDeliveryStatus {
         )
     )
   };
+
+  if (key) {
+    const { domains, error } = await fetchResendDomains();
+    if (domains) base.resendDomains = domains;
+    if (error) base.resendDomainsError = error;
+  }
+
+  return base;
 }
 
 function getEmailSendConfig(): EmailSendConfig {
@@ -148,22 +228,6 @@ function normalizeSubject(subject: string): string {
   return /^re\s*:/i.test(cleaned) ? cleaned : `Re: ${cleaned}`;
 }
 
-function replyFromAddress(): string {
-  return (
-    firstNonEmpty(process.env.EMAIL_FROM, process.env.EMAIL_SMTP_USER, process.env.EMAIL_IMAP_USER) ??
-    "noreply@jusic.co"
-  );
-}
-
-/** Resend expects `Name <email@domain.com>` and a verified domain (or onboarding@resend.dev). */
-function resendFromAddress(): string {
-  const raw = replyFromAddress();
-  if (raw.includes("<")) return raw;
-  const email = raw.toLowerCase();
-  if (email === "onboarding@resend.dev") return "Jusic <onboarding@resend.dev>";
-  return `Jusic <${email}>`;
-}
-
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -177,52 +241,106 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   }
 }
 
-async function sendViaResend({
-  to,
-  subject,
-  message,
-  inReplyTo,
-  references
-}: SendCustomerReplyInput): Promise<void> {
+async function parseResendError(response: Response): Promise<string> {
+  const status = `${response.status} ${response.statusText}`;
+  try {
+    const body = (await response.json()) as Record<string, unknown>;
+    const parts: string[] = [];
+    if (typeof body.message === "string") parts.push(body.message);
+    if (typeof body.error === "string") parts.push(body.error);
+    if (typeof body.name === "string") parts.push(`[${body.name}]`);
+    if (Array.isArray(body.errors)) {
+      for (const item of body.errors) {
+        if (item && typeof item === "object" && "message" in item) {
+          parts.push(String((item as { message: unknown }).message));
+        }
+      }
+    }
+    if (parts.length) return `${status}: ${parts.join(" — ")}`;
+    return `${status}: ${JSON.stringify(body)}`;
+  } catch {
+    return status;
+  }
+}
+
+function buildResendPayload(
+  input: SendCustomerReplyInput,
+  includeThreadHeaders: boolean
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    from: resendFromAddress(),
+    to: [normalizeEmailAddress(input.to)],
+    subject: normalizeSubject(input.subject),
+    text: input.message,
+    reply_to: replyFromAddress()
+  };
+
+  if (includeThreadHeaders) {
+    const inReplyTo = formatMessageIdHeader(input.inReplyTo);
+    const refs = (input.references ?? [])
+      .map((r) => formatMessageIdHeader(r))
+      .filter((r): r is string => Boolean(r));
+    const headers: Record<string, string> = {};
+    if (inReplyTo) headers["In-Reply-To"] = inReplyTo;
+    if (refs.length) headers.References = refs.join(" ");
+    if (Object.keys(headers).length) payload.headers = headers;
+  }
+
+  return payload;
+}
+
+async function sendViaResend(input: SendCustomerReplyInput): Promise<void> {
   const apiKey = resendApiKey();
   if (!apiKey) {
     throw new Error("RESEND_API_KEY is not configured on the server");
   }
 
-  const headers: Record<string, string> = {};
-  if (inReplyTo) headers["In-Reply-To"] = inReplyTo;
-  if (references?.length) headers.References = references.join(" ");
-
   const timeoutMs = positiveInt(process.env.EMAIL_SMTP_TIMEOUT_MS, 25000);
-  const response = await withTimeout(
-    fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        from: resendFromAddress(),
-        to: [to],
-        subject: normalizeSubject(subject),
-        text: message,
-        headers: Object.keys(headers).length ? headers : undefined
-      })
-    }),
-    timeoutMs,
-    "Resend API"
-  );
-
-  if (!response.ok) {
-    let detail = `${response.status} ${response.statusText}`;
-    try {
-      const body = (await response.json()) as { message?: string; error?: string };
-      detail = body.message || body.error || detail;
-    } catch {
-      /* ignore parse errors */
+  const fromDomain = replyFromAddress().split("@")[1] ?? "";
+  const domains = await fetchResendDomains();
+  if (domains.domains?.length) {
+    const verified = domains.domains.find(
+      (d) => d.name.toLowerCase() === fromDomain.toLowerCase() && d.status === "verified"
+    );
+    if (!verified && fromDomain !== "resend.dev") {
+      const listed = domains.domains.map((d) => `${d.name} (${d.status})`).join(", ");
+      throw new Error(
+        `הדומיין ${fromDomain} לא מאומת ב-Resend. דומיינים ברשימה: ${listed}. ודא DNS ירוק ב-Resend → Domains.`
+      );
     }
-    throw new Error(detail);
   }
+
+  const attempts: Array<{ label: string; includeThreadHeaders: boolean }> = [
+    { label: "with thread headers", includeThreadHeaders: true },
+    { label: "without thread headers", includeThreadHeaders: false }
+  ];
+
+  let lastError = "Unknown Resend error";
+
+  for (const attempt of attempts) {
+    const response = await withTimeout(
+      fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(buildResendPayload(input, attempt.includeThreadHeaders))
+      }),
+      timeoutMs,
+      "Resend API"
+    );
+
+    if (response.ok) return;
+
+    lastError = await parseResendError(response);
+    const retryable =
+      attempt.includeThreadHeaders &&
+      (response.status === 422 || /invalid|header|from|domain/i.test(lastError));
+    if (!retryable) break;
+  }
+
+  throw new Error(lastError);
 }
 
 async function sendViaSmtp(input: SendCustomerReplyInput): Promise<void> {
@@ -256,8 +374,11 @@ async function sendViaSmtp(input: SendCustomerReplyInput): Promise<void> {
           to: input.to,
           subject: normalizeSubject(input.subject),
           text: input.message,
-          inReplyTo: input.inReplyTo || undefined,
-          references: input.references?.length ? input.references : undefined
+          inReplyTo: formatMessageIdHeader(input.inReplyTo),
+          references: (input.references ?? [])
+            .map((r) => formatMessageIdHeader(r))
+            .filter(Boolean)
+            .join(" ") || undefined
         }),
         config.timeoutMs,
         `SMTP ${config.host}:${config.port}`
@@ -275,8 +396,8 @@ async function sendViaSmtp(input: SendCustomerReplyInput): Promise<void> {
   const prefix = isGmail ? "Gmail SMTP failed" : "SMTP failed";
   const hint = isHostedRuntime()
     ? hasResend
-      ? " השרת אמור להשתמש ב-Resend — ודא ש-EMAIL_REPLY_PROVIDER=resend ושהקוד האחרון נפרס."
-      : " ב-Render חסום SMTP — הגדר RESEND_API_KEY ופרוס מחדש."
+      ? " ודא EMAIL_REPLY_PROVIDER=resend ב-Render."
+      : " ב-Render חסום SMTP — הגדר RESEND_API_KEY."
     : "";
 
   throw new Error(`${prefix} after ${attemptErrors.length} attempt(s). ${attemptErrors.join(" | ")}.${hint}`);
@@ -289,23 +410,16 @@ export async function sendCustomerReply(input: SendCustomerReplyInput): Promise<
   if (useResend) {
     if (!key) {
       throw new Error(
-        "EMAIL_REPLY_PROVIDER=resend אבל RESEND_API_KEY חסר בשרת. הוסף ב-Render → Environment ועשה Deploy."
+        "RESEND_API_KEY חסר בשרת (Render → Environment). הוסף את המפתח ועשה Deploy מחדש."
       );
     }
-    try {
-      await sendViaResend(input);
-      return;
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      throw new Error(
-        `Resend failed: ${msg}. בדוק: (1) RESEND_API_KEY ב-Render, (2) EMAIL_FROM מדומיין מאומת ב-Resend, או זמנית onboarding@resend.dev לבדיקה.`
-      );
-    }
+    await sendViaResend(input);
+    return;
   }
 
   if (isHostedRuntime()) {
     throw new Error(
-      "ב-Render אי אפשר לשלוח דרך Gmail SMTP. הגדר RESEND_API_KEY ו-EMAIL_REPLY_PROVIDER=resend, ופרוס את הקוד העדכני."
+      "ב-Render חסום SMTP. הגדר RESEND_API_KEY ו-EMAIL_REPLY_PROVIDER=resend ב-Environment."
     );
   }
 

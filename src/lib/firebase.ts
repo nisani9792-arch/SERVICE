@@ -126,8 +126,13 @@ export const sendTicketReply = async (ticketId: string, message: string) => {
   }).finally(() => window.clearTimeout(timeout));
 
   if (!res.ok) {
-    const data = (await res.json().catch(() => null)) as { details?: string; error?: string } | null;
-    throw new Error(data?.details || data?.error || "Failed to send reply");
+    const data = (await res.json().catch(() => null)) as {
+      details?: string;
+      error?: string;
+      step?: string;
+    } | null;
+    const step = data?.step ? `[${data.step}] ` : "";
+    throw new Error(`${step}${data?.details || data?.error || "Failed to send reply"}`);
   }
 };
 
