@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireGateAccess } from "@/lib/api-guard";
 import { sendCustomerReply } from "@/lib/email-send";
+import { enqueueOutboundEmail } from "@/lib/outbound-email";
 import { sql } from "@/lib/neon";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +22,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const denied = await requireGateAccess(request);
+  if (denied) return denied;
+
   try {
     const body = (await request.json()) as { message?: string };
     const message = (body.message ?? "").trim();
@@ -63,6 +68,22 @@ export async function POST(
       });
     } catch (error) {
       const details = error instanceof Error ? error.message : "Unknown send error";
+      const domainPending = /domain.*not verified|לא מאומת|403/i.test(details);
+      if (domainPending) {
+        const queueId = await enqueueOutboundEmail({
+          to: recipient,
+          subject: String(ticket.subject ?? ""),
+          message,
+          idempotencyKey: `ticket-reply:${ticket.id}:${message.slice(0, 64)}`
+        });
+        return NextResponse.json({
+          ok: true,
+          queued: true,
+          queueId,
+          message:
+            "הדומיין עדיין בתהליך אישור ב-Resend. התשובה נשמרה בתור ותישלח אוטומטית לאחר האימות."
+        });
+      }
       console.error("[reply] send failed:", details);
       return NextResponse.json(
         {

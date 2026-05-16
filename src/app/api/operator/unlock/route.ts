@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientIp } from "@/lib/client-ip";
 import { unlockGateForIp } from "@/lib/operator";
+import {
+  attachSessionCookie,
+  resolveOrCreateSessionToken,
+  unlockSession
+} from "@/lib/operator-session";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +31,13 @@ export async function POST(request: NextRequest) {
 
     const ip = getClientIp(request);
     await unlockGateForIp(ip);
-    return NextResponse.json({ ok: true });
+
+    const token = await resolveOrCreateSessionToken(request, ip);
+    await unlockSession(token, ip);
+
+    const response = NextResponse.json({ ok: true });
+    attachSessionCookie(response, token);
+    return response;
   } catch (error) {
     return NextResponse.json(
       { error: "unlock failed", details: error instanceof Error ? error.message : "Unknown" },

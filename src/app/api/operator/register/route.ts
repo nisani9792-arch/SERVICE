@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveAccessState } from "@/lib/access-state";
 import { getClientIp } from "@/lib/client-ip";
 import { registerOperatorName } from "@/lib/operator";
+import {
+  attachSessionCookie,
+  bindSessionDisplayName,
+  getSessionTokenFromRequest,
+  resolveOrCreateSessionToken,
+  unlockSession
+} from "@/lib/operator-session";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +21,22 @@ export async function POST(request: NextRequest) {
     }
 
     const ip = getClientIp(request);
-    await registerOperatorName(ip, displayName);
-    return NextResponse.json({ ok: true, displayName });
+    const access = await resolveAccessState(request);
+    if (!access.unlocked) {
+      return NextResponse.json({ error: "נדרשת כניסה למערכת לפני רישום השם" }, { status: 403 });
+    }
+
+    const token = getSessionTokenFromRequest(request) ?? (await resolveOrCreateSessionToken(request, ip));
+    await unlockSession(token, ip);
+    await bindSessionDisplayName(token, displayName);
+    await registerOperatorName(ip, displayName, { gateAlreadyUnlocked: true });
+
+    const response = NextResponse.json({ ok: true, displayName });
+    attachSessionCookie(response, token);
+    return response;
   } catch (error) {
-    return NextResponse.json(
-      { error: "register failed", details: error instanceof Error ? error.message : "Unknown" },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Unknown";
+    const status = message === "gate not unlocked" ? 403 : 500;
+    return NextResponse.json({ error: "register failed", details: message }, { status });
   }
 }

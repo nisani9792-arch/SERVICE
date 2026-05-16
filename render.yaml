@@ -68,6 +68,8 @@ services:
         value: "12"
       - key: BACKUP_INCLUDE_ATTACHMENTS
         value: "true"
+      - key: EMAIL_OUTBOUND_SECRET
+        sync: false
   - type: cron
     name: jusic-db-backup
     runtime: node
@@ -99,6 +101,21 @@ services:
       - key: EMAIL_INGEST_URL
         sync: false
       - key: EMAIL_INGEST_SECRET
+        sync: false
+      - key: NODE_ENV
+        value: "production"
+  - type: cron
+    name: jusic-email-outbound
+    runtime: node
+    schedule: "*/10 * * * *"
+    buildCommand: npm install
+    startCommand: npm run email-outbound:trigger
+    envVars:
+      - key: NODE_VERSION
+        value: "20.18.0"
+      - key: EMAIL_OUTBOUND_URL
+        sync: false
+      - key: EMAIL_OUTBOUND_SECRET
         sync: false
       - key: NODE_ENV
         value: "production"

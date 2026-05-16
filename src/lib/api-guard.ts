@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getClientIp } from "@/lib/client-ip";
-import { getOperatorByIp } from "@/lib/operator";
+import { getRegisteredDisplayName, isAccessUnlocked } from "@/lib/access-state";
 
 const PUBLIC_API_PREFIXES = [
   "/api/operator/",
   "/api/health",
   "/api/email-ingest",
+  "/api/email-outbound/",
   "/api/backup/"
 ];
 
@@ -13,13 +13,12 @@ export function isPublicApiPath(pathname: string): boolean {
   return PUBLIC_API_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 
-/** Returns 401 response if gate not unlocked for this IP. */
+/** Returns 401 response if gate not unlocked for this client. */
 export async function requireGateAccess(
   request: NextRequest
 ): Promise<NextResponse | null> {
-  const ip = getClientIp(request);
-  const op = await getOperatorByIp(ip);
-  if (!op?.gateUnlocked) {
+  const unlocked = await isAccessUnlocked(request);
+  if (!unlocked) {
     return NextResponse.json({ error: "נדרשת כניסה למערכת" }, { status: 401 });
   }
   return null;
@@ -32,9 +31,7 @@ export async function requireRegisteredOperator(
   const denied = await requireGateAccess(request);
   if (denied) return denied;
 
-  const ip = getClientIp(request);
-  const op = await getOperatorByIp(ip);
-  const displayName = op?.displayName?.trim() ?? "";
+  const displayName = (await getRegisteredDisplayName(request)) ?? "";
   if (!displayName) {
     return NextResponse.json({ error: "נדרש רישום שם משתמש" }, { status: 403 });
   }

@@ -31,7 +31,22 @@ function canUseWebAuthn(): boolean {
   );
 }
 
-export function useBiometricUnlock(onSuccess: () => void) {
+function biometricErrorMessage(error: unknown): string {
+  if (error instanceof DOMException) {
+    if (error.name === "NotAllowedError") {
+      return "האימות בוטל או נדחה. נסה שוב או הזן קוד כניסה.";
+    }
+    if (error.name === "SecurityError") {
+      return "אימות ביומטרי לא זמין בכתובת זו. השתמש בקוד כניסה.";
+    }
+    if (error.name === "InvalidStateError") {
+      return "רישום ביומטרי קיים במכשיר אחר. מחק נתוני אתר ונסה שוב, או השתמש בקוד כניסה.";
+    }
+  }
+  return "אימות ביומטרי נכשל. נסה שוב או הזן קוד כניסה.";
+}
+
+export function useBiometricUnlock(onSuccess: () => void, onError?: (message: string) => void) {
   const [available, setAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -42,14 +57,10 @@ export function useBiometricUnlock(onSuccess: () => void) {
       try {
         const platform =
           await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?.();
-        if (platform) {
-          setAvailable(true);
-          return;
-        }
+        setAvailable(Boolean(platform));
       } catch {
-        /* fallback below */
+        setAvailable(false);
       }
-      setAvailable(true);
     };
 
     void detect();
@@ -91,7 +102,11 @@ export function useBiometricUnlock(onSuccess: () => void) {
 
       if (!storedId) {
         const registered = await registerCredential();
-        if (registered) onSuccess();
+        if (registered) {
+          onSuccess();
+        } else {
+          onError?.("לא ניתן לרשום אימות ביומטרי במכשיר זה.");
+        }
         return;
       }
 
@@ -110,13 +125,17 @@ export function useBiometricUnlock(onSuccess: () => void) {
         }
       });
 
-      if (assertion) onSuccess();
-    } catch {
-      /* user cancelled or device unavailable */
+      if (assertion) {
+        onSuccess();
+      } else {
+        onError?.("אימות ביומטרי נכשל. נסה שוב.");
+      }
+    } catch (error) {
+      onError?.(biometricErrorMessage(error));
     } finally {
       setBusy(false);
     }
-  }, [busy, onSuccess, registerCredential]);
+  }, [busy, onError, onSuccess, registerCredential]);
 
   return { available, busy, unlock };
 }

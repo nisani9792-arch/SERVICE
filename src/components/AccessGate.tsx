@@ -16,8 +16,16 @@ interface AccessGateProps {
 }
 
 export function AccessGate({ children }: AccessGateProps) {
-  const { phase, displayName, registerBusy, unlockError, unlockGate, registerName, checkGateCode } =
-    useAccessGate();
+  const {
+    phase,
+    displayName,
+    registerBusy,
+    unlockError,
+    savedDisplayName,
+    unlockGate,
+    registerName,
+    checkGateCode
+  } = useAccessGate();
 
   if (phase === "loading") {
     return (
@@ -42,9 +50,19 @@ export function AccessGate({ children }: AccessGateProps) {
   }
 
   if (phase === "register") {
+    if (registerBusy && savedDisplayName) {
+      return (
+        <div className="lock-screen" aria-busy="true" aria-label="מזהה משתמש">
+          <div className="lock-card">
+            <p className="lock-prompt">מזהה אותך, ממשיך...</p>
+          </div>
+        </div>
+      );
+    }
     return (
       <OperatorRegistration
         busy={registerBusy}
+        initialName={savedDisplayName}
         onSubmit={registerName}
       />
     );

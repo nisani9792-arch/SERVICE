@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireGateAccess } from "@/lib/api-guard";
-import { getClientIp } from "@/lib/client-ip";
+import { getRegisteredDisplayName } from "@/lib/access-state";
 import { sql } from "@/lib/neon";
-import { resolveOperatorName } from "@/lib/operator";
 import { invalidateStatsCache } from "@/lib/stats-cache";
 import { rowToTicket } from "@/lib/ticket-row";
 
@@ -63,7 +62,7 @@ export async function PATCH(
       effectiveStatus = "closed";
     }
 
-    const operatorName = await resolveOperatorName(getClientIp(request));
+    const operatorName = await getRegisteredDisplayName(request);
     const assignedTo =
       body.assignedTo !== undefined ? (body.assignedTo ?? null) : (operatorName ?? null);
 

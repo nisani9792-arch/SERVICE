@@ -9,28 +9,40 @@ import "./LockScreen.css";
 
 interface LockScreenProps {
   onBiometricUnlock: () => void | Promise<void>;
-  onGateCode: (value: string) => boolean;
+  onGateCode: (value: string) => Promise<boolean>;
   unlockError?: string | null;
 }
 
 export function LockScreen({ onBiometricUnlock, onGateCode, unlockError }: LockScreenProps) {
   const [password, setPassword] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
   const { available: biometricAvailable, busy: biometricBusy, unlock: unlockWithBiometric } =
-    useBiometricUnlock(() => void onBiometricUnlock());
+    useBiometricUnlock(
+      () => void onBiometricUnlock(),
+      (message) => setLocalError(message)
+    );
 
-  const handlePasswordChange = (value: string) => {
-    setPassword(value);
-    if (onGateCode(value)) {
-      setPassword("");
-    }
-  };
-
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (onGateCode(password)) {
-      setPassword("");
+    if (!password.trim() || submitting) return;
+
+    setLocalError(null);
+    setSubmitting(true);
+    try {
+      const ok = await onGateCode(password);
+      if (ok) {
+        setPassword("");
+      } else {
+        setLocalError("קוד כניסה שגוי");
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
+
+  const displayError = unlockError ?? localError;
 
   return (
     <div className="lock-screen" role="dialog" aria-modal="true" aria-label="מסך כניסה">
@@ -51,29 +63,36 @@ export function LockScreen({ onBiometricUnlock, onGateCode, unlockError }: LockS
 
         <p className="lock-prompt">אנא הכנס סיסמא</p>
 
-        <form className="lock-form" onSubmit={handleSubmit}>
+        <form className="lock-form" onSubmit={(e) => void handleSubmit(e)}>
           <input
             className="lock-input"
             type="password"
             inputMode="text"
             autoComplete="off"
-            maxLength={20}
+            maxLength={32}
             value={password}
-            onChange={(event) => handlePasswordChange(event.target.value)}
+            onChange={(event) => setPassword(event.target.value)}
             placeholder="••••••••••••••••••••"
             aria-label="סיסמא"
             autoFocus
+            disabled={submitting}
           />
+          <button type="submit" className="lock-biometric lock-submit" disabled={submitting}>
+            {submitting ? "בודק..." : "כניסה"}
+          </button>
         </form>
 
-        {unlockError ? <p className="lock-error">{unlockError}</p> : null}
+        {displayError ? <p className="lock-error">{displayError}</p> : null}
 
         {biometricAvailable ? (
           <button
             type="button"
             className="lock-biometric"
-            onClick={() => void unlockWithBiometric()}
-            disabled={biometricBusy}
+            onClick={() => {
+              setLocalError(null);
+              void unlockWithBiometric();
+            }}
+            disabled={biometricBusy || submitting}
           >
             <Fingerprint size={22} strokeWidth={2} />
             <span>

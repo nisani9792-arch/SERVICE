@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Image from "next/image";
 import { UserRound } from "lucide-react";
 import { APP_LOGO_SRC } from "@/lib/brand";
@@ -8,12 +8,19 @@ import "./LockScreen.css";
 
 interface OperatorRegistrationProps {
   busy: boolean;
+  initialName?: string | null;
   onSubmit: (displayName: string) => Promise<boolean>;
 }
 
-export function OperatorRegistration({ busy, onSubmit }: OperatorRegistrationProps) {
+export function OperatorRegistration({ busy, initialName, onSubmit }: OperatorRegistrationProps) {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialName?.trim()) {
+      setName(initialName.trim());
+    }
+  }, [initialName]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -45,7 +52,9 @@ export function OperatorRegistration({ busy, onSubmit }: OperatorRegistrationPro
         </div>
 
         <p className="lock-prompt">הזן את שמך לעבודה במערכת</p>
-        <p className="lock-subprompt">כל שינוי בפניות יירשם על שמך כגורם מטפל (לפי כתובת IP).</p>
+        <p className="lock-subprompt">
+          המערכת תזכור אותך במכשיר זה. במכשיר חדש — הזן את אותו שם לאחר כניסה עם הקוד.
+        </p>
 
         <form className="lock-form" onSubmit={(e) => void handleSubmit(e)}>
           <input

@@ -60,20 +60,28 @@ export async function unlockGateForIp(ipAddress: string): Promise<void> {
   `;
 }
 
-export async function registerOperatorName(ipAddress: string, displayName: string): Promise<void> {
+export async function registerOperatorName(
+  ipAddress: string,
+  displayName: string,
+  options?: { gateAlreadyUnlocked?: boolean }
+): Promise<void> {
   const name = displayName.trim();
   if (!name) throw new Error("display name required");
 
   const existing = await getOperatorByIp(ipAddress);
-  if (!existing?.gateUnlocked) {
+  const ipUnlocked = Boolean(existing?.gateUnlocked);
+  if (!ipUnlocked && !options?.gateAlreadyUnlocked) {
     throw new Error("gate not unlocked");
   }
 
   await ensureOperatorTable();
   await sql()`
-    UPDATE access_operators
-    SET display_name = ${name}, last_seen_at = now()
-    WHERE ip_address = ${ipAddress}
+    INSERT INTO access_operators (ip_address, display_name, gate_unlocked, last_seen_at)
+    VALUES (${ipAddress}, ${name}, true, now())
+    ON CONFLICT (ip_address) DO UPDATE SET
+      display_name = ${name},
+      gate_unlocked = true,
+      last_seen_at = now()
   `;
 }
 

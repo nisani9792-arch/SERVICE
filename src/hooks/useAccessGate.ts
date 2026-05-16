@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 
 const RESET_MS = 1600;
 const REQUIRED_PRESSES = 3;
-const GATE_CODE = "JUSIC";
+const ME_TIMEOUT_MS = 15_000;
+const DISPLAY_NAME_KEY = "service_operator_display_name";
 
 export type AccessGatePhase = "loading" | "locked" | "register" | "ready";
 
@@ -13,12 +14,31 @@ type OperatorMe = {
   displayName: string | null;
 };
 
+async function fetchOperatorMe(): Promise<OperatorMe | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ME_TIMEOUT_MS);
+  try {
+    const res = await fetch("/api/operator/me", {
+      cache: "no-store",
+      credentials: "same-origin",
+      signal: controller.signal
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as OperatorMe;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function postUnlock(method: "code" | "space" | "biometric", code?: string): Promise<boolean> {
   const res = await fetch("/api/operator/unlock", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ method, code }),
-    cache: "no-store"
+    cache: "no-store",
+    credentials: "same-origin"
   });
   return res.ok;
 }
@@ -28,11 +48,26 @@ export function useAccessGate() {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [registerBusy, setRegisterBusy] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
+  const [savedDisplayName, setSavedDisplayName] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(DISPLAY_NAME_KEY)?.trim();
+      if (stored) setSavedDisplayName(stored);
+    } catch {
+      /* private mode */
+    }
+  }, []);
 
   const applyMe = useCallback((data: OperatorMe) => {
     if (data.unlocked && data.displayName) {
       setDisplayName(data.displayName);
       setPhase("ready");
+      try {
+        localStorage.setItem(DISPLAY_NAME_KEY, data.displayName);
+      } catch {
+        /* ignore */
+      }
       return;
     }
     if (data.unlocked) {
@@ -45,22 +80,47 @@ export function useAccessGate() {
   }, []);
 
   const refreshMe = useCallback(async () => {
-    try {
-      const res = await fetch("/api/operator/me", { cache: "no-store" });
-      if (!res.ok) {
-        setPhase("locked");
-        return;
-      }
-      const data = (await res.json()) as OperatorMe;
-      applyMe(data);
-    } catch {
+    const data = await fetchOperatorMe();
+    if (!data) {
       setPhase("locked");
+      return;
     }
+    applyMe(data);
   }, [applyMe]);
 
   useEffect(() => {
     void refreshMe();
   }, [refreshMe]);
+
+  const tryAutoRegister = useCallback(
+    async (name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) return false;
+      setRegisterBusy(true);
+      try {
+        const res = await fetch("/api/operator/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ displayName: trimmed }),
+          cache: "no-store",
+          credentials: "same-origin"
+        });
+        if (!res.ok) return false;
+        await refreshMe();
+        return true;
+      } catch {
+        return false;
+      } finally {
+        setRegisterBusy(false);
+      }
+    },
+    [refreshMe]
+  );
+
+  useEffect(() => {
+    if (phase !== "register" || !savedDisplayName || registerBusy) return;
+    void tryAutoRegister(savedDisplayName);
+  }, [phase, savedDisplayName, registerBusy, tryAutoRegister]);
 
   const unlockGate = useCallback(
     async (method: "code" | "space" | "biometric", code?: string) => {
@@ -87,9 +147,15 @@ export function useAccessGate() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ displayName: trimmed }),
-          cache: "no-store"
+          cache: "no-store",
+          credentials: "same-origin"
         });
         if (!res.ok) return false;
+        try {
+          localStorage.setItem(DISPLAY_NAME_KEY, trimmed);
+        } catch {
+          /* ignore */
+        }
         await refreshMe();
         return true;
       } catch {
@@ -102,12 +168,10 @@ export function useAccessGate() {
   );
 
   const checkGateCode = useCallback(
-    (value: string) => {
-      if (value.trim().toUpperCase() === GATE_CODE) {
-        void unlockGate("code", value.trim().toUpperCase());
-        return true;
-      }
-      return false;
+    async (value: string) => {
+      const trimmed = value.trim();
+      if (!trimmed) return false;
+      return unlockGate("code", trimmed.toUpperCase());
     },
     [unlockGate]
   );
@@ -147,6 +211,7 @@ export function useAccessGate() {
     displayName,
     registerBusy,
     unlockError,
+    savedDisplayName,
     unlockGate,
     registerName,
     checkGateCode,

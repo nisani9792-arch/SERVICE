@@ -132,6 +132,48 @@ export async function POST() {
       )
     `;
 
+    await db`
+      CREATE TABLE IF NOT EXISTS operator_sessions (
+        token          TEXT PRIMARY KEY,
+        display_name   TEXT NOT NULL DEFAULT '',
+        gate_unlocked  BOOLEAN NOT NULL DEFAULT false,
+        ip_address     TEXT NOT NULL DEFAULT '',
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+        expires_at     TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '365 days'),
+        last_seen_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `;
+    await db`
+      CREATE INDEX IF NOT EXISTS idx_operator_sessions_expires
+      ON operator_sessions (expires_at)
+    `;
+
+    await db`
+      CREATE TABLE IF NOT EXISTS outbound_email_queue (
+        id              TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        to_address      TEXT NOT NULL,
+        subject         TEXT NOT NULL DEFAULT '',
+        body_text       TEXT NOT NULL DEFAULT '',
+        status          TEXT NOT NULL DEFAULT 'pending',
+        attempt_count   INTEGER NOT NULL DEFAULT 0,
+        last_error      TEXT NOT NULL DEFAULT '',
+        idempotency_key TEXT,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        sent_at         TIMESTAMPTZ,
+        next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `;
+    await db`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_outbound_email_idempotency
+      ON outbound_email_queue (idempotency_key)
+      WHERE idempotency_key IS NOT NULL
+    `;
+    await db`
+      CREATE INDEX IF NOT EXISTS idx_outbound_email_pending
+      ON outbound_email_queue (status, next_attempt_at)
+      WHERE status IN ('pending', 'waiting_domain')
+    `;
+
     return NextResponse.json({ ok: true, message: "Database initialized successfully" });
   } catch (error) {
     return NextResponse.json(
