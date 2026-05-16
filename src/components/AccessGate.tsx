@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { createContext, useContext } from "react";
 import { LockScreen } from "@/components/LockScreen";

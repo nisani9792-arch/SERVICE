@@ -33,6 +33,25 @@ body {
   overflow-x: hidden;
 }
 
+.crm-workspace {
+  padding-bottom: max(5.5rem, env(safe-area-inset-bottom));
+}
+
+.crm-kpi-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+}
+
+.crm-kpi-scroll > button {
+  scroll-snap-align: start;
+}
+
+@media (min-width: 768px) {
+  .crm-workspace {
+    padding-bottom: 2rem;
+  }
+}
+
 .lux-card {
   @apply rounded-xl2 border border-outline/90 bg-surface-high/95 shadow-card backdrop-blur-sm;
 }

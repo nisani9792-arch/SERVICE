@@ -108,13 +108,17 @@ export const importHistoricalRecords = async (
   return inserted;
 };
 
-export const updateTicket = async (ticketId: string, input: TicketUpdateInput) => {
+export const updateTicket = async (
+  ticketId: string,
+  input: TicketUpdateInput
+): Promise<Ticket> => {
   const res = await fetch(`${API}/${ticketId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input)
   });
   if (!res.ok) throw new Error("Failed to update ticket");
+  return res.json() as Promise<Ticket>;
 };
 
 export const reclassifyTickets = async (scope: "spam" | "pending_triage", limit = 25) => {

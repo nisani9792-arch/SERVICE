@@ -102,8 +102,8 @@ function TicketDetailPanel({
   compactHeader
 }: TicketDetailPanelProps) {
   return (
-    <div className="flex max-h-[72vh] min-h-[20rem] flex-col">
-      <div className="border-b border-outline/70 px-3 py-2">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="shrink-0 border-b border-outline/70 px-3 py-2">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
             <CategoryBadge category={ticket.category} />
@@ -163,11 +163,11 @@ function TicketDetailPanel({
         ) : null}
       </div>
 
-      <div className="space-y-2 border-t border-outline/70 p-3">
+      <div className="shrink-0 space-y-2 border-t border-outline/70 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-12px_rgba(30,27,36,0.15)]">
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
-            className="inline-flex items-center justify-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-2 py-2 text-xs font-bold text-amber-950"
+            className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-2 py-2.5 text-xs font-bold text-amber-950 active:scale-[0.98]"
             onClick={() => onSetStatus(ticket.id, "in_progress")}
           >
             <CircleDot className="size-3.5" />
@@ -175,7 +175,7 @@ function TicketDetailPanel({
           </button>
           <button
             type="button"
-            className="inline-flex items-center justify-center gap-1 rounded-xl border border-primary/25 bg-primary-soft px-2 py-2 text-xs font-bold text-primary"
+            className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-primary/25 bg-primary-soft px-2 py-2.5 text-xs font-bold text-primary active:scale-[0.98]"
             onClick={() => onReply(ticket)}
           >
             <Send className="size-3.5" />
@@ -266,6 +266,7 @@ interface TicketWorkbenchProps {
   page: number;
   pageSize: number;
   isLoading: boolean;
+  isRefreshing?: boolean;
   selectedIds: Set<string>;
   activeTicket: Ticket | null;
   onSetActiveTicket: (ticket: Ticket) => void;
@@ -290,6 +291,7 @@ export function TicketWorkbench({
   page,
   pageSize,
   isLoading,
+  isRefreshing = false,
   selectedIds,
   activeTicket,
   onSetActiveTicket,
@@ -356,10 +358,11 @@ export function TicketWorkbench({
     <section className="grid min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr),minmax(22rem,0.58fr)]">
       <div className="min-w-0 rounded-2xl border border-outline/70 bg-white/95 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-outline/70 px-3 py-2.5">
-          <div>
+          <div className="min-w-0">
             <h2 className="text-sm font-bold text-on-surface">{title}</h2>
             <p className="text-[11px] text-on-surface-variant">
               {subtitle ?? `${total.toLocaleString("he-IL")} תוצאות · לחץ על פנייה לפרטים ופעולות`}
+              {isRefreshing ? " · מעדכן…" : ""}
             </p>
           </div>
           <label className="inline-flex items-center gap-2 rounded-full border border-outline bg-white px-3 py-1.5 text-[11px] font-semibold text-on-surface-variant">
@@ -373,7 +376,7 @@ export function TicketWorkbench({
           </label>
         </div>
 
-        <div className="max-h-[72vh] min-h-[20rem] overflow-y-auto p-2">
+        <div className="max-h-[min(62dvh,62vh)] min-h-[14rem] overflow-y-auto overscroll-contain p-2 md:max-h-[72vh] md:min-h-[20rem]">
           {isLoading ? (
             <div className="space-y-1.5 p-1" aria-busy="true" aria-label="טוען פניות">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -508,7 +511,8 @@ export function TicketWorkbench({
             aria-label="סגור כרטיס פנייה"
             onClick={() => setMobileDetailOpen(false)}
           />
-          <aside className="absolute inset-x-0 bottom-0 max-h-[88vh] overflow-hidden rounded-t-2xl border border-outline/70 bg-white shadow-2xl">
+          <aside className="absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,92vh)] flex-col overflow-hidden rounded-t-2xl border border-outline/70 bg-white shadow-2xl">
+            <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-outline/60" aria-hidden />
             <TicketDetailPanel {...detailProps} compactHeader />
           </aside>
         </div>

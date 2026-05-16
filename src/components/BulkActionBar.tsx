@@ -65,7 +65,7 @@ export function BulkActionBar({
   };
 
   return (
-    <div className="lux-card sticky bottom-4 z-40 flex flex-col gap-3 rounded-2xl border border-primary/25 bg-surface-high/95 p-3 shadow-lg backdrop-blur-md md:flex-row md:flex-wrap md:items-center md:justify-between">
+    <div className="lux-card sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex flex-col gap-3 rounded-2xl border border-primary/25 bg-surface-high/95 p-3 shadow-lg backdrop-blur-md md:bottom-4 md:z-40 md:flex-row md:flex-wrap md:items-center md:justify-between">
       <span className="text-sm font-semibold text-primary">
         נבחרו {count.toLocaleString("he-IL")} פניות
       </span>

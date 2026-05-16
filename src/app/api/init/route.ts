@@ -127,9 +127,19 @@ export async function POST() {
         ip_address    TEXT PRIMARY KEY,
         display_name  TEXT NOT NULL DEFAULT '',
         gate_unlocked BOOLEAN NOT NULL DEFAULT false,
+        session_token TEXT,
         created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
         last_seen_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       )
+    `;
+    await db`
+      ALTER TABLE access_operators
+      ADD COLUMN IF NOT EXISTS session_token TEXT
+    `;
+    await db`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_access_operators_session_token
+      ON access_operators (session_token)
+      WHERE session_token IS NOT NULL
     `;
 
     await db`

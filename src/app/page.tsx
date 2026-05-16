@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Download,
@@ -24,10 +24,11 @@ import {
   updateTicket,
   updateTicketsBulk
 } from "@/lib/firebase";
-import { PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
 import { useTicketList } from "@/hooks/useTicketList";
+import { useListPageSize } from "@/hooks/useListPageSize";
 import { usePollWhenVisible } from "@/hooks/usePollWhenVisible";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
 import { ImportModal } from "@/components/ImportModal";
 import { NewTicketModal } from "@/components/NewTicketModal";
 import { EditTicketModal } from "@/components/EditTicketModal";
@@ -57,7 +58,7 @@ export default function DashboardPage() {
   const [dateTo, setDateTo] = useState("");
   const [tagsFilter, setTagsFilter] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(80);
+  const pageSize = useListPageSize(80, 36);
 
   const [showImportModal, setShowImportModal] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
@@ -78,7 +79,7 @@ export default function DashboardPage() {
   } | null>(null);
   const [aiReclassifying, setAiReclassifying] = useState(false);
 
-  const debouncedSearch = useDebouncedValue(searchValue, 320);
+  const debouncedSearch = useDebouncedValue(searchValue, 220);
   const tagTokens = useMemo(
     () =>
       tagsFilter
@@ -102,7 +103,18 @@ export default function DashboardPage() {
     [page, pageSize, activeCategory, activeStatus, dateFrom, dateTo, tagTokens, debouncedSearch]
   );
 
-  const { items, total, isLoading, error: listError, refresh } = useTicketList(listQuery);
+  const {
+    items,
+    total,
+    isLoading,
+    isRefreshing,
+    error: listError,
+    refresh,
+    patchItem,
+    removeItem,
+    upsertItem
+  } = useTicketList(listQuery);
+  const statsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeTicket = useMemo(
     () => items.find((ticket) => ticket.id === activeTicketId) ?? null,
     [activeTicketId, items]
@@ -120,19 +132,45 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const scheduleStatsRefresh = useCallback(() => {
+    if (statsTimerRef.current) clearTimeout(statsTimerRef.current);
+    statsTimerRef.current = setTimeout(() => {
+      void refreshStats();
+    }, 1200);
+  }, [refreshStats]);
+
   const refreshAll = useCallback(async () => {
     await Promise.all([refreshStats(), refresh()]);
     setLastSyncedAt(new Date());
   }, [refresh, refreshStats]);
 
+  const afterMutation = useCallback(
+    async (options?: { full?: boolean }) => {
+      if (options?.full) {
+        await refreshAll();
+        return;
+      }
+      void refresh();
+      scheduleStatsRefresh();
+      setLastSyncedAt(new Date());
+    },
+    [refresh, refreshAll, scheduleStatsRefresh]
+  );
+
   useEffect(() => {
     void refreshStats();
+    return () => {
+      if (statsTimerRef.current) clearTimeout(statsTimerRef.current);
+    };
   }, [refreshStats]);
 
   usePollWhenVisible(() => {
-    void refreshStats();
     void refresh();
   }, 25_000);
+
+  usePollWhenVisible(() => {
+    void refreshStats();
+  }, 90_000);
 
   const handleHeaderRefresh = useCallback(async () => {
     setHeaderRefreshing(true);
@@ -246,18 +284,30 @@ export default function DashboardPage() {
     }
 
     setClosingTicketIds(null);
-    await refreshAll();
+    await afterMutation({ full: true });
   };
 
   const onSetTicketStatus = async (ticketId: string, status: TicketStatus) => {
-    await updateTicket(ticketId, { status });
-    await refreshAll();
+    patchItem(ticketId, { status });
+    try {
+      const updated = await updateTicket(ticketId, { status });
+      upsertItem(updated);
+      await afterMutation();
+    } catch {
+      await afterMutation({ full: true });
+    }
   };
 
   const onDelete = async (ticketId: string) => {
     if (!window.confirm("למחוק את הפנייה לצמיתות?")) return;
-    await deleteTicket(ticketId);
-    await refreshAll();
+    removeItem(ticketId);
+    if (activeTicketId === ticketId) setActiveTicketId(null);
+    try {
+      await deleteTicket(ticketId);
+      await afterMutation();
+    } catch {
+      await afterMutation({ full: true });
+    }
   };
 
   const onBulkClose = async () => {
@@ -272,46 +322,66 @@ export default function DashboardPage() {
     if (!window.confirm(`למחוק ${ids.length.toLocaleString("he-IL")} פניות לצמיתות?`)) return;
     await deleteTicketsBulk(ids);
     setSelectedIds(new Set());
-    await refreshAll();
+    await afterMutation({ full: true });
   };
 
   const onBulkChangeCategory = async (category: string) => {
     const ids = Array.from(selectedIds);
     await updateTicketsBulk(ids, { category });
     setSelectedIds(new Set());
-    await refreshAll();
+    await afterMutation({ full: true });
   };
 
   const onBulkSetStatus = async (status: TicketStatus) => {
     const ids = Array.from(selectedIds);
     await updateTicketsBulk(ids, { status });
     setSelectedIds(new Set());
-    await refreshAll();
+    await afterMutation({ full: true });
   };
 
   const onBulkAddTags = async (tags: string[]) => {
     const ids = Array.from(selectedIds);
     await updateTicketsBulk(ids, { tags, replaceTags: false });
     setSelectedIds(new Set());
-    await refreshAll();
+    await afterMutation({ full: true });
   };
 
   const onBulkSpam = async () => {
     const ids = Array.from(selectedIds);
     await updateTicketsBulk(ids, { category: "Spam", status: "closed" });
     setSelectedIds(new Set());
-    await refreshAll();
+    await afterMutation({ full: true });
   };
 
   const onChangeSingleCategory = async (ticketId: string, category: string) => {
-    await updateTicket(ticketId, { category });
-    await refreshAll();
+    patchItem(ticketId, { category });
+    try {
+      const updated = await updateTicket(ticketId, { category });
+      upsertItem(updated);
+      await afterMutation();
+    } catch {
+      await afterMutation({ full: true });
+    }
   };
 
   const onTriageAssign = async (ticketId: string, category: string) => {
-    await updateTicket(ticketId, { category, status: "open" });
-    setActiveTicketId(null);
-    await refreshAll();
+    const currentIndex = items.findIndex((ticket) => ticket.id === ticketId);
+    const nextTicket = items[currentIndex + 1] ?? items[currentIndex - 1] ?? null;
+
+    removeItem(ticketId);
+    if (nextTicket && nextTicket.id !== ticketId) {
+      setActiveTicketId(nextTicket.id);
+    } else {
+      setActiveTicketId(null);
+    }
+
+    try {
+      await updateTicket(ticketId, { category, status: "open" });
+      await afterMutation();
+    } catch {
+      setActiveTicketId(ticketId);
+      await afterMutation({ full: true });
+    }
   };
 
   const onReclassifySpamWithAi = async () => {
@@ -333,7 +403,7 @@ export default function DashboardPage() {
   const onSendReply = async (message: string) => {
     if (!replyingTicket) return;
     await sendTicketReply(replyingTicket.id, message);
-    await refreshAll();
+    await afterMutation({ full: true });
   };
 
   const onSaveInquiry = async (ticket: Ticket) => {
@@ -364,6 +434,7 @@ export default function DashboardPage() {
 
   const headerActions = (
     <>
+      <div className="hidden flex-wrap items-center gap-2 md:flex">
       <details className="relative">
         <summary className="lux-button cursor-pointer list-none rounded-xl px-3 py-1.5 text-xs">
           כלים
@@ -426,11 +497,65 @@ export default function DashboardPage() {
         <Plus className="size-4" />
         פנייה חדשה
       </button>
+      </div>
+
+      <details className="relative md:hidden">
+        <summary className="lux-button cursor-pointer list-none rounded-xl px-3 py-2 text-xs font-semibold">
+          תפריט
+        </summary>
+        <div className="absolute left-0 z-50 mt-2 w-44 rounded-xl border border-outline bg-white p-1 shadow-card">
+          <button
+            type="button"
+            onClick={() => setShowReplyTemplates(true)}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
+          >
+            תבניות מענה
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowExportModal(true)}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
+          >
+            ייצוא אנשי קשר
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowImportModal(true)}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
+          >
+            יבוא פניות
+          </button>
+          <Link
+            href="/saved-inquiries"
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
+          >
+            פניות שמורות
+          </Link>
+          <button
+            type="button"
+            onClick={handleEmailSync}
+            disabled={emailSyncing}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container disabled:opacity-50"
+          >
+            <MailCheck className="size-3.5 opacity-80" />
+            {emailSyncing ? "מסנכרן…" : "סנכרן מיילים"}
+          </button>
+        </div>
+      </details>
+
+      <button
+        type="button"
+        onClick={() => setShowNewModal(true)}
+        className="lux-button-primary fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-4 z-30 size-12 rounded-full p-0 shadow-lg md:hidden"
+        aria-label="פנייה חדשה"
+      >
+        <Plus className="size-5" />
+      </button>
     </>
   );
 
   return (
-    <main className="crm-workspace min-h-screen px-2 pb-16 pt-2 text-[13px] sm:px-3 md:px-4 md:pb-8">
+    <main className="crm-workspace min-h-screen px-2 pb-24 pt-2 text-[13px] sm:px-3 md:px-4 md:pb-8">
       <div className="mx-auto max-w-[1380px] space-y-2">
         <AppHeader
           actions={headerActions}
@@ -459,7 +584,7 @@ export default function DashboardPage() {
 
         <section className="space-y-2">
           <div className="rounded-3xl border border-outline/70 bg-white/95 p-3 shadow-sm">
-            <div className="grid gap-2 lg:grid-cols-4">
+            <div className="crm-kpi-scroll flex gap-2 overflow-x-auto pb-1 lg:grid lg:grid-cols-4 lg:overflow-visible lg:pb-0">
               <button
                 type="button"
                 onClick={() => {
@@ -467,7 +592,7 @@ export default function DashboardPage() {
                   setActiveStatus("active");
                   setPage(1);
                 }}
-                className={`crm-kpi-card rounded-2xl border p-3 text-right transition ${
+                className={`crm-kpi-card min-w-[9.5rem] shrink-0 rounded-2xl border p-3 text-right transition lg:min-w-0 ${
                   activeStatus === "active" && activeCategory === "all"
                     ? "border-primary bg-primary text-white shadow-soft"
                     : "border-outline bg-white text-on-surface hover:border-primary/35"
@@ -484,7 +609,7 @@ export default function DashboardPage() {
                   setActiveStatus("active");
                   setPage(1);
                 }}
-                className={`rounded-2xl border p-3 text-right transition ${
+                className={`min-w-[9.5rem] shrink-0 rounded-2xl border p-3 text-right transition lg:min-w-0 ${
                   activeCategory === PENDING_TRIAGE_CATEGORY
                     ? "border-fuchsia-400 bg-fuchsia-100 text-fuchsia-950 shadow-sm"
                     : "border-outline bg-white text-on-surface hover:border-fuchsia-300"
@@ -501,7 +626,7 @@ export default function DashboardPage() {
                   setActiveStatus("in_progress");
                   setPage(1);
                 }}
-                className={`rounded-2xl border p-3 text-right transition ${
+                className={`min-w-[9.5rem] shrink-0 rounded-2xl border p-3 text-right transition lg:min-w-0 ${
                   activeStatus === "in_progress" && activeCategory === "all"
                     ? "border-sky-300 bg-sky-100 text-sky-950 shadow-sm"
                     : "border-outline bg-white text-on-surface hover:border-sky-300"
@@ -518,7 +643,7 @@ export default function DashboardPage() {
                   setActiveStatus("closed");
                   setPage(1);
                 }}
-                className={`rounded-2xl border p-3 text-right transition ${
+                className={`min-w-[9.5rem] shrink-0 rounded-2xl border p-3 text-right transition lg:min-w-0 ${
                   activeStatus === "closed"
                     ? "border-emerald-300 bg-emerald-100 text-emerald-950 shadow-sm"
                     : "border-outline bg-white text-on-surface hover:border-emerald-300"
@@ -597,6 +722,7 @@ export default function DashboardPage() {
             page={page}
             pageSize={pageSize}
             isLoading={isLoading}
+            isRefreshing={isRefreshing}
             selectedIds={selectedIds}
             activeTicket={activeTicket}
             onSetActiveTicket={(ticket) => setActiveTicketId(ticket.id)}

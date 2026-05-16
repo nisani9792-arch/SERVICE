@@ -7,7 +7,7 @@ import { rowToTicket } from "@/lib/ticket-row";
 
 export const dynamic = "force-dynamic";
 
-const LIST_BODY_PREVIEW_CHARS = 1_200;
+const LIST_BODY_PREVIEW_CHARS = 420;
 
 export async function GET(request: NextRequest) {
   const denied = await requireGateAccess(request);

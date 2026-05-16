@@ -12,6 +12,8 @@ services:
         value: "false"
       - key: DATABASE_URL
         sync: false
+      - key: GATE_ACCESS_CODE
+        value: "JUSIC"
       - key: GOOGLE_GEMINI_API_KEY
         sync: false
       - key: GEMINI_API_KEY

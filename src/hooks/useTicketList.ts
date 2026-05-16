@@ -44,6 +44,7 @@ export function useTicketList(query: TicketListQuery) {
   }>({ items: [], total: 0, page: 1, pageSize: 25 });
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
@@ -56,7 +57,11 @@ export function useTicketList(query: TicketListQuery) {
     abortRef.current = controller;
 
     if (!options?.silent) {
-      setIsLoading(true);
+      setData((prev) => {
+        if (prev.items.length === 0) setIsLoading(true);
+        else setIsRefreshing(true);
+        return prev;
+      });
     }
 
     try {
@@ -78,6 +83,7 @@ export function useTicketList(query: TicketListQuery) {
         abortRef.current = null;
       }
       setIsLoading(false);
+      setIsRefreshing(false);
 
       if (pendingSilentRef.current) {
         pendingSilentRef.current = false;
@@ -93,5 +99,41 @@ export function useTicketList(query: TicketListQuery) {
 
   const refresh = useCallback(() => load({ silent: true }), [load]);
 
-  return { ...data, isLoading, error, refresh };
+  const patchItem = useCallback((ticketId: string, patch: Partial<Ticket>) => {
+    setData((prev) => ({
+      ...prev,
+      items: prev.items.map((item) =>
+        item.id === ticketId ? { ...item, ...patch, updatedAt: patch.updatedAt ?? new Date().toISOString() } : item
+      )
+    }));
+  }, []);
+
+  const removeItem = useCallback((ticketId: string) => {
+    setData((prev) => ({
+      ...prev,
+      items: prev.items.filter((item) => item.id !== ticketId),
+      total: Math.max(0, prev.total - 1)
+    }));
+  }, []);
+
+  const upsertItem = useCallback((ticket: Ticket) => {
+    setData((prev) => {
+      const idx = prev.items.findIndex((item) => item.id === ticket.id);
+      if (idx === -1) return prev;
+      const items = [...prev.items];
+      items[idx] = ticket;
+      return { ...prev, items };
+    });
+  }, []);
+
+  return {
+    ...data,
+    isLoading,
+    isRefreshing,
+    error,
+    refresh,
+    patchItem,
+    removeItem,
+    upsertItem
+  };
 }
