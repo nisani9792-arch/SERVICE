@@ -28,7 +28,8 @@ import {
 } from "@/lib/firebase";
 import { useTicketList } from "@/hooks/useTicketList";
 import { useListPageSize } from "@/hooks/useListPageSize";
-import { usePollWhenVisible } from "@/hooks/usePollWhenVisible";
+import { useAutoEmailSync } from "@/hooks/useAutoEmailSync";
+import { useLiveRefresh } from "@/hooks/useLiveRefresh";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
 import { ImportModal } from "@/components/ImportModal";
@@ -61,7 +62,7 @@ export default function DashboardPage() {
   const [dateTo, setDateTo] = useState("");
   const [tagsFilter, setTagsFilter] = useState("");
   const [page, setPage] = useState(1);
-  const pageSize = useListPageSize(40, 20);
+  const pageSize = useListPageSize(25, 12);
 
   const [showImportModal, setShowImportModal] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
@@ -173,17 +174,24 @@ export default function DashboardPage() {
     };
   }, [refreshStats]);
 
-  const pollTicketList = useCallback(() => {
-    void refresh();
-  }, [refresh]);
+  useLiveRefresh(() => {
+    void refreshAll();
+  }, 120_000);
 
-  const pollStats = useCallback(() => {
-    void refreshStats();
-  }, [refreshStats]);
+  const handleAutoEmailSync = useCallback(
+    (sync?: { imported: number }) => {
+      if (sync?.imported && sync.imported > 0) {
+        setEmailSyncMessage({
+          kind: "success",
+          text: `סנכרון אוטומטי: ${sync.imported} פניות חדשות ממייל.`
+        });
+      }
+      void refreshAll();
+    },
+    [refreshAll]
+  );
 
-  usePollWhenVisible(pollTicketList, 30_000);
-
-  usePollWhenVisible(pollStats, 45_000);
+  useAutoEmailSync(handleAutoEmailSync);
 
   const handleHeaderRefresh = useCallback(async () => {
     setHeaderRefreshing(true);
@@ -397,6 +405,37 @@ export default function DashboardPage() {
     }
   };
 
+  const onBulkAiClassify = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`לסווג מחדש ${ids.length} פניות עם AI?`)) return;
+    setAiReclassifying(true);
+    try {
+      const result = await reclassifyTickets("ids", ids.length, ids);
+      setSelectedIds(new Set());
+      await refreshAll();
+      window.alert(`סיווג AI: ${result.updated} פניות עודכנו.`);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "סיווג AI נכשל");
+    } finally {
+      setAiReclassifying(false);
+    }
+  };
+
+  const onReclassifyPendingTriage = async () => {
+    if (!window.confirm("לסווג מחדש עד 25 פניות בממתין לסינון עם AI?")) return;
+    setAiReclassifying(true);
+    try {
+      const result = await reclassifyTickets("pending_triage", 25);
+      await refreshAll();
+      window.alert(`סיווג AI: ${result.updated} פניות עודכנו.`);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "סיווג AI נכשל");
+    } finally {
+      setAiReclassifying(false);
+    }
+  };
+
   const onReclassifySpamWithAi = async () => {
     if (!window.confirm("לסרוק מחדש עד 25 פניות שסומנו כספאם עם Gemini? פניות אמיתיות יועברו לקטגוריה מתאימה.")) {
       return;
@@ -416,9 +455,22 @@ export default function DashboardPage() {
   const onSendReply = async (message: string, options?: { closeAfterSend?: boolean }) => {
     if (!replyingTicket) return;
     const result = await sendTicketReply(replyingTicket.id, message, options);
+    if (result.closureNote && replyingTicket) {
+      patchItem(replyingTicket.id, {
+        closureNote: result.closureNote,
+        status: result.closed ? "closed" : "in_progress"
+      });
+    }
     await afterMutation({ full: true });
     if (result.queued && result.message) {
-      window.alert(result.message);
+      setEmailSyncMessage({ kind: "success", text: result.message });
+    } else if (result.sent) {
+      setEmailSyncMessage({
+        kind: "success",
+        text: result.closed
+          ? `המענה נשלח והפנייה נסגרה. הערת טיפול נשמרה.`
+          : "המענה נשלח ללקוח."
+      });
     }
   };
 
@@ -744,6 +796,21 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {activeCategory === PENDING_TRIAGE_CATEGORY ? (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                disabled={aiReclassifying}
+                onClick={() => {
+                  void onReclassifyPendingTriage();
+                }}
+                className="lux-button border-violet-200 bg-violet-50 text-violet-950"
+              >
+                {aiReclassifying ? "מסווג עם AI…" : "סיווג AI — כל התור"}
+              </button>
+            </div>
+          ) : null}
+
           <TicketWorkbench
             title={workbenchTitle}
             subtitle={workbenchSubtitle}
@@ -782,6 +849,10 @@ export default function DashboardPage() {
           <BulkActionBar
             count={selectedIds.size}
             onReply={() => setShowBulkReply(true)}
+            onAiClassify={() => {
+              void onBulkAiClassify();
+            }}
+            aiBusy={aiReclassifying}
             onCloseTickets={onBulkClose}
             onDelete={onBulkDelete}
             onChangeCategory={onBulkChangeCategory}

@@ -122,11 +122,15 @@ export const updateTicket = async (
   return res.json() as Promise<Ticket>;
 };
 
-export const reclassifyTickets = async (scope: "spam" | "pending_triage", limit = 25) => {
+export const reclassifyTickets = async (
+  scope: "spam" | "pending_triage" | "ids",
+  limit = 25,
+  ids?: string[]
+) => {
   const res = await fetch("/api/tickets/reclassify", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ scope, limit })
+    body: JSON.stringify({ scope, limit, ids })
   });
   if (!res.ok) {
     const data = (await res.json().catch(() => null)) as { details?: string; error?: string } | null;
@@ -143,9 +147,11 @@ export const reclassifyTickets = async (scope: "spam" | "pending_triage", limit 
 export type TicketReplyResponse = {
   ok: boolean;
   queued?: boolean;
+  sent?: boolean;
   queueId?: string;
   message?: string;
   closed?: boolean;
+  closureNote?: string | null;
 };
 
 export const sendTicketReply = async (

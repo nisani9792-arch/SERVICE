@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CheckCheck,
   CircleDot,
@@ -14,6 +14,7 @@ import {
   X
 } from "lucide-react";
 import { CategoryBadge } from "@/components/CategoryBadge";
+import { TicketListRow } from "@/components/TicketListRow";
 import { TicketAttachments } from "@/components/TicketAttachments";
 import { TriageAssignBar } from "@/components/TriageAssignBar";
 import { ACTIVE_CATEGORIES, categoryLabel } from "@/lib/categories";
@@ -33,18 +34,6 @@ const STATUS_STYLES: Record<TicketStatus, string> = {
   in_progress: "bg-amber-50 text-amber-950 border-amber-200",
   closed: "bg-surface-container text-on-surface-variant border-outline"
 };
-
-const STATUS_ACCENT: Record<TicketStatus, string> = {
-  open: "bg-blue-500",
-  in_progress: "bg-amber-500",
-  closed: "bg-outline"
-};
-
-function normalizePreview(ticket: Ticket): string {
-  return (ticket.body || ticket.aiSummary || ticket.subject || "אין תוכן להצגה")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 function formatWhen(ticket: Ticket): string {
   return displayTicketDate(ticket).toLocaleString("he-IL", {
@@ -147,7 +136,7 @@ function TicketDetailPanel({
             {ticket.aiSummary || ticket.subject}
           </p>
         </div>
-        <div className="mt-2 whitespace-pre-wrap rounded-xl border border-outline/70 bg-white p-3 text-sm leading-relaxed text-on-surface">
+        <div className="mt-2 max-h-72 overflow-y-auto overscroll-contain whitespace-pre-wrap rounded-xl border border-outline/70 bg-white p-3 text-sm leading-relaxed text-on-surface">
           {ticket.body || "אין תוכן להצגה"}
         </div>
         {ticket.closureNote ? (
@@ -309,7 +298,6 @@ export function TicketWorkbench({
 }: TicketWorkbenchProps) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const allSelected = tickets.length > 0 && tickets.every((ticket) => selectedIds.has(ticket.id));
-  const detailRef = useRef<HTMLElement>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const detailTicket = useTicketDetail(activeTicket);
 
@@ -324,20 +312,19 @@ export function TicketWorkbench({
     return Array.from(groups.entries());
   }, [tickets]);
 
-  const selectTicket = (ticket: Ticket) => {
-    onSetActiveTicket(ticket);
-    setMobileDetailOpen(true);
-  };
+  const selectTicket = useCallback(
+    (ticket: Ticket) => {
+      onSetActiveTicket(ticket);
+      setMobileDetailOpen(true);
+    },
+    [onSetActiveTicket]
+  );
 
   const activeTicketId = activeTicket?.id ?? null;
 
   useEffect(() => {
     if (!activeTicketId) {
       setMobileDetailOpen(false);
-      return;
-    }
-    if (typeof window !== "undefined" && window.matchMedia("(min-width: 1280px)").matches) {
-      detailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }, [activeTicketId]);
 
@@ -397,66 +384,16 @@ export function TicketWorkbench({
                     {groupLabel}
                   </h3>
                   <div className="space-y-1.5">
-                    {groupTickets.map((ticket) => {
-                      const active = activeTicket?.id === ticket.id;
-                      const selected = selectedIds.has(ticket.id);
-                      return (
-                        <article
-                          key={ticket.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => selectTicket(ticket)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              selectTicket(ticket);
-                            }
-                          }}
-                          className={`relative cursor-pointer rounded-xl border p-2.5 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-                            active
-                              ? "border-primary bg-primary-soft/40 shadow-sm ring-1 ring-primary/25"
-                              : selected
-                                ? "border-primary/35 bg-primary-soft/25"
-                                : "border-outline/70 bg-white hover:border-primary/40 hover:bg-primary-soft/15"
-                          }`}
-                        >
-                          <span
-                            className={`absolute inset-y-2 right-0 w-1 rounded-full ${STATUS_ACCENT[ticket.status]}`}
-                            aria-hidden
-                          />
-                          <div className="flex items-start gap-2 pr-2">
-                            <input
-                              type="checkbox"
-                              checked={selected}
-                              onChange={() => onToggleSelect(ticket.id)}
-                              onClick={(event) => event.stopPropagation()}
-                              className="mt-1 size-4 shrink-0 accent-primary"
-                              aria-label="בחר פנייה"
-                            />
-                            <div className="min-w-0 flex-1 text-right">
-                              <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                                <span className="text-[11px] font-semibold text-on-surface-variant">
-                                  {formatWhen(ticket)}
-                                </span>
-                                <span className="inline-flex items-center gap-1">
-                                  <CategoryBadge category={ticket.category} />
-                                  <StatusChip status={ticket.status} />
-                                </span>
-                              </div>
-                              <h3 className="line-clamp-1 text-[13px] font-bold leading-snug text-on-surface">
-                                {ticket.subject}
-                              </h3>
-                              <p className="mt-0.5 line-clamp-1 text-[11px] text-on-surface-variant">
-                                {ticket.senderName || "ללא שם"} · {ticket.senderEmail || "ללא אימייל"}
-                              </p>
-                              <p className="mt-1 line-clamp-2 text-xs leading-snug text-on-surface-variant">
-                                {normalizePreview(ticket)}
-                              </p>
-                            </div>
-                          </div>
-                        </article>
-                      );
-                    })}
+                    {groupTickets.map((ticket) => (
+                      <TicketListRow
+                        key={ticket.id}
+                        ticket={ticket}
+                        active={activeTicket?.id === ticket.id}
+                        selected={selectedIds.has(ticket.id)}
+                        onSelect={selectTicket}
+                        onToggleSelect={onToggleSelect}
+                      />
+                    ))}
                   </div>
                 </section>
               ))}
@@ -491,10 +428,7 @@ export function TicketWorkbench({
         </div>
       </div>
 
-      <aside
-        ref={detailRef}
-        className="hidden min-w-0 rounded-2xl border border-outline/70 bg-white/95 shadow-sm xl:block"
-      >
+      <aside className="hidden min-w-0 rounded-2xl border border-outline/70 bg-white/95 shadow-sm xl:block">
         {detailProps ? (
           <TicketDetailPanel {...detailProps} />
         ) : (

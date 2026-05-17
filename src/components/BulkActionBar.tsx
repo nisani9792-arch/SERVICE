@@ -6,6 +6,7 @@ import {
   CircleDot,
   Flag,
   Send,
+  Sparkles,
   Tag,
   Trash2,
   X
@@ -16,6 +17,8 @@ import type { LegacyTicketCategory, TicketStatus } from "@/lib/types";
 interface BulkActionBarProps {
   count: number;
   onReply: () => void;
+  onAiClassify: () => void;
+  aiBusy?: boolean;
   onCloseTickets: () => Promise<void>;
   onDelete: () => Promise<void>;
   onChangeCategory: (category: string) => Promise<void>;
@@ -28,6 +31,8 @@ interface BulkActionBarProps {
 export function BulkActionBar({
   count,
   onReply,
+  onAiClassify,
+  aiBusy = false,
   onCloseTickets,
   onDelete,
   onChangeCategory,
@@ -78,10 +83,20 @@ export function BulkActionBar({
           type="button"
           onClick={onReply}
           className="md3-toolbar-btn border-primary/30 bg-primary-soft font-semibold text-primary"
-          disabled={isBusy}
+          disabled={isBusy || aiBusy}
         >
           <Send className="size-3.5" />
           מענה לכולם
+        </button>
+
+        <button
+          type="button"
+          onClick={onAiClassify}
+          className="md3-toolbar-btn border-violet-200 bg-violet-50 font-semibold text-violet-950"
+          disabled={isBusy || aiBusy}
+        >
+          <Sparkles className="size-3.5" />
+          {aiBusy ? "מסווג…" : "סיווג AI"}
         </button>
 
         <div className="relative">

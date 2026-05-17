@@ -1,23 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchTicketById } from "@/lib/firebase";
 import type { Ticket } from "@/lib/types";
-
-function mergeListIntoFull(prev: Ticket, listTicket: Ticket): Ticket {
-  const keepBody =
-    prev.body.length > (listTicket.body?.length ?? 0) ? prev.body : listTicket.body;
-  return { ...listTicket, body: keepBody };
-}
 
 /** Loads full ticket body when user opens a row (list returns preview only). */
 export function useTicketDetail(listTicket: Ticket | null): Ticket | null {
   const ticketId = listTicket?.id ?? null;
+  const listMetaRef = useRef<string | null>(null);
   const [full, setFull] = useState<Ticket | null>(listTicket);
 
   useEffect(() => {
     if (!ticketId) {
       setFull(null);
+      listMetaRef.current = null;
       return;
     }
 
@@ -35,15 +31,21 @@ export function useTicketDetail(listTicket: Ticket | null): Ticket | null {
       });
 
     return () => controller.abort();
-    // Fetch only when the selected ticket id changes — not on list poll refreshes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- listTicket is read for initial preview on id change
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetch only when id changes
   }, [ticketId]);
 
   useEffect(() => {
     if (!ticketId || !listTicket) return;
+    const meta = `${listTicket.updatedAt}|${listTicket.status}|${listTicket.category}|${listTicket.closureNote ?? ""}`;
+    if (listMetaRef.current === meta) return;
+    listMetaRef.current = meta;
+
     setFull((prev) => {
       if (!prev || prev.id !== ticketId) return prev;
-      return mergeListIntoFull(prev, listTicket);
+      return {
+        ...listTicket,
+        body: prev.body.length > (listTicket.body?.length ?? 0) ? prev.body : listTicket.body
+      };
     });
   }, [listTicket, ticketId]);
 

@@ -93,7 +93,9 @@ export function useTicketList(query: TicketListQuery) {
           pageSize: res.pageSize
         };
         if (listUnchanged(prev, next)) return prev;
-        writeListCache(stableKey, res);
+        if (!options?.silent) {
+          writeListCache(stableKey, res);
+        }
         return next;
       });
       setError(null);

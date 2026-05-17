@@ -4,8 +4,21 @@ import { createOutboundMessageId, recordOutboundMessageId } from "@/lib/outbound
 import { sql } from "@/lib/neon";
 
 export type TicketReplySendResult =
-  | { ok: true; queued: false; messageId: string }
-  | { ok: true; queued: true; queueId: string; message: string };
+  | {
+      ok: true;
+      queued: false;
+      messageId: string;
+      closed: boolean;
+      closureNote: string | null;
+    }
+  | {
+      ok: true;
+      queued: true;
+      queueId: string;
+      closed: boolean;
+      closureNote: string | null;
+      message: string;
+    };
 
 function parseReferences(value: unknown): string[] {
   if (!value) return [];
@@ -16,6 +29,53 @@ function parseReferences(value: unknown): string[] {
     .split(/\s+/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function isResendDomainError(details: string): boolean {
+  return /domain.*not verified|לא מאומת|verify your domain|domain is not verified|403.*domain/i.test(
+    details
+  );
+}
+
+async function applyReplyTicketUpdate(
+  ticketId: string,
+  message: string,
+  options: { closeAfterSend: boolean; outboundQueued: boolean }
+): Promise<void> {
+  const tagsExtra = options.outboundQueued ? ["OUTBOUND_QUEUED"] : [];
+  const repliedTag = ["REPLIED", ...tagsExtra];
+
+  if (options.closeAfterSend) {
+    await sql()`
+      UPDATE tickets
+      SET status = 'closed',
+          closure_note = ${message},
+          tags = COALESCE(
+            (
+              SELECT array_agg(DISTINCT e)
+              FROM unnest(COALESCE(tags, '{}'::text[]) || ${repliedTag}::text[]) AS e
+            ),
+            ${repliedTag}::text[]
+          ),
+          updated_at = now()
+      WHERE id = ${ticketId}
+    `;
+    return;
+  }
+
+  await sql()`
+    UPDATE tickets
+    SET status = CASE WHEN status = 'closed' THEN status ELSE 'in_progress' END,
+        tags = COALESCE(
+          (
+            SELECT array_agg(DISTINCT e)
+            FROM unnest(COALESCE(tags, '{}'::text[]) || ${repliedTag}::text[]) AS e
+          ),
+          ${repliedTag}::text[]
+        ),
+        updated_at = now()
+    WHERE id = ${ticketId}
+  `;
 }
 
 type TicketRow = {
@@ -48,59 +108,40 @@ export async function sendReplyForTicket(
       references: parseReferences(ticket.email_message_id)
     });
     await recordOutboundMessageId(sent.messageId, ticket.id);
+    await applyReplyTicketUpdate(ticket.id, message, { closeAfterSend, outboundQueued: false });
+
+    return {
+      ok: true,
+      queued: false,
+      messageId: outboundMessageId,
+      closed: closeAfterSend,
+      closureNote: closeAfterSend ? message : null
+    };
   } catch (error) {
     const details = error instanceof Error ? error.message : "Unknown send error";
-    const domainPending = /domain.*not verified|לא מאומת|403|not authorized|from address/i.test(
-      details
-    );
-    if (domainPending) {
+
+    if (isResendDomainError(details)) {
       const queueId = await enqueueOutboundEmail({
         to: recipient,
         subject: String(ticket.subject ?? ""),
         message,
         idempotencyKey: `ticket-reply:${ticket.id}:${message.slice(0, 64)}`
       });
+      await applyReplyTicketUpdate(ticket.id, message, { closeAfterSend, outboundQueued: true });
+
+      const notePreview = message.length > 120 ? `${message.slice(0, 120)}…` : message;
       return {
         ok: true,
         queued: true,
         queueId,
-        message:
-          "המענה נשמר בתור ויישלח אוטומטית (אם נדרש — השלם אימות דומיין ב-Resend)."
+        closed: closeAfterSend,
+        closureNote: closeAfterSend ? message : null,
+        message: closeAfterSend
+          ? `המייל בתור לשליחה (אימות דומיין ב-Resend). הפנייה נסגרה — הערת טיפול: «${notePreview}»`
+          : "המייל בתור לשליחה. הפנייה נשארה פתוחה עד שהשליחה תושלם."
       };
     }
+
     throw error;
   }
-
-  if (closeAfterSend) {
-    await sql()`
-      UPDATE tickets
-      SET status = 'closed',
-          closure_note = ${message},
-          tags = COALESCE(
-            (
-              SELECT array_agg(DISTINCT e)
-              FROM unnest(COALESCE(tags, '{}'::text[]) || ARRAY['REPLIED']::text[]) AS e
-            ),
-            ARRAY['REPLIED']::text[]
-          ),
-          updated_at = now()
-      WHERE id = ${ticket.id}
-    `;
-  } else {
-    await sql()`
-      UPDATE tickets
-      SET status = CASE WHEN status = 'closed' THEN status ELSE 'in_progress' END,
-          tags = COALESCE(
-            (
-              SELECT array_agg(DISTINCT e)
-              FROM unnest(COALESCE(tags, '{}'::text[]) || ARRAY['REPLIED']::text[]) AS e
-            ),
-            ARRAY['REPLIED']::text[]
-          ),
-          updated_at = now()
-      WHERE id = ${ticket.id}
-    `;
-  }
-
-  return { ok: true, queued: false, messageId: outboundMessageId };
 }
