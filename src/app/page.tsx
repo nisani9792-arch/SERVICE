@@ -13,6 +13,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { SearchBar } from "@/components/SearchBar";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import type { DashboardStatsModel } from "@/components/DashboardStats";
+import { readStatsCache, writeStatsCache } from "@/lib/dashboard-cache";
 import { TicketWorkbench } from "@/components/TicketWorkbench";
 import { ReplyTicketModal } from "@/components/ReplyTicketModal";
 import {
@@ -119,14 +120,15 @@ export default function DashboardPage() {
     () => items.find((ticket) => ticket.id === activeTicketId) ?? null,
     [activeTicketId, items]
   );
-  const [stats, setStats] = useState<DashboardStatsModel | null>(null);
+  const [stats, setStats] = useState<DashboardStatsModel | null>(() => readStatsCache());
 
   const refreshStats = useCallback(async () => {
     try {
-      const res = await fetch("/api/stats", { cache: "no-store" });
+      const res = await fetch("/api/stats", { cache: "no-store", credentials: "same-origin" });
       if (!res.ok) return;
       const data = (await res.json()) as DashboardStatsModel;
       setStats(data);
+      writeStatsCache(data);
     } catch {
       /* ignore */
     }
@@ -164,13 +166,17 @@ export default function DashboardPage() {
     };
   }, [refreshStats]);
 
-  usePollWhenVisible(() => {
+  const pollTicketList = useCallback(() => {
     void refresh();
-  }, 25_000);
+  }, [refresh]);
 
-  usePollWhenVisible(() => {
+  const pollStats = useCallback(() => {
     void refreshStats();
-  }, 90_000);
+  }, [refreshStats]);
+
+  usePollWhenVisible(pollTicketList, 25_000);
+
+  usePollWhenVisible(pollStats, 90_000);
 
   const handleHeaderRefresh = useCallback(async () => {
     setHeaderRefreshing(true);

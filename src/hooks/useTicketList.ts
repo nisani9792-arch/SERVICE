@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { readListStateCache, writeListCache } from "@/lib/dashboard-cache";
 import { fetchTicketPage, type TicketListQuery } from "@/lib/firebase";
 import type { Ticket } from "@/lib/types";
 
@@ -41,9 +42,12 @@ export function useTicketList(query: TicketListQuery) {
     total: number;
     page: number;
     pageSize: number;
-  }>({ items: [], total: 0, page: 1, pageSize: 25 });
+  }>(() => {
+    const cached = readListStateCache(stableKey);
+    return cached ?? { items: [], total: 0, page: 1, pageSize: 25 };
+  });
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => readListStateCache(stableKey) === null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,6 +66,8 @@ export function useTicketList(query: TicketListQuery) {
         else setIsRefreshing(true);
         return prev;
       });
+    } else {
+      setIsRefreshing(true);
     }
 
     try {
@@ -73,6 +79,7 @@ export function useTicketList(query: TicketListQuery) {
         page: res.page,
         pageSize: res.pageSize
       });
+      writeListCache(stableKey, res);
       setError(null);
     } catch (err) {
       if (controller.signal.aborted) return;
@@ -90,12 +97,21 @@ export function useTicketList(query: TicketListQuery) {
         void load({ silent: true });
       }
     }
-  }, []);
+  }, [stableKey]);
 
   useEffect(() => {
+    const cached = readListStateCache(stableKey);
+    if (cached) {
+      setData(cached);
+      setIsLoading(false);
+      setError(null);
+    } else {
+      setData({ items: [], total: 0, page: 1, pageSize: query.pageSize ?? 25 });
+      setIsLoading(true);
+    }
     void load();
     return () => abortRef.current?.abort();
-  }, [stableKey, load]);
+  }, [stableKey, load, query.pageSize]);
 
   const refresh = useCallback(() => load({ silent: true }), [load]);
 

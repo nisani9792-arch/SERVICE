@@ -8,9 +8,10 @@ import type {
 } from "@/lib/types";
 
 const API = "/api/tickets";
+const FETCH_INIT: RequestInit = { cache: "no-store", credentials: "same-origin" };
 
 export const fetchTicketById = async (ticketId: string, signal?: AbortSignal): Promise<Ticket> => {
-  const res = await fetch(`${API}/${ticketId}`, { cache: "no-store", signal });
+  const res = await fetch(`${API}/${ticketId}`, { ...FETCH_INIT, signal });
   if (!res.ok) throw new Error("Failed to fetch ticket");
   return res.json() as Promise<Ticket>;
 };
@@ -42,7 +43,7 @@ export const fetchTicketPage = async (
   if (query.q?.trim()) sp.set("q", query.q.trim());
   if (query.email) sp.set("email", query.email);
 
-  const res = await fetch(`${API}?${sp.toString()}`, { cache: "no-store", signal });
+  const res = await fetch(`${API}?${sp.toString()}`, { ...FETCH_INIT, signal });
   if (!res.ok) throw new Error("Failed to fetch tickets");
   return res.json();
 };

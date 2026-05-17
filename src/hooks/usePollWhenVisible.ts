@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 /** Runs callback on interval only while the tab is visible. */
 export function usePollWhenVisible(callback: () => void, intervalMs: number) {
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+
   useEffect(() => {
     const tick = () => {
       if (document.visibilityState === "visible") {
-        callback();
+        callbackRef.current();
       }
     };
 
-    tick();
     const id = window.setInterval(tick, intervalMs);
 
     const onVisible = () => {
@@ -23,5 +25,5 @@ export function usePollWhenVisible(callback: () => void, intervalMs: number) {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [callback, intervalMs]);
+  }, [intervalMs]);
 }
