@@ -14,10 +14,7 @@ export async function GET() {
 
     const apiOk = status.resendApiKeyValid === true;
     const ready =
-      status.effectiveProvider === "resend" &&
-      status.resendKeyConfigured &&
-      apiOk &&
-      (domainMatch?.status === "verified" || fromDomain === "resend.dev");
+      status.effectiveProvider === "resend" && status.resendKeyConfigured && apiOk;
 
     return NextResponse.json({
       ok: ready,
@@ -35,7 +32,9 @@ export async function GET() {
               : domainMatch.status !== "verified"
                 ? `הדומיין ${fromDomain} במצב: ${domainMatch.status} — השלם DNS`
                 : ready
-                  ? "מוכן לשליחה"
+                  ? domainMatch?.status === "verified"
+                    ? "מוכן לשליחה"
+                    : "מפתח תקין — נסה לשלוח (אם נכשל, אמת דומיין ב-Resend)"
                   : "בדוק EMAIL_FROM=editor@jusic.co ו-EMAIL_REPLY_PROVIDER=resend"
     });
   } catch (error) {

@@ -59,17 +59,6 @@ export async function enqueueOutboundEmail(input: OutboundEmailInput): Promise<s
   const body = input.message.trim();
   if (!to || !body) throw new Error("to and message are required");
 
-  const status = await getEmailDeliveryStatus();
-  const fromDomain = status.fromAddress.split("@")[1] ?? "";
-  const domainVerified =
-    status.resendDomains?.some(
-      (d) => d.name.toLowerCase() === fromDomain.toLowerCase() && d.status === "verified"
-    ) ?? false;
-  const initialStatus =
-    status.effectiveProvider === "resend" && status.resendKeyConfigured && !domainVerified
-      ? "waiting_domain"
-      : "pending";
-
   if (input.idempotencyKey) {
     const existing = await sql()`
       SELECT id FROM outbound_email_queue
@@ -81,7 +70,7 @@ export async function enqueueOutboundEmail(input: OutboundEmailInput): Promise<s
 
   const rows = await sql()`
     INSERT INTO outbound_email_queue (to_address, subject, body_text, status, idempotency_key)
-    VALUES (${to}, ${subject}, ${body}, ${initialStatus}, ${input.idempotencyKey ?? null})
+    VALUES (${to}, ${subject}, ${body}, 'pending', ${input.idempotencyKey ?? null})
     RETURNING id
   `;
   return String(rows[0]?.id ?? "");

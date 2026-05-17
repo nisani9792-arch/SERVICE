@@ -5,6 +5,7 @@ import {
   CheckCheck,
   CircleDot,
   Flag,
+  Send,
   Tag,
   Trash2,
   X
@@ -14,6 +15,7 @@ import type { LegacyTicketCategory, TicketStatus } from "@/lib/types";
 
 interface BulkActionBarProps {
   count: number;
+  onReply: () => void;
   onCloseTickets: () => Promise<void>;
   onDelete: () => Promise<void>;
   onChangeCategory: (category: string) => Promise<void>;
@@ -25,6 +27,7 @@ interface BulkActionBarProps {
 
 export function BulkActionBar({
   count,
+  onReply,
   onCloseTickets,
   onDelete,
   onChangeCategory,
@@ -65,12 +68,22 @@ export function BulkActionBar({
   };
 
   return (
-    <div className="lux-card sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex flex-col gap-3 rounded-2xl border border-primary/25 bg-surface-high/95 p-3 shadow-lg backdrop-blur-md md:bottom-4 md:z-40 md:flex-row md:flex-wrap md:items-center md:justify-between">
+    <div className="lux-card sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex flex-col gap-3 rounded-2xl border border-primary/25 bg-white p-3 shadow-lg md:bottom-4 md:z-40 md:flex-row md:flex-wrap md:items-center md:justify-between">
       <span className="text-sm font-semibold text-primary">
         נבחרו {count.toLocaleString("he-IL")} פניות
       </span>
 
       <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onReply}
+          className="md3-toolbar-btn border-primary/30 bg-primary-soft font-semibold text-primary"
+          disabled={isBusy}
+        >
+          <Send className="size-3.5" />
+          מענה לכולם
+        </button>
+
         <div className="relative">
           <button
             type="button"

@@ -21,6 +21,7 @@ import {
   deleteTicketsBulk,
   reclassifyTickets,
   saveInquiryForAction,
+  sendBulkTicketReply,
   sendTicketReply,
   updateTicket,
   updateTicketsBulk
@@ -35,6 +36,7 @@ import { NewTicketModal } from "@/components/NewTicketModal";
 import { EditTicketModal } from "@/components/EditTicketModal";
 import { ExportContactsModal } from "@/components/ExportContactsModal";
 import { ReplyTemplatesModal } from "@/components/ReplyTemplatesModal";
+import { BulkReplyModal } from "@/components/BulkReplyModal";
 import { CloseTicketModal } from "@/components/CloseTicketModal";
 import { categoryLabel } from "@/lib/categories";
 import type { Ticket, TicketStatus } from "@/lib/types";
@@ -68,6 +70,7 @@ export default function DashboardPage() {
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
   const [replyingTicket, setReplyingTicket] = useState<Ticket | null>(null);
   const [closingTicketIds, setClosingTicketIds] = useState<string[] | null>(null);
+  const [showBulkReply, setShowBulkReply] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
 
@@ -410,10 +413,27 @@ export default function DashboardPage() {
     }
   };
 
-  const onSendReply = async (message: string) => {
+  const onSendReply = async (message: string, options?: { closeAfterSend?: boolean }) => {
     if (!replyingTicket) return;
-    await sendTicketReply(replyingTicket.id, message);
+    const result = await sendTicketReply(replyingTicket.id, message, options);
     await afterMutation({ full: true });
+    if (result.queued && result.message) {
+      window.alert(result.message);
+    }
+  };
+
+  const onBulkSendReply = async (message: string, options?: { closeAfterSend?: boolean }) => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    const result = await sendBulkTicketReply(ids, message, options);
+    setSelectedIds(new Set());
+    await afterMutation({ full: true });
+    const parts = [
+      result.sent ? `${result.sent} נשלחו` : "",
+      result.queued ? `${result.queued} בתור` : "",
+      result.failed.length ? `${result.failed.length} נכשלו` : ""
+    ].filter(Boolean);
+    window.alert(`מענה מרובה: ${parts.join(" · ")}`);
   };
 
   const onSaveInquiry = async (ticket: Ticket) => {
@@ -761,6 +781,7 @@ export default function DashboardPage() {
 
           <BulkActionBar
             count={selectedIds.size}
+            onReply={() => setShowBulkReply(true)}
             onCloseTickets={onBulkClose}
             onDelete={onBulkDelete}
             onChangeCategory={onBulkChangeCategory}
@@ -806,6 +827,12 @@ export default function DashboardPage() {
       />
       <ExportContactsModal isOpen={showExportModal} onClose={() => setShowExportModal(false)} />
       <ReplyTemplatesModal isOpen={showReplyTemplates} onClose={() => setShowReplyTemplates(false)} />
+      <BulkReplyModal
+        isOpen={showBulkReply}
+        count={selectedIds.size}
+        onClose={() => setShowBulkReply(false)}
+        onSubmit={onBulkSendReply}
+      />
     </main>
   );
 }

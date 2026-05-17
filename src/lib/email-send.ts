@@ -116,13 +116,20 @@ export function replyFromAddress(): string {
   return normalizeEmailAddress(raw);
 }
 
-/** Resend expects `Name <email@domain.com>` and a verified domain (or onboarding@resend.dev). */
+function replyFromDisplayName(): string {
+  return (
+    firstNonEmpty(process.env.EMAIL_FROM_NAME, process.env.RESEND_FROM_NAME)?.trim() || "Jusic"
+  );
+}
+
+/** Resend expects `Name <email@domain.com>` and a verified sending domain. */
 export function resendFromAddress(): string {
   const raw = replyFromAddress();
   if (raw.includes("<")) return raw;
   const email = normalizeEmailAddress(raw);
-  if (email === "onboarding@resend.dev") return "Jusic <onboarding@resend.dev>";
-  return `Jusic <${email}>`;
+  const name = replyFromDisplayName();
+  if (email === "onboarding@resend.dev") return `${name} <onboarding@resend.dev>`;
+  return `${name} <${email}>`;
 }
 
 export function formatMessageIdHeader(value: string | null | undefined): string | undefined {
@@ -349,19 +356,6 @@ async function sendViaResend(input: SendCustomerReplyInput): Promise<SendCustome
   }
 
   const timeoutMs = positiveInt(process.env.EMAIL_SMTP_TIMEOUT_MS, 25000);
-  const fromDomain = replyFromAddress().split("@")[1] ?? "";
-  const domains = await fetchResendDomains();
-  if (domains.domains?.length) {
-    const verified = domains.domains.find(
-      (d) => d.name.toLowerCase() === fromDomain.toLowerCase() && d.status === "verified"
-    );
-    if (!verified && fromDomain !== "resend.dev") {
-      const listed = domains.domains.map((d) => `${d.name} (${d.status})`).join(", ");
-      throw new Error(
-        `הדומיין ${fromDomain} לא מאומת ב-Resend. דומיינים ברשימה: ${listed}. ודא DNS ירוק ב-Resend → Domains.`
-      );
-    }
-  }
 
   const attempts: Array<{ label: string; includeThreadHeaders: boolean }> = [
     { label: "with thread headers", includeThreadHeaders: true },
@@ -385,10 +379,21 @@ async function sendViaResend(input: SendCustomerReplyInput): Promise<SendCustome
     );
 
     if (response.ok) {
+      let resendId: string | undefined;
+      try {
+        const body = (await response.json()) as { id?: string };
+        if (typeof body.id === "string" && body.id.trim()) {
+          resendId = body.id.trim();
+        }
+      } catch {
+        /* use Message-ID fallback */
+      }
       return {
         messageId:
           normalizeMessageIdForResult(input.messageId) ??
-          `resend-${Date.now()}@${replyFromAddress().split("@")[1] ?? "service.local"}`
+          (resendId
+            ? `resend.${resendId}@${replyFromAddress().split("@")[1] ?? "resend.dev"}`
+            : `resend-${Date.now()}@${replyFromAddress().split("@")[1] ?? "service.local"}`)
       };
     }
 

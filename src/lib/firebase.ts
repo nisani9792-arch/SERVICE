@@ -140,25 +140,68 @@ export const reclassifyTickets = async (scope: "spam" | "pending_triage", limit 
   }>;
 };
 
-export const sendTicketReply = async (ticketId: string, message: string) => {
+export type TicketReplyResponse = {
+  ok: boolean;
+  queued?: boolean;
+  queueId?: string;
+  message?: string;
+  closed?: boolean;
+};
+
+export const sendTicketReply = async (
+  ticketId: string,
+  message: string,
+  options?: { closeAfterSend?: boolean }
+): Promise<TicketReplyResponse> => {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 65000);
   const res = await fetch(`${API}/${ticketId}/reply`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, closeAfterSend: options?.closeAfterSend }),
     signal: controller.signal
   }).finally(() => window.clearTimeout(timeout));
 
+  const data = (await res.json().catch(() => null)) as TicketReplyResponse & {
+    details?: string;
+    error?: string;
+    step?: string;
+  } | null;
+
   if (!res.ok) {
-    const data = (await res.json().catch(() => null)) as {
-      details?: string;
-      error?: string;
-      step?: string;
-    } | null;
     const step = data?.step ? `[${data.step}] ` : "";
     throw new Error(`${step}${data?.details || data?.error || "Failed to send reply"}`);
   }
+
+  return data ?? { ok: true };
+};
+
+export type BulkReplyResponse = {
+  ok: boolean;
+  sent: number;
+  queued: number;
+  failed: Array<{ id: string; error: string }>;
+  total: number;
+};
+
+export const sendBulkTicketReply = async (
+  ids: string[],
+  message: string,
+  options?: { closeAfterSend?: boolean }
+): Promise<BulkReplyResponse> => {
+  const res = await fetch(`${API}/bulk-reply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids, message, closeAfterSend: options?.closeAfterSend })
+  });
+  const data = (await res.json().catch(() => null)) as BulkReplyResponse & {
+    details?: string;
+    error?: string;
+  } | null;
+  if (!res.ok) {
+    throw new Error(data?.details || data?.error || "Bulk reply failed");
+  }
+  return data as BulkReplyResponse;
 };
 
 export const deleteTicket = async (ticketId: string) => {
