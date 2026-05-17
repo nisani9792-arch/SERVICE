@@ -329,15 +329,17 @@ export function TicketWorkbench({
     setMobileDetailOpen(true);
   };
 
+  const activeTicketId = activeTicket?.id ?? null;
+
   useEffect(() => {
-    if (!activeTicket) {
+    if (!activeTicketId) {
       setMobileDetailOpen(false);
       return;
     }
     if (typeof window !== "undefined" && window.matchMedia("(min-width: 1280px)").matches) {
       detailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
-  }, [activeTicket]);
+  }, [activeTicketId]);
 
   const detailProps = detailTicket
     ? {
@@ -391,7 +393,7 @@ export function TicketWorkbench({
             <div className="space-y-3">
               {groupedTickets.map(([groupLabel, groupTickets]) => (
                 <section key={groupLabel}>
-                  <h3 className="sticky top-0 z-[1] mb-1.5 rounded-lg bg-white/95 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-on-surface-variant backdrop-blur-sm">
+                  <h3 className="sticky top-0 z-[1] mb-1.5 rounded-lg bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">
                     {groupLabel}
                   </h3>
                   <div className="space-y-1.5">

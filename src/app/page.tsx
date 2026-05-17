@@ -59,7 +59,7 @@ export default function DashboardPage() {
   const [dateTo, setDateTo] = useState("");
   const [tagsFilter, setTagsFilter] = useState("");
   const [page, setPage] = useState(1);
-  const pageSize = useListPageSize(80, 36);
+  const pageSize = useListPageSize(40, 20);
 
   const [showImportModal, setShowImportModal] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
@@ -178,9 +178,9 @@ export default function DashboardPage() {
     void refreshStats();
   }, [refreshStats]);
 
-  usePollWhenVisible(pollTicketList, 12_000);
+  usePollWhenVisible(pollTicketList, 30_000);
 
-  usePollWhenVisible(pollStats, 15_000);
+  usePollWhenVisible(pollStats, 45_000);
 
   const handleHeaderRefresh = useCallback(async () => {
     setHeaderRefreshing(true);

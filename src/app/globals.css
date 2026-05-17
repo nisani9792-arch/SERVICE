@@ -56,7 +56,7 @@ body {
 }
 
 .lux-card {
-  @apply rounded-xl2 border border-outline/90 shadow-card backdrop-blur-sm;
+  @apply rounded-xl2 border border-outline/90 shadow-card;
   background: var(--crm-glass);
   transition:
     box-shadow 180ms var(--crm-ease),

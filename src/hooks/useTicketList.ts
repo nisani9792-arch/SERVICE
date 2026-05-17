@@ -3,7 +3,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readListStateCache, writeListCache } from "@/lib/dashboard-cache";
 import { fetchTicketPage, type TicketListQuery } from "@/lib/firebase";
-import type { Ticket } from "@/lib/types";
+import type { Ticket, TicketListResponse } from "@/lib/types";
+
+function listUnchanged(prev: TicketListResponse, next: TicketListResponse): boolean {
+  if (
+    prev.total !== next.total ||
+    prev.page !== next.page ||
+    prev.pageSize !== next.pageSize ||
+    prev.items.length !== next.items.length
+  ) {
+    return false;
+  }
+  return prev.items.every(
+    (t, i) => t.id === next.items[i]?.id && t.updatedAt === next.items[i]?.updatedAt
+  );
+}
 
 export function useTicketList(query: TicketListQuery) {
   const qRef = useRef(query);
@@ -66,20 +80,22 @@ export function useTicketList(query: TicketListQuery) {
         else setIsRefreshing(true);
         return prev;
       });
-    } else {
-      setIsRefreshing(true);
     }
 
     try {
       const res = await fetchTicketPage(qRef.current, controller.signal);
       if (controller.signal.aborted) return;
-      setData({
-        items: res.items,
-        total: res.total,
-        page: res.page,
-        pageSize: res.pageSize
+      setData((prev) => {
+        const next = {
+          items: res.items,
+          total: res.total,
+          page: res.page,
+          pageSize: res.pageSize
+        };
+        if (listUnchanged(prev, next)) return prev;
+        writeListCache(stableKey, res);
+        return next;
       });
-      writeListCache(stableKey, res);
       setError(null);
     } catch (err) {
       if (controller.signal.aborted) return;
