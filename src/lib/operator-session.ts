@@ -41,10 +41,16 @@ export function getSessionTokenFromRequest(request: NextRequest): string | null 
   return value || null;
 }
 
+function sessionCookieSecure(): boolean {
+  if (process.env.COOKIE_SECURE === "true") return true;
+  if (process.env.COOKIE_SECURE === "false") return false;
+  return process.env.NODE_ENV === "production";
+}
+
 export function attachSessionCookie(response: NextResponse, token: string): void {
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: sessionCookieSecure(),
     sameSite: "lax",
     path: "/",
     maxAge: SESSION_MAX_AGE_SEC

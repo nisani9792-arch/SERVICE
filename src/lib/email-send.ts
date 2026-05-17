@@ -15,6 +15,11 @@ export type SendCustomerReplyInput = {
   message: string;
   inReplyTo?: string | null;
   references?: string[];
+  messageId?: string | null;
+};
+
+export type SendCustomerReplyResult = {
+  messageId: string;
 };
 
 export type EmailDeliveryStatus = {
@@ -309,12 +314,26 @@ function buildResendPayload(
     reply_to: replyFromAddress()
   };
 
+  const outboundId = formatMessageIdHeader(input.messageId);
+  if (outboundId) {
+    payload.headers = {
+      ...(typeof payload.headers === "object" && payload.headers !== null
+        ? (payload.headers as Record<string, string>)
+        : {}),
+      "Message-ID": outboundId
+    };
+  }
+
   if (includeThreadHeaders) {
     const inReplyTo = formatMessageIdHeader(input.inReplyTo);
     const refs = (input.references ?? [])
       .map((r) => formatMessageIdHeader(r))
       .filter((r): r is string => Boolean(r));
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = {
+      ...(typeof payload.headers === "object" && payload.headers !== null
+        ? (payload.headers as Record<string, string>)
+        : {})
+    };
     if (inReplyTo) headers["In-Reply-To"] = inReplyTo;
     if (refs.length) headers.References = refs.join(" ");
     if (Object.keys(headers).length) payload.headers = headers;
@@ -323,7 +342,7 @@ function buildResendPayload(
   return payload;
 }
 
-async function sendViaResend(input: SendCustomerReplyInput): Promise<void> {
+async function sendViaResend(input: SendCustomerReplyInput): Promise<SendCustomerReplyResult> {
   const apiKey = resendApiKey();
   if (!apiKey) {
     throw new Error("RESEND_API_KEY is not configured on the server");
@@ -365,7 +384,13 @@ async function sendViaResend(input: SendCustomerReplyInput): Promise<void> {
       "Resend API"
     );
 
-    if (response.ok) return;
+    if (response.ok) {
+      return {
+        messageId:
+          normalizeMessageIdForResult(input.messageId) ??
+          `resend-${Date.now()}@${replyFromAddress().split("@")[1] ?? "service.local"}`
+      };
+    }
 
     lastError = await parseResendError(response);
     const retryable =
@@ -377,7 +402,14 @@ async function sendViaResend(input: SendCustomerReplyInput): Promise<void> {
   throw new Error(`${lastError}${hintForResendError(lastError)}`);
 }
 
-async function sendViaSmtp(input: SendCustomerReplyInput): Promise<void> {
+function normalizeMessageIdForResult(value: string | null | undefined): string | null {
+  const cleaned = String(value ?? "")
+    .trim()
+    .replace(/^<|>$/g, "");
+  return cleaned || null;
+}
+
+async function sendViaSmtp(input: SendCustomerReplyInput): Promise<SendCustomerReplyResult> {
   const attemptErrors: string[] = [];
   const configs = emailSendConfigs();
   const isGmail = configs.some((c) => c.host === "smtp.gmail.com");
@@ -402,12 +434,13 @@ async function sendViaSmtp(input: SendCustomerReplyInput): Promise<void> {
     } as nodemailer.TransportOptions);
 
     try {
-      await withTimeout(
+      const sent = await withTimeout(
         transporter.sendMail({
           from: config.user,
           to: input.to,
           subject: normalizeSubject(input.subject),
           text: input.message,
+          messageId: formatMessageIdHeader(input.messageId),
           inReplyTo: formatMessageIdHeader(input.inReplyTo),
           references: (input.references ?? [])
             .map((r) => formatMessageIdHeader(r))
@@ -417,7 +450,11 @@ async function sendViaSmtp(input: SendCustomerReplyInput): Promise<void> {
         config.timeoutMs,
         `SMTP ${config.host}:${config.port}`
       );
-      return;
+      const messageId =
+        normalizeMessageIdForResult(sent.messageId) ??
+        normalizeMessageIdForResult(input.messageId) ??
+        `smtp-${Date.now()}@${config.host}`;
+      return { messageId };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       attemptErrors.push(`${config.host}:${config.port} (${config.secure ? "SSL" : "STARTTLS"}) — ${msg}`);
@@ -437,7 +474,7 @@ async function sendViaSmtp(input: SendCustomerReplyInput): Promise<void> {
   throw new Error(`${prefix} after ${attemptErrors.length} attempt(s). ${attemptErrors.join(" | ")}.${hint}`);
 }
 
-export async function sendCustomerReply(input: SendCustomerReplyInput): Promise<void> {
+export async function sendCustomerReply(input: SendCustomerReplyInput): Promise<SendCustomerReplyResult> {
   const useResend = shouldUseResend();
   const key = resendApiKey();
 
@@ -447,8 +484,7 @@ export async function sendCustomerReply(input: SendCustomerReplyInput): Promise<
         "RESEND_API_KEY חסר בשרת (Render → Environment). הוסף את המפתח ועשה Deploy מחדש."
       );
     }
-    await sendViaResend(input);
-    return;
+    return sendViaResend(input);
   }
 
   if (isHostedRuntime()) {
@@ -457,5 +493,5 @@ export async function sendCustomerReply(input: SendCustomerReplyInput): Promise<
     );
   }
 
-  await sendViaSmtp(input);
+  return sendViaSmtp(input);
 }

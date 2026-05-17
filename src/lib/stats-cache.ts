@@ -12,4 +12,4 @@ export function invalidateStatsCache(): void {
   statsCache = null;
 }
 
-export const STATS_CACHE_MS = 8_000;
+export const STATS_CACHE_MS = 2_000;

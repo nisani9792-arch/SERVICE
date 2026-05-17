@@ -7,6 +7,10 @@ import {
   type EmailAttachmentCandidate
 } from "@/lib/ticket-attachments";
 import { sql } from "@/lib/neon";
+import {
+  isReplyToOurOutbound,
+  isThreadReplyMessage
+} from "@/lib/outbound-message-ids";
 
 const DEFAULT_MAILBOX = "INBOX";
 const DEFAULT_GMAIL_ARCHIVE_MAILBOX = "[Gmail]/All Mail";
@@ -461,6 +465,18 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
         }
 
         if (isSystemOrListMessage(message) || isOwnOutgoingMessage(message, config.user)) {
+          result.skipped += 1;
+          processedUids.push(uid);
+          continue;
+        }
+
+        if (isThreadReplyMessage(message.inReplyTo, message.references)) {
+          result.skipped += 1;
+          processedUids.push(uid);
+          continue;
+        }
+
+        if (await isReplyToOurOutbound(message.inReplyTo, message.references)) {
           result.skipped += 1;
           processedUids.push(uid);
           continue;

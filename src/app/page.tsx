@@ -124,7 +124,11 @@ export default function DashboardPage() {
 
   const refreshStats = useCallback(async () => {
     try {
-      const res = await fetch("/api/stats", { cache: "no-store", credentials: "same-origin" });
+      const res = await fetch("/api/stats", {
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { "x-service-live": "true" }
+      });
       if (!res.ok) return;
       const data = (await res.json()) as DashboardStatsModel;
       setStats(data);
@@ -138,7 +142,7 @@ export default function DashboardPage() {
     if (statsTimerRef.current) clearTimeout(statsTimerRef.current);
     statsTimerRef.current = setTimeout(() => {
       void refreshStats();
-    }, 1200);
+    }, 400);
   }, [refreshStats]);
 
   const refreshAll = useCallback(async () => {
@@ -174,9 +178,9 @@ export default function DashboardPage() {
     void refreshStats();
   }, [refreshStats]);
 
-  usePollWhenVisible(pollTicketList, 25_000);
+  usePollWhenVisible(pollTicketList, 12_000);
 
-  usePollWhenVisible(pollStats, 90_000);
+  usePollWhenVisible(pollStats, 15_000);
 
   const handleHeaderRefresh = useCallback(async () => {
     setHeaderRefreshing(true);

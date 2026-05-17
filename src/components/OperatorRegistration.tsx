@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { UserRound } from "lucide-react";
 import { APP_LOGO_SRC } from "@/lib/brand";
@@ -15,6 +15,7 @@ interface OperatorRegistrationProps {
 export function OperatorRegistration({ busy, initialName, onSubmit }: OperatorRegistrationProps) {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const submitLock = useRef(false);
 
   useEffect(() => {
     if (initialName?.trim()) {
@@ -24,14 +25,22 @@ export function OperatorRegistration({ busy, initialName, onSubmit }: OperatorRe
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (busy || submitLock.current) return;
+
     const trimmed = name.trim();
     if (!trimmed) {
       setError("נא להזין שם משתמש");
       return;
     }
+
+    submitLock.current = true;
     setError(null);
-    const ok = await onSubmit(trimmed);
-    if (!ok) setError("שמירת השם נכשלה. נסה שוב.");
+    try {
+      const ok = await onSubmit(trimmed);
+      if (!ok) setError("שמירת השם נכשלה. נסה שוב.");
+    } finally {
+      submitLock.current = false;
+    }
   };
 
   return (

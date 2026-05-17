@@ -51,9 +51,7 @@ export function LockScreen({ onBiometricUnlock, onGateCode, unlockError }: LockS
 
   const handlePasswordChange = (value: string) => {
     setPassword(value);
-    if (value.trim().length >= 5) {
-      void attemptUnlock(value);
-    }
+    if (localError) setLocalError(null);
   };
 
   const displayError = unlockError ?? localError;

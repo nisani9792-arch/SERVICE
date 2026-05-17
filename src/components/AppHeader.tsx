@@ -27,7 +27,7 @@ export function AppHeader({ actions, onRefresh, refreshing, lastSyncedAt }: AppH
   const operatorName = useOperatorName();
 
   return (
-    <header className="sticky top-[max(0.5rem,env(safe-area-inset-top))] z-30 rounded-2xl border border-outline/70 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
+    <header className="crm-app-header sticky top-[max(0.5rem,env(safe-area-inset-top))] z-30 rounded-2xl border border-outline/70 bg-white/95 px-3 py-2 backdrop-blur-md">
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <div className="relative size-10 shrink-0 overflow-hidden rounded-xl border border-outline bg-white">

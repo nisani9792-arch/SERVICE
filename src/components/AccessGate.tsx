@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { createContext, useContext } from "react";
 import { LockScreen } from "@/components/LockScreen";
@@ -30,8 +30,13 @@ export function AccessGate({ children }: AccessGateProps) {
   if (phase === "loading") {
     return (
       <div className="lock-screen" aria-busy="true" aria-label="טוען">
-        <div className="lock-card">
-          <p className="lock-prompt">טוען...</p>
+        <div className="lock-card loading-card">
+          <div className="loading-dots" aria-hidden>
+            <span />
+            <span />
+            <span />
+          </div>
+          <p className="lock-prompt">מתחבר למערכת...</p>
         </div>
       </div>
     );
@@ -53,7 +58,12 @@ export function AccessGate({ children }: AccessGateProps) {
     if (registerBusy && savedDisplayName) {
       return (
         <div className="lock-screen" aria-busy="true" aria-label="מזהה משתמש">
-          <div className="lock-card">
+          <div className="lock-card loading-card">
+            <div className="loading-dots" aria-hidden>
+              <span />
+              <span />
+              <span />
+            </div>
             <p className="lock-prompt">מזהה אותך, ממשיך...</p>
           </div>
         </div>
@@ -70,3 +80,4 @@ export function AccessGate({ children }: AccessGateProps) {
 
   return <OperatorContext.Provider value={displayName}>{children}</OperatorContext.Provider>;
 }
+

@@ -15,10 +15,13 @@ export async function GET(request: NextRequest) {
   if (denied) return denied;
 
   try {
+    const bypassCache = request.headers.get("x-service-live") === "true";
     const now = Date.now();
     const cached = getStatsCache();
-    if (cached && now - cached.at < STATS_CACHE_MS) {
-      return NextResponse.json(cached.payload);
+    if (!bypassCache && cached && now - cached.at < STATS_CACHE_MS) {
+      return NextResponse.json(cached.payload, {
+        headers: { "Cache-Control": "no-store" }
+      });
     }
 
     const aggRows = await sql()`
@@ -73,7 +76,9 @@ export async function GET(request: NextRequest) {
     };
 
     setStatsCache(payload);
-    return NextResponse.json(payload);
+    return NextResponse.json(payload, {
+      headers: { "Cache-Control": "no-store" }
+    });
   } catch (error) {
     return NextResponse.json(
       { error: "stats failed", details: error instanceof Error ? error.message : "Unknown" },

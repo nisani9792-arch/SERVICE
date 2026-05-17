@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireGateAccess } from "@/lib/api-guard";
-import { sendCustomerReply } from "@/lib/email-send";
+import { replyFromAddress, sendCustomerReply } from "@/lib/email-send";
 import { enqueueOutboundEmail } from "@/lib/outbound-email";
+import { createOutboundMessageId, recordOutboundMessageId } from "@/lib/outbound-message-ids";
 import { sql } from "@/lib/neon";
 
 export const dynamic = "force-dynamic";
@@ -58,14 +59,18 @@ export async function POST(
       return NextResponse.json({ error: "Ticket has no valid recipient email" }, { status: 400 });
     }
 
+    const outboundMessageId = createOutboundMessageId(replyFromAddress());
+
     try {
-      await sendCustomerReply({
+      const sent = await sendCustomerReply({
         to: recipient,
         subject: String(ticket.subject ?? ""),
         message,
+        messageId: outboundMessageId,
         inReplyTo: ticket.email_message_id,
         references: parseReferences(ticket.email_message_id)
       });
+      await recordOutboundMessageId(sent.messageId, ticket.id);
     } catch (error) {
       const details = error instanceof Error ? error.message : "Unknown send error";
       const domainPending = /domain.*not verified|לא מאומת|403/i.test(details);

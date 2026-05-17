@@ -7,9 +7,9 @@ const REQUIRED_PRESSES = 3;
 const ME_TIMEOUT_MS = 12_000;
 const ME_RETRY_MS = 1_400;
 const ME_MAX_ATTEMPTS = 4;
+const COOKIE_SETTLE_MS = 120;
 const DISPLAY_NAME_KEY = "service_operator_display_name";
 const GATE_HINT_KEY = "service_gate_ok_at";
-const GATE_HINT_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type AccessGatePhase = "loading" | "locked" | "register" | "ready";
 
@@ -18,14 +18,11 @@ type OperatorMe = {
   displayName: string | null;
 };
 
-function readGateHint(): boolean {
-  try {
-    const at = Number(localStorage.getItem(GATE_HINT_KEY));
-    return Number.isFinite(at) && Date.now() - at < GATE_HINT_MS;
-  } catch {
-    return false;
-  }
-}
+type RegisterResponse = {
+  ok?: boolean;
+  displayName?: string;
+  error?: string;
+};
 
 function writeGateHint(): void {
   try {
@@ -41,6 +38,20 @@ function readSavedDisplayName(): string | null {
   } catch {
     return null;
   }
+}
+
+function saveDisplayName(name: string): void {
+  try {
+    localStorage.setItem(DISPLAY_NAME_KEY, name);
+  } catch {
+    /* ignore */
+  }
+}
+
+function waitForCookieSettle(): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, COOKIE_SETTLE_MS);
+  });
 }
 
 async function fetchOperatorMe(signal?: AbortSignal): Promise<OperatorMe | null> {
@@ -85,16 +96,9 @@ async function postUnlock(method: "code" | "space" | "biometric", code?: string)
 
 export function useAccessGate() {
   const savedNameRef = useRef<string | null>(null);
-  const [phase, setPhase] = useState<AccessGatePhase>(() => {
-    const saved = readSavedDisplayName();
-    savedNameRef.current = saved;
-    if (saved && readGateHint()) return "ready";
-    return "loading";
-  });
-  const [displayName, setDisplayName] = useState<string | null>(() => {
-    const saved = readSavedDisplayName();
-    return saved && readGateHint() ? saved : null;
-  });
+  const autoRegisterAttemptedRef = useRef(false);
+  const [phase, setPhase] = useState<AccessGatePhase>("loading");
+  const [displayName, setDisplayName] = useState<string | null>(null);
   const [registerBusy, setRegisterBusy] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [savedDisplayName, setSavedDisplayName] = useState<string | null>(() => readSavedDisplayName());
@@ -104,11 +108,7 @@ export function useAccessGate() {
       setDisplayName(data.displayName);
       setPhase("ready");
       writeGateHint();
-      try {
-        localStorage.setItem(DISPLAY_NAME_KEY, data.displayName);
-      } catch {
-        /* ignore */
-      }
+      saveDisplayName(data.displayName);
       return;
     }
     if (data.unlocked) {
@@ -121,16 +121,22 @@ export function useAccessGate() {
     setPhase("locked");
   }, []);
 
+  const applyRegistered = useCallback((name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    savedNameRef.current = trimmed;
+    setSavedDisplayName(trimmed);
+    setDisplayName(trimmed);
+    setPhase("ready");
+    writeGateHint();
+    saveDisplayName(trimmed);
+  }, []);
+
   const refreshMe = useCallback(async () => {
     const data = await fetchOperatorMeWithRetry();
     if (!data) {
-      const saved = savedNameRef.current ?? readSavedDisplayName();
-      if (saved && readGateHint()) {
-        setDisplayName(saved);
-        setPhase("ready");
-        return;
-      }
       setPhase("locked");
+      setDisplayName(null);
       return;
     }
     applyMe(data);
@@ -145,10 +151,11 @@ export function useAccessGate() {
     void refreshMe();
   }, [refreshMe]);
 
-  const tryAutoRegister = useCallback(
-    async (name: string) => {
+  const registerDisplayName = useCallback(
+    async (name: string): Promise<boolean> => {
       const trimmed = name.trim();
       if (!trimmed) return false;
+
       setRegisterBusy(true);
       try {
         const res = await fetch("/api/operator/register", {
@@ -158,22 +165,43 @@ export function useAccessGate() {
           cache: "no-store",
           credentials: "same-origin"
         });
+        const body = (await res.json().catch(() => ({}))) as RegisterResponse;
         if (!res.ok) return false;
-        await refreshMe();
-        return true;
+
+        if (body.displayName?.trim()) {
+          applyRegistered(body.displayName.trim());
+          return true;
+        }
+
+        await waitForCookieSettle();
+        const me = await fetchOperatorMeWithRetry();
+        if (me?.unlocked && me.displayName) {
+          applyMe(me);
+          return true;
+        }
+        return Boolean(body.ok);
       } catch {
         return false;
       } finally {
         setRegisterBusy(false);
       }
     },
-    [refreshMe]
+    [applyMe, applyRegistered]
   );
 
   useEffect(() => {
-    if (phase !== "register" || !savedDisplayName || registerBusy) return;
-    void tryAutoRegister(savedDisplayName);
-  }, [phase, savedDisplayName, registerBusy, tryAutoRegister]);
+    if (phase !== "register" || !savedDisplayName || registerBusy || autoRegisterAttemptedRef.current) {
+      return;
+    }
+    autoRegisterAttemptedRef.current = true;
+    void registerDisplayName(savedDisplayName);
+  }, [phase, savedDisplayName, registerBusy, registerDisplayName]);
+
+  useEffect(() => {
+    if (phase !== "register") {
+      autoRegisterAttemptedRef.current = false;
+    }
+  }, [phase]);
 
   const unlockGate = useCallback(
     async (method: "code" | "space" | "biometric", code?: string) => {
@@ -183,6 +211,7 @@ export function useAccessGate() {
         setUnlockError(method === "code" ? "קוד כניסה שגוי" : "פתיחת המנעול נכשלה");
         return false;
       }
+      await waitForCookieSettle();
       await refreshMe();
       return true;
     },
@@ -190,35 +219,8 @@ export function useAccessGate() {
   );
 
   const registerName = useCallback(
-    async (name: string) => {
-      const trimmed = name.trim();
-      if (!trimmed) return false;
-
-      setRegisterBusy(true);
-      try {
-        const res = await fetch("/api/operator/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ displayName: trimmed }),
-          cache: "no-store",
-          credentials: "same-origin"
-        });
-        if (!res.ok) return false;
-        try {
-          localStorage.setItem(DISPLAY_NAME_KEY, trimmed);
-          savedNameRef.current = trimmed;
-        } catch {
-          /* ignore */
-        }
-        await refreshMe();
-        return true;
-      } catch {
-        return false;
-      } finally {
-        setRegisterBusy(false);
-      }
-    },
-    [refreshMe]
+    async (name: string) => registerDisplayName(name),
+    [registerDisplayName]
   );
 
   const checkGateCode = useCallback(
