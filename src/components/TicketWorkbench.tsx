@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   CheckCheck,
   CircleDot,
@@ -14,7 +14,8 @@ import {
   X
 } from "lucide-react";
 import { CategoryBadge } from "@/components/CategoryBadge";
-import { TicketListRow } from "@/components/TicketListRow";
+import { VirtualTicketList } from "@/components/VirtualTicketList";
+import { formatTicketNumber } from "@/lib/ticket-sequence";
 import { TicketAttachments } from "@/components/TicketAttachments";
 import { TriageAssignBar } from "@/components/TriageAssignBar";
 import { ACTIVE_CATEGORIES, categoryLabel } from "@/lib/categories";
@@ -40,19 +41,6 @@ function formatWhen(ticket: Ticket): string {
     dateStyle: "short",
     timeStyle: "short"
   });
-}
-
-function dayGroupLabel(ticket: Ticket): string {
-  const date = displayTicketDate(ticket);
-  const today = new Date();
-  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const diffDays = Math.round((startOfToday.getTime() - startOfDate.getTime()) / 86_400_000);
-
-  if (diffDays === 0) return "היום";
-  if (diffDays === 1) return "אתמול";
-  if (diffDays < 7) return "השבוע";
-  return date.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
 }
 
 function StatusChip({ status }: { status: TicketStatus }) {
@@ -112,9 +100,16 @@ function TicketDetailPanel({
             ) : null}
           </div>
         </div>
-        <h2 className={`font-bold leading-snug text-on-surface ${compactHeader ? "text-sm" : "text-base"}`}>
-          {ticket.subject}
-        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          {ticket.ticketNumber != null ? (
+            <span className="rounded-md bg-primary-soft/50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-primary">
+              {formatTicketNumber(ticket.ticketNumber)}
+            </span>
+          ) : null}
+          <h2 className={`min-w-0 flex-1 font-bold leading-snug text-on-surface ${compactHeader ? "text-sm" : "text-base"}`}>
+            {ticket.subject}
+          </h2>
+        </div>
         <p className="mt-1 text-xs text-on-surface-variant">
           {ticket.senderName || "ללא שם"} ·{" "}
           {ticket.senderEmail ? (
@@ -301,17 +296,6 @@ export function TicketWorkbench({
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const detailTicket = useTicketDetail(activeTicket);
 
-  const groupedTickets = useMemo(() => {
-    const groups = new Map<string, Ticket[]>();
-    for (const ticket of tickets) {
-      const label = dayGroupLabel(ticket);
-      const bucket = groups.get(label) ?? [];
-      bucket.push(ticket);
-      groups.set(label, bucket);
-    }
-    return Array.from(groups.entries());
-  }, [tickets]);
-
   const selectTicket = useCallback(
     (ticket: Ticket) => {
       onSetActiveTicket(ticket);
@@ -365,7 +349,7 @@ export function TicketWorkbench({
           </label>
         </div>
 
-        <div className="max-h-[min(62dvh,62vh)] min-h-[14rem] overflow-y-auto overscroll-contain p-2 md:max-h-[72vh] md:min-h-[20rem]">
+        <div className="crm-list-scroll flex max-h-[min(68dvh,68vh)] min-h-[16rem] flex-col md:max-h-[72vh] md:min-h-[20rem]">
           {isLoading ? (
             <div className="space-y-1.5 p-1" aria-busy="true" aria-label="טוען פניות">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -377,27 +361,13 @@ export function TicketWorkbench({
               אין פניות להצגה לפי המסננים.
             </div>
           ) : (
-            <div className="space-y-3">
-              {groupedTickets.map(([groupLabel, groupTickets]) => (
-                <section key={groupLabel}>
-                  <h3 className="sticky top-0 z-[1] mb-1.5 rounded-lg bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">
-                    {groupLabel}
-                  </h3>
-                  <div className="space-y-1.5">
-                    {groupTickets.map((ticket) => (
-                      <TicketListRow
-                        key={ticket.id}
-                        ticket={ticket}
-                        active={activeTicket?.id === ticket.id}
-                        selected={selectedIds.has(ticket.id)}
-                        onSelect={selectTicket}
-                        onToggleSelect={onToggleSelect}
-                      />
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
+            <VirtualTicketList
+              tickets={tickets}
+              activeTicketId={activeTicket?.id ?? null}
+              selectedIds={selectedIds}
+              onSelect={selectTicket}
+              onToggleSelect={onToggleSelect}
+            />
           )}
         </div>
 

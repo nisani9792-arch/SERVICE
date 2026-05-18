@@ -3,6 +3,7 @@
 import { memo } from "react";
 import { CategoryBadge } from "@/components/CategoryBadge";
 import { displayTicketDate } from "@/lib/ticket-row";
+import { formatTicketNumber } from "@/lib/ticket-sequence";
 import type { Ticket, TicketStatus } from "@/lib/types";
 
 const STATUS_LABELS: Record<TicketStatus, string> = {
@@ -94,7 +95,14 @@ function RowContent({ ticket }: { ticket: Ticket }) {
   return (
     <div className="min-w-0 flex-1 text-right">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold text-on-surface-variant">{formatWhen(ticket)}</span>
+        <span className="inline-flex items-center gap-2 text-[11px] font-semibold text-on-surface-variant">
+          {ticket.ticketNumber != null ? (
+            <span className="rounded-md bg-surface-container px-1.5 py-0.5 font-mono text-[10px] text-primary">
+              {formatTicketNumber(ticket.ticketNumber)}
+            </span>
+          ) : null}
+          {formatWhen(ticket)}
+        </span>
         <span className="inline-flex items-center gap-1">
           <CategoryBadge category={ticket.category} />
           <span

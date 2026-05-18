@@ -1,0 +1,20 @@
+---
+description: Smart ticket management — sequential IDs, AI agents, batch SSE, virtual list
+globs: src/**/*
+---
+
+# Smart Ticket Management (SERVICE CRM)
+
+## Implemented
+- `ticket_number` + `#TK-xxxxx` display and search
+- `body_cleaned` + `message-filter.ts` for LLM
+- Batch reclassify: `POST /api/tickets/reclassify/batch` + **SSE** `GET .../batch/[jobId]/stream`
+- Multi-agent: `POST /api/ai/agent` + `AiAgentPanel` on dashboard
+- Virtual list: `VirtualTicketList` + `@tanstack/react-virtual`
+- Mobile-first: `crm-touch-target`, `crm-mobile-bottom-bar`, `BatchProgressBar`
+
+## Secrets
+- Gmail OAuth vars in environment only — never commit tokens to `src/`.
+
+## After deploy
+Run `POST /api/init` once for schema (`ticket_number`, `body_cleaned`, `ai_batch_jobs.payload`).

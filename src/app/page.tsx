@@ -14,13 +14,17 @@ import { SearchBar } from "@/components/SearchBar";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import type { DashboardStatsModel } from "@/components/DashboardStats";
 import { readStatsCache, writeStatsCache } from "@/lib/dashboard-cache";
+import { AiAgentPanel } from "@/components/AiAgentPanel";
+import { BatchProgressBar } from "@/components/BatchProgressBar";
 import { TicketWorkbench } from "@/components/TicketWorkbench";
 import { ReplyTicketModal } from "@/components/ReplyTicketModal";
 import {
   deleteTicket,
   deleteTicketsBulk,
-  reclassifyTickets,
+  runAgentCommand,
+  runBatchReclassifyWithSse,
   saveInquiryForAction,
+  streamBatchJobWithSse,
   sendBulkTicketReply,
   sendTicketReply,
   updateTicket,
@@ -83,6 +87,13 @@ export default function DashboardPage() {
     text: string;
   } | null>(null);
   const [aiReclassifying, setAiReclassifying] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({
+    visible: false,
+    label: "",
+    processed: 0,
+    total: 0,
+    progress: 0
+  });
 
   const debouncedSearch = useDebouncedValue(searchValue, 220);
   const tagTokens = useMemo(
@@ -405,50 +416,98 @@ export default function DashboardPage() {
     }
   };
 
+  const showBatchProgress = (label: string, processed: number, total: number) => {
+    const progress = total > 0 ? Math.round((processed / total) * 100) : 0;
+    setBatchProgress({ visible: true, label, processed, total, progress });
+  };
+
+  const hideBatchProgress = () => {
+    setBatchProgress((prev) => ({ ...prev, visible: false }));
+  };
+
+  const runBatchAi = async (
+    scope: "spam" | "pending_triage" | "ids",
+    options?: { ids?: string[]; limit?: number; confirmMessage?: string }
+  ) => {
+    if (options?.confirmMessage && !window.confirm(options.confirmMessage)) return;
+
+    setAiReclassifying(true);
+    showBatchProgress("סיווג AI…", 0, 0);
+
+    try {
+      const result = await runBatchReclassifyWithSse({
+        scope,
+        ids: options?.ids,
+        limit: options?.limit ?? (scope === "ids" ? options?.ids?.length : 150),
+        onProgress: (p) => showBatchProgress("סיווג AI…", p.processed, p.total)
+      });
+
+      await refreshAll();
+      setEmailSyncMessage({
+        kind: "success",
+        text: `סיווג AI הושלם: ${result.processed} מתוך ${result.total} פניות.`
+      });
+    } catch (error) {
+      setEmailSyncMessage({
+        kind: "error",
+        text: error instanceof Error ? error.message : "סיווג AI נכשל"
+      });
+    } finally {
+      setAiReclassifying(false);
+      hideBatchProgress();
+    }
+  };
+
   const onBulkAiClassify = async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    if (!window.confirm(`לסווג מחדש ${ids.length} פניות עם AI?`)) return;
-    setAiReclassifying(true);
-    try {
-      const result = await reclassifyTickets("ids", ids.length, ids);
-      setSelectedIds(new Set());
-      await refreshAll();
-      window.alert(`סיווג AI: ${result.updated} פניות עודכנו.`);
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : "סיווג AI נכשל");
-    } finally {
-      setAiReclassifying(false);
-    }
+    await runBatchAi("ids", {
+      ids,
+      confirmMessage: `לסווג מחדש ${ids.length} פניות עם AI (בפעימות)?`
+    });
+    setSelectedIds(new Set());
   };
 
   const onReclassifyPendingTriage = async () => {
-    if (!window.confirm("לסווג מחדש עד 25 פניות בממתין לסינון עם AI?")) return;
-    setAiReclassifying(true);
-    try {
-      const result = await reclassifyTickets("pending_triage", 25);
-      await refreshAll();
-      window.alert(`סיווג AI: ${result.updated} פניות עודכנו.`);
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : "סיווג AI נכשל");
-    } finally {
-      setAiReclassifying(false);
-    }
+    await runBatchAi("pending_triage", {
+      limit: 150,
+      confirmMessage: "לסווג מחדש את תור ממתין לסינון עם AI (בפעימות)?"
+    });
   };
 
   const onReclassifySpamWithAi = async () => {
-    if (!window.confirm("לסרוק מחדש עד 25 פניות שסומנו כספאם עם Gemini? פניות אמיתיות יועברו לקטגוריה מתאימה.")) {
-      return;
-    }
+    await runBatchAi("spam", {
+      limit: 150,
+      confirmMessage:
+        "לסרוק מחדש פניות שסומנו כספאם עם AI? פניות אמיתיות יועברו לקטגוריה מתאימה."
+    });
+  };
+
+  const onAgentCommand = async (text: string) => {
     setAiReclassifying(true);
     try {
-      const result = await reclassifyTickets("spam", 25);
+      const result = await runAgentCommand(text, Array.from(selectedIds));
+
+      if (result.jobId) {
+        showBatchProgress("סוכן AI ממשיך סיווג…", 0, 0);
+        const batch = await streamBatchJobWithSse(result.jobId, {
+          onProgress: (p) => showBatchProgress("סוכן AI ממשיך סיווג…", p.processed, p.total)
+        });
+        await refreshAll();
+        return {
+          reply: `${result.reply}\n\nסיווג באצ' הושלם: ${batch.processed}/${batch.total}.`
+        };
+      }
+
       await refreshAll();
-      window.alert(`סיווג מחדש הושלם: ${result.updated} פניות עודכנו.`);
+      return { reply: result.reply };
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "סיווג מחדש נכשל");
+      const message = error instanceof Error ? error.message : "פקודת סוכן נכשלה";
+      setEmailSyncMessage({ kind: "error", text: message });
+      return { reply: message };
     } finally {
       setAiReclassifying(false);
+      hideBatchProgress();
     }
   };
 
@@ -637,7 +696,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <main className="crm-workspace min-h-screen px-2 pb-24 pt-2 text-[13px] sm:px-3 md:px-4 md:pb-8">
+    <main className="crm-workspace crm-mobile-bottom-bar min-h-screen px-2 pb-24 pt-2 text-[13px] sm:px-3 md:px-4 md:pb-8">
       <div className="mx-auto max-w-[1380px] space-y-2">
         <AppHeader
           actions={headerActions}
@@ -796,6 +855,12 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          <AiAgentPanel
+            selectedCount={selectedIds.size}
+            busy={aiReclassifying}
+            onRun={onAgentCommand}
+          />
+
           {activeCategory === PENDING_TRIAGE_CATEGORY ? (
             <div className="flex justify-end">
               <button
@@ -804,9 +869,9 @@ export default function DashboardPage() {
                 onClick={() => {
                   void onReclassifyPendingTriage();
                 }}
-                className="lux-button border-violet-200 bg-violet-50 text-violet-950"
+                className="crm-touch-target lux-button border-violet-200 bg-violet-50 text-violet-950"
               >
-                {aiReclassifying ? "מסווג עם AI…" : "סיווג AI — כל התור"}
+                {aiReclassifying ? "מסווג עם AI…" : "סיווג AI — כל התור (SSE)"}
               </button>
             </div>
           ) : null}
@@ -903,6 +968,14 @@ export default function DashboardPage() {
         count={selectedIds.size}
         onClose={() => setShowBulkReply(false)}
         onSubmit={onBulkSendReply}
+      />
+
+      <BatchProgressBar
+        visible={batchProgress.visible}
+        label={batchProgress.label}
+        processed={batchProgress.processed}
+        total={batchProgress.total}
+        progress={batchProgress.progress}
       />
     </main>
   );

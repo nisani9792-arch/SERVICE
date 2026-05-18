@@ -1,5 +1,8 @@
+import { parseTicketNumberQuery } from "@/lib/ticket-sequence";
+
 export type TicketListFilters = {
   categoryFilter: string | null;
+  ticketNumberExact: number | null;
   activeStatusFilter: boolean;
   closedStatusFilter: boolean;
   exactStatusFilter: string | null;
@@ -57,10 +60,12 @@ export function parseTicketListFilters(searchParams: URLSearchParams): TicketLis
 
   const emailExact = searchParams.get("email")?.trim() || null;
   const q = searchParams.get("q")?.trim() || null;
-  const like = q ? `%${q}%` : null;
+  const ticketNumberExact = q ? parseTicketNumberQuery(q) : null;
+  const like = q && !ticketNumberExact ? `%${q}%` : null;
 
   return {
     categoryFilter,
+    ticketNumberExact,
     activeStatusFilter,
     closedStatusFilter,
     exactStatusFilter,

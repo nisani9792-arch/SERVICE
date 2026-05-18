@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { bodyForAiPrompt } from "@/lib/message-filter";
 import { GeminiClassification, TicketPriority } from "@/lib/types";
 
 const MODEL_NAME = "gemini-1.5-flash";
@@ -160,7 +161,7 @@ export const classifyTicketContent = async (
     }
   });
 
-  const compactBody = body.trim().slice(0, 8000);
+  const compactBody = bodyForAiPrompt(body).trim().slice(0, 8000);
 
   const prompt = `
 You are an email support classifier for Jusic CRM.
@@ -255,7 +256,7 @@ export const reclassifyTicketContent = async (
     }
   });
 
-  const compactBody = body.trim().slice(0, 8000);
+  const compactBody = bodyForAiPrompt(body).trim().slice(0, 8000);
   const prompt = `
 You are re-reviewing a Jusic CRM ticket that may have been wrongly marked as spam.
 Classify again into exactly one category. Return strict JSON only.

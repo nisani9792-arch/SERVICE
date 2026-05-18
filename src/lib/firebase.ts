@@ -144,6 +144,76 @@ export const reclassifyTickets = async (
   }>;
 };
 
+export type BatchReclassifyResponse = {
+  ok: boolean;
+  jobId: string | null;
+  status: string;
+  total: number;
+  processed: number;
+  done: boolean;
+  chunkUpdated: number;
+  tokenEstimate?: number;
+  results: Array<{ id: string; from: string; to: string; summary: string }>;
+  error?: string;
+  hint?: string;
+};
+
+/** Chunked reclassify — call until `done` is true (poll with jobId between chunks). */
+export const reclassifyTicketsBatch = async (
+  scope: "spam" | "pending_triage" | "ids",
+  options?: { limit?: number; ids?: string[]; chunkSize?: number; jobId?: string }
+): Promise<BatchReclassifyResponse> => {
+  const res = await fetch("/api/tickets/reclassify/batch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      scope,
+      limit: options?.limit ?? 100,
+      ids: options?.ids,
+      chunkSize: options?.chunkSize ?? 25,
+      jobId: options?.jobId
+    })
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { details?: string; error?: string } | null;
+    throw new Error(data?.details || data?.error || "Batch reclassify failed");
+  }
+  return res.json() as Promise<BatchReclassifyResponse>;
+};
+
+export const getReclassifyBatchStatus = async (jobId: string) => {
+  const res = await fetch(`/api/tickets/reclassify/batch/${jobId}`);
+  if (!res.ok) throw new Error("Failed to load batch job status");
+  return res.json() as Promise<BatchReclassifyResponse & { progress: number }>;
+};
+
+export type AgentCommandResponse = {
+  ok: boolean;
+  reply: string;
+  tasks: unknown[];
+  actions: Array<{ agent: string; ok: boolean; message: string; data?: Record<string, unknown> }>;
+  jobId?: string;
+};
+
+export const runAgentCommand = async (
+  text: string,
+  selectedTicketIds?: string[]
+): Promise<AgentCommandResponse> => {
+  const res = await fetch("/api/ai/agent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, selectedTicketIds })
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { details?: string; error?: string } | null;
+    throw new Error(data?.details || data?.error || "Agent command failed");
+  }
+  return res.json() as Promise<AgentCommandResponse>;
+};
+
+export { runBatchReclassifyWithSse, streamBatchJobWithSse } from "@/lib/reclassify-sse";
+export type { BatchSseProgress, BatchSseComplete } from "@/lib/reclassify-sse";
+
 export type TicketReplyResponse = {
   ok: boolean;
   queued?: boolean;

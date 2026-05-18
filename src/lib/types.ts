@@ -33,10 +33,14 @@ export interface TicketAttachmentMeta {
 
 export interface Ticket {
   id: string;
+  /** Sequential display id, e.g. 10001 → #TK-10001 */
+  ticketNumber: number | null;
   senderEmail: string;
   senderName: string;
   subject: string;
   body: string;
+  /** Distilled body used for AI — may be empty on legacy rows */
+  bodyCleaned: string;
   /** Free-form label (historical imports may use values like Customer_Support, Billing, Spam). */
   category: string;
   priority: TicketPriority;

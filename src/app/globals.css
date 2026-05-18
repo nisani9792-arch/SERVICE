@@ -166,3 +166,48 @@ body {
 .md3-toolbar-btn {
   @apply inline-flex min-h-10 items-center justify-center gap-1 rounded-full border border-outline bg-white px-3 py-1.5 text-xs font-medium text-on-surface transition enabled:hover:bg-surface-container disabled:cursor-not-allowed disabled:opacity-50;
 }
+
+/* Mobile-first touch targets (Material 3 ~48px) */
+.crm-touch-target {
+  min-height: 3rem;
+  min-width: 3rem;
+  touch-action: manipulation;
+}
+
+.crm-touch-input {
+  font-size: 16px;
+  touch-action: manipulation;
+}
+
+@media (min-width: 768px) {
+  .crm-touch-input {
+    font-size: 0.875rem;
+  }
+}
+
+.crm-list-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
+.crm-virtual-list {
+  contain: strict;
+}
+
+.crm-agent-panel {
+  scroll-margin-top: 1rem;
+}
+
+.crm-mobile-bottom-bar {
+  padding-bottom: max(5rem, calc(env(safe-area-inset-bottom) + 4rem));
+}
+
+@media (min-width: 768px) {
+  .crm-mobile-bottom-bar {
+    padding-bottom: 2rem;
+  }
+}
+
+.crm-kpi-card {
+  min-height: 5.5rem;
+  min-width: 9.5rem;
+}

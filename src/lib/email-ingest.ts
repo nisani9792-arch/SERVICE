@@ -6,7 +6,10 @@ import {
   saveTicketAttachments,
   type EmailAttachmentCandidate
 } from "@/lib/ticket-attachments";
+import { cleanMessageForAi } from "@/lib/message-filter";
 import { sql } from "@/lib/neon";
+import { allocateNextTicketNumber } from "@/lib/ticket-sequence";
+import { ensureTicketUpgradeSchema } from "@/lib/ticket-schema";
 import {
   isReplyToOurOutbound,
   isThreadReplyMessage
@@ -227,6 +230,7 @@ async function alreadyImported(importKey: string): Promise<boolean> {
 }
 
 async function ensureEmailIngestSchema(): Promise<void> {
+  await ensureTicketUpgradeSchema();
   await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_import_key TEXT`;
   await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_message_id TEXT`;
   await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_mailbox_uid TEXT`;
@@ -253,12 +257,17 @@ async function insertEmailTicket(
     status: "open" as const
   };
 
+  const bodyCleaned = cleanMessageForAi(message.body);
+  const ticketNumber = await allocateNextTicketNumber();
+
   const rows = await sql()`
     INSERT INTO tickets (
+      ticket_number,
       sender_email,
       sender_name,
       subject,
       body,
+      body_cleaned,
       category,
       priority,
       ai_summary,
@@ -272,10 +281,12 @@ async function insertEmailTicket(
       email_ingested_at
     )
     VALUES (
+      ${ticketNumber},
       ${message.senderEmail},
       ${message.senderName},
       ${message.subject},
       ${message.body},
+      ${bodyCleaned},
       ${classification.category},
       ${classification.priority},
       ${classification.summary},

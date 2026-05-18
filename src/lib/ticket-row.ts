@@ -16,12 +16,18 @@ function parseTags(raw: unknown): string[] {
 }
 
 export function rowToTicket(r: Record<string, unknown>): Ticket {
+  const ticketNumberRaw = r.ticket_number;
+  const ticketNumber =
+    ticketNumberRaw != null && ticketNumberRaw !== "" ? Number(ticketNumberRaw) : null;
+
   return {
     id: String(r.id),
+    ticketNumber: Number.isInteger(ticketNumber) ? ticketNumber : null,
     senderEmail: String(r.sender_email ?? ""),
     senderName: String(r.sender_name ?? ""),
     subject: String(r.subject ?? ""),
     body: String(r.body ?? ""),
+    bodyCleaned: String(r.body_cleaned ?? ""),
     category: String(r.category ?? "suggestions"),
     priority: coercePriority(r.priority),
     aiSummary: String(r.ai_summary ?? ""),

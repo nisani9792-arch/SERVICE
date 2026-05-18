@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireGateAccess, requireRegisteredOperator } from "@/lib/api-guard";
 import { classifyTicketContent } from "@/lib/gemini";
+import { cleanMessageForAi } from "@/lib/message-filter";
 import { sql } from "@/lib/neon";
+import { allocateNextTicketNumber } from "@/lib/ticket-sequence";
+import { ensureTicketUpgradeSchema } from "@/lib/ticket-schema";
 import { parseTicketListFilters } from "@/lib/ticket-filters";
 import { rowToTicket } from "@/lib/ticket-row";
 
@@ -23,8 +26,9 @@ export async function GET(request: NextRequest) {
 
     const rows = await sql()`
       SELECT
-        id, sender_email, sender_name, subject,
+        id, ticket_number, sender_email, sender_name, subject,
         left(body, ${LIST_BODY_PREVIEW_CHARS}) AS body,
+        body_cleaned,
         category, priority, ai_summary, status, source,
         message_at, tags, assigned_to, closure_note,
         email_message_id, email_mailbox_uid, email_ingested_at,
@@ -58,12 +62,17 @@ export async function GET(request: NextRequest) {
         )
         AND (${f.emailExact}::text IS NULL OR sender_email = ${f.emailExact})
         AND (
+          ${f.ticketNumberExact}::int IS NULL
+          OR ticket_number = ${f.ticketNumberExact}
+        )
+        AND (
           ${f.like}::text IS NULL
           OR subject ILIKE ${f.like}
           OR sender_email ILIKE ${f.like}
           OR sender_name ILIKE ${f.like}
           OR ai_summary ILIKE ${f.like}
           OR body ILIKE ${f.like}
+          OR CAST(ticket_number AS text) ILIKE ${f.like}
         )
       ORDER BY COALESCE(message_at, created_at) DESC
       LIMIT ${f.pageSize}
@@ -117,14 +126,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const classification = await classifyTicketContent(senderEmail, subject, content);
+    await ensureTicketUpgradeSchema();
+    const bodyCleaned = cleanMessageForAi(content);
+    const classification = await classifyTicketContent(senderEmail, subject, bodyCleaned);
+    const ticketNumber = await allocateNextTicketNumber();
 
     const rows = await sql()`
-      INSERT INTO tickets (sender_email, sender_name, subject, body, category, priority, ai_summary, status, source, assigned_to)
-      VALUES (${senderEmail}, ${senderName}, ${subject}, ${content},
-              ${classification.category}, ${classification.priority}, ${classification.summary},
-              ${"open"}, ${source}, ${operator.displayName})
-      RETURNING id, sender_email, sender_name, subject, body, category, priority, ai_summary, status, source,
+      INSERT INTO tickets (
+        ticket_number, sender_email, sender_name, subject, body, body_cleaned,
+        category, priority, ai_summary, status, source, assigned_to
+      )
+      VALUES (
+        ${ticketNumber}, ${senderEmail}, ${senderName}, ${subject}, ${content}, ${bodyCleaned},
+        ${classification.category}, ${classification.priority}, ${classification.summary},
+        ${"open"}, ${source}, ${operator.displayName}
+      )
+      RETURNING id, ticket_number, sender_email, sender_name, subject, body, body_cleaned,
+                category, priority, ai_summary, status, source,
                 message_at, tags, assigned_to, closure_note, email_message_id, email_mailbox_uid, email_ingested_at,
                 created_at, updated_at
     `;

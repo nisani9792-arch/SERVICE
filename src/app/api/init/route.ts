@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/neon";
+import { ensureTicketUpgradeSchema } from "@/lib/ticket-schema";
 
 export const dynamic = "force-dynamic";
 
@@ -121,6 +122,8 @@ export async function POST() {
     `;
 
     await db`UPDATE tickets SET status = 'closed' WHERE status = 'handled'`;
+
+    await ensureTicketUpgradeSchema();
 
     await db`
       CREATE TABLE IF NOT EXISTS access_operators (
