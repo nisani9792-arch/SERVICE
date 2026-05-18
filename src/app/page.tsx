@@ -623,7 +623,10 @@ export default function DashboardPage() {
 
   const onSaveInquiry = async (ticket: Ticket) => {
     await saveInquiryForAction(ticket);
-    window.alert("הפנייה נשמרה לרשימת דברים לביצוע ותובנות.");
+    setEmailSyncMessage({
+      kind: "success",
+      text: "הפנייה נשמרה כמסמך בפניות שמורות (נושא, מייל וטקסט)."
+    });
   };
 
   const dynamicCategories = stats?.byCategory ?? [];

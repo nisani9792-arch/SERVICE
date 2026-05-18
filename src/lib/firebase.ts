@@ -327,18 +327,20 @@ export const fetchSavedInquiries = async (): Promise<SavedInquiry[]> => {
   return data.items;
 };
 
-export const saveInquiryForAction = async (ticket: Ticket) => {
+export const saveInquiryForAction = async (ticket: Ticket): Promise<SavedInquiry> => {
+  const { formatSavedInquiryDocument } = await import("@/lib/saved-inquiry-document");
   const res = await fetch(SAVED_API, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       ticketId: ticket.id,
-      title: ticket.subject,
-      content: ticket.aiSummary || ticket.body || ticket.subject,
+      title: (ticket.subject || "פנייה ללא נושא").trim(),
+      content: formatSavedInquiryDocument(ticket),
       sourceEmail: ticket.senderEmail
     })
   });
   if (!res.ok) throw new Error("Failed to save inquiry");
+  return (await res.json()) as SavedInquiry;
 };
 
 export const updateSavedInquiry = async (
