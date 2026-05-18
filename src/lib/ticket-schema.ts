@@ -11,6 +11,7 @@ export async function ensureTicketListColumns(): Promise<void> {
     columnsReady = (async () => {
       await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS ticket_number INTEGER`;
       await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS body_cleaned TEXT NOT NULL DEFAULT ''`;
+      await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`;
     })().catch((err) => {
       columnsReady = null;
       throw err;

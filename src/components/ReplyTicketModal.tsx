@@ -28,6 +28,9 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
   const [emailStatus, setEmailStatus] = useState<EmailStatusHint | null>(null);
   const [signatureOpening, setSignatureOpening] = useState("");
   const [signatureClosing, setSignatureClosing] = useState("");
+  const [similarReplies, setSimilarReplies] = useState<
+    Array<{ id: string; subject: string; replyText: string; score: number }>
+  >([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const loadTemplates = useCallback(async () => {
@@ -72,6 +75,24 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
     setError(null);
     void loadTemplates();
     void loadEmailStatus();
+    void (async () => {
+      try {
+        const res = await fetch(`/api/tickets/${ticket.id}/reply-suggestions`, {
+          cache: "no-store",
+          credentials: "same-origin"
+        });
+        if (!res.ok) {
+          setSimilarReplies([]);
+          return;
+        }
+        const data = (await res.json()) as {
+          suggestions: Array<{ id: string; subject: string; replyText: string; score: number }>;
+        };
+        setSimilarReplies(data.suggestions ?? []);
+      } catch {
+        setSimilarReplies([]);
+      }
+    })();
     requestAnimationFrame(() => textareaRef.current?.focus());
   }, [ticket, loadTemplates, loadEmailStatus]);
 
@@ -157,6 +178,29 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
                     {tpl.title || tpl.shortcut || "תבנית"}
                   </button>
                 ))}
+              </div>
+            ) : null}
+
+            {similarReplies.length > 0 ? (
+              <div className="rounded-xl border border-violet-200/80 bg-violet-50/50 p-2.5">
+                <p className="mb-1.5 text-[11px] font-bold text-violet-950">
+                  תשובות דומות מפניות קודמות (AI)
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {similarReplies.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className="rounded-lg border border-violet-200/60 bg-white px-2 py-1.5 text-right text-[11px] hover:border-primary/30"
+                      onClick={() => insertTemplate(item.replyText)}
+                    >
+                      <span className="font-semibold">{item.subject}</span>
+                      <span className="mt-0.5 line-clamp-2 block text-on-surface-variant">
+                        {item.replyText}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : null}
 

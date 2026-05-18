@@ -2,6 +2,7 @@ import { replyFromAddress, sendCustomerReply } from "@/lib/email-send";
 import { enqueueOutboundEmail } from "@/lib/outbound-email";
 import { createOutboundMessageId, recordOutboundMessageId } from "@/lib/outbound-message-ids";
 import { composeReplyMessage, getReplySignature } from "@/lib/reply-signature";
+import { recordReplyKnowledge } from "@/lib/reply-knowledge";
 import { formatTicketNumber } from "@/lib/ticket-sequence";
 import { sql } from "@/lib/neon";
 
@@ -88,9 +89,31 @@ type TicketRow = {
   id: string;
   sender_email: string;
   subject: string;
+  body?: string;
+  body_cleaned?: string;
+  category?: string;
   email_message_id: string | null;
   ticket_number: number | null;
 };
+
+async function maybeRecordReplyKnowledge(
+  ticket: TicketRow,
+  composedMessage: string,
+  closed: boolean
+): Promise<void> {
+  if (!closed) return;
+  try {
+    await recordReplyKnowledge({
+      ticketId: ticket.id,
+      subject: String(ticket.subject ?? ""),
+      inquiryText: String(ticket.body_cleaned || ticket.body || ""),
+      replyText: composedMessage,
+      category: String(ticket.category ?? "")
+    });
+  } catch (error) {
+    console.error("[ticket-reply] knowledge record failed", error);
+  }
+}
 
 function replySubjectForTicket(subject: string, ticketNumber: number | null): string {
   const base = subject.trim() || "פנייה ל-Jusic";
@@ -130,6 +153,7 @@ export async function sendReplyForTicket(
       closeAfterSend,
       outboundQueued: false
     });
+    await maybeRecordReplyKnowledge(ticket, composedMessage, closeAfterSend);
 
     return {
       ok: true,
@@ -152,6 +176,7 @@ export async function sendReplyForTicket(
         closeAfterSend,
         outboundQueued: true
       });
+      await maybeRecordReplyKnowledge(ticket, composedMessage, closeAfterSend);
 
       const notePreview =
         composedMessage.length > 120 ? `${composedMessage.slice(0, 120)}…` : composedMessage;

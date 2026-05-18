@@ -24,7 +24,7 @@ export async function GET(
              email_message_id, email_mailbox_uid, email_ingested_at,
              created_at, updated_at
       FROM tickets
-      WHERE id = ${params.id}
+      WHERE id = ${params.id} AND deleted_at IS NULL
       LIMIT 1
     `;
     if (rows.length === 0) {
@@ -124,7 +124,10 @@ export async function DELETE(
   if (denied) return denied;
 
   try {
-    await sql()`DELETE FROM tickets WHERE id = ${params.id}`;
+    await sql()`
+      UPDATE tickets SET deleted_at = now(), updated_at = now()
+      WHERE id = ${params.id} AND deleted_at IS NULL
+    `;
     invalidateStatsCache();
     return NextResponse.json({ ok: true });
   } catch (error) {

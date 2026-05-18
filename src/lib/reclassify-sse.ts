@@ -79,16 +79,26 @@ export function streamBatchJobWithSse(
   });
 }
 
-/** Starts batch job then streams remaining chunks via SSE until complete. */
-export async function runBatchReclassifyWithSse(
+function defaultBatchLimit(scope: RunBatchReclassifyOptions["scope"]): number {
+  if (scope === "all") return 10_000;
+  if (scope === "ids") return 200;
+  return 500;
+}
+
+/** Polls batch chunks until complete — reliable on Render (no long-lived SSE). */
+export async function runBatchReclassifyWithPolling(
   options: RunBatchReclassifyOptions
 ): Promise<BatchSseComplete> {
+  const scope =
+    options.scope === "ids" ? "spam" : options.scope === "all" ? "all" : options.scope;
+
   const startRes = await fetch("/api/tickets/reclassify/batch", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
     body: JSON.stringify({
-      scope: options.scope === "ids" ? "spam" : options.scope === "all" ? "all" : options.scope,
-      limit: options.limit ?? 100,
+      scope,
+      limit: options.limit ?? defaultBatchLimit(options.scope),
       ids: options.ids,
       chunkSize: options.chunkSize ?? 25
     })
@@ -99,7 +109,7 @@ export async function runBatchReclassifyWithSse(
     throw new Error(err?.details || err?.error || "Failed to start batch job");
   }
 
-  const start = (await startRes.json()) as {
+  let payload = (await startRes.json()) as {
     jobId: string | null;
     processed: number;
     total: number;
@@ -109,87 +119,130 @@ export async function runBatchReclassifyWithSse(
     error?: string;
   };
 
-  if (!start.jobId) {
+  if (!payload.jobId) {
     return {
       jobId: "",
-      processed: 0,
-      total: 0,
-      status: "completed",
-      ok: true
+      processed: payload.processed,
+      total: payload.total,
+      status: payload.status,
+      ok: payload.ok,
+      error: payload.error
     };
   }
 
-  options.onProgress?.({
-    jobId: start.jobId,
-    processed: start.processed,
-    total: start.total,
-    progress: start.total > 0 ? Math.round((start.processed / start.total) * 100) : 100,
-    status: start.status
-  });
+  const report = () => {
+    options.onProgress?.({
+      jobId: payload.jobId!,
+      processed: payload.processed,
+      total: payload.total,
+      progress:
+        payload.total > 0 ? Math.round((payload.processed / payload.total) * 100) : 100,
+      status: payload.status
+    });
+  };
 
-  if (start.done) {
-    return {
-      jobId: start.jobId,
-      processed: start.processed,
-      total: start.total,
-      status: start.status,
-      ok: start.ok,
-      error: start.error
-    };
+  report();
+
+  while (!payload.done && payload.jobId) {
+    await new Promise((r) => setTimeout(r, 350));
+
+    const chunkRes = await fetch("/api/tickets/reclassify/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        jobId: payload.jobId,
+        scope,
+        ids: options.ids,
+        chunkSize: options.chunkSize ?? 25
+      })
+    });
+
+    if (!chunkRes.ok) {
+      const err = (await chunkRes.json().catch(() => null)) as {
+        details?: string;
+        error?: string;
+      } | null;
+      throw new Error(err?.details || err?.error || "Batch chunk failed");
+    }
+
+    payload = (await chunkRes.json()) as typeof payload;
+    report();
   }
 
-  return new Promise((resolve, reject) => {
-    const source = new EventSource(
-      `/api/tickets/reclassify/batch/${encodeURIComponent(start.jobId!)}/stream`
-    );
+  return {
+    jobId: payload.jobId ?? "",
+    processed: payload.processed,
+    total: payload.total,
+    status: payload.status,
+    ok: payload.ok !== false && payload.status !== "failed",
+    error: payload.error
+  };
+}
 
-    const finish = (payload: BatchSseComplete) => {
-      source.close();
-      resolve(payload);
-    };
+/** Continue an existing batch job via polling (e.g. after AI agent). */
+export async function continueBatchJobWithPolling(
+  jobId: string,
+  options?: { onProgress?: (data: BatchSseProgress) => void; chunkSize?: number }
+): Promise<BatchSseComplete> {
+  let payload = {
+    jobId,
+    processed: 0,
+    total: 0,
+    done: false,
+    status: "running",
+    ok: true as boolean,
+    error: undefined as string | undefined
+  };
 
-    source.addEventListener("progress", (event) => {
-      try {
-        const data = JSON.parse((event as MessageEvent).data) as BatchSseProgress;
-        options.onProgress?.(data);
-      } catch {
-        /* ignore parse errors */
-      }
+  const report = () => {
+    options?.onProgress?.({
+      jobId: payload.jobId,
+      processed: payload.processed,
+      total: payload.total,
+      progress: payload.total > 0 ? Math.round((payload.processed / payload.total) * 100) : 0,
+      status: payload.status
+    });
+  };
+
+  while (!payload.done) {
+    const chunkRes = await fetch("/api/tickets/reclassify/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        jobId: payload.jobId,
+        chunkSize: options?.chunkSize ?? 25
+      })
     });
 
-    source.addEventListener("complete", (event) => {
-      try {
-        const data = JSON.parse((event as MessageEvent).data) as BatchSseComplete;
-        finish(data);
-      } catch {
-        finish({
-          jobId: start.jobId!,
-          processed: start.processed,
-          total: start.total,
-          status: "completed",
-          ok: true
-        });
-      }
-    });
+    if (!chunkRes.ok) {
+      const err = (await chunkRes.json().catch(() => null)) as {
+        details?: string;
+        error?: string;
+      } | null;
+      throw new Error(err?.details || err?.error || "Batch chunk failed");
+    }
 
-    source.addEventListener("error", (event) => {
-      source.close();
-      if (event instanceof MessageEvent && event.data) {
-        try {
-          const data = JSON.parse(event.data) as { message?: string };
-          reject(new Error(data.message || "SSE error"));
-          return;
-        } catch {
-          /* fall through */
-        }
-      }
-      reject(new Error("חיבור SSE נותק"));
-    });
+    payload = (await chunkRes.json()) as typeof payload;
+    report();
+    if (payload.done) break;
+    await new Promise((r) => setTimeout(r, 350));
+  }
 
-    source.onerror = () => {
-      if (source.readyState === EventSource.CLOSED) return;
-      source.close();
-      reject(new Error("שגיאת רשת בזמן סיווג באצ'"));
-    };
-  });
+  return {
+    jobId: payload.jobId,
+    processed: payload.processed,
+    total: payload.total,
+    status: payload.status,
+    ok: payload.ok !== false && payload.status !== "failed",
+    error: payload.error
+  };
+}
+
+/** Uses HTTP polling (works on Render); name kept for compatibility. */
+export async function runBatchReclassifyWithSse(
+  options: RunBatchReclassifyOptions
+): Promise<BatchSseComplete> {
+  return runBatchReclassifyWithPolling(options);
 }

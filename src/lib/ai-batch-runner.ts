@@ -1,4 +1,5 @@
 import { reclassifyTicketContent } from "@/lib/gemini";
+import { isSpamCategory } from "@/lib/spam-category";
 import { bodyForAiPrompt } from "@/lib/message-filter";
 import { sql } from "@/lib/neon";
 import { ensureTicketUpgradeSchema, type BatchJobPayload } from "@/lib/ticket-schema";
@@ -45,11 +46,6 @@ type TicketRow = {
   status: string;
 };
 
-function isSpamCategory(category: string): boolean {
-  const c = category.trim().toLowerCase();
-  return c === "spam" || c === "spam (מובנה)";
-}
-
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -70,15 +66,19 @@ async function classifyOne(row: TicketRow) {
       const nowSpam = isSpamCategory(classification.category);
       const reopen = wasSpam && !nowSpam;
 
+      const statusAfter =
+        nowSpam ? "closed" : reopen ? "open" : row.status;
+
       await sql()`
         UPDATE tickets
         SET category = ${classification.category},
             priority = ${classification.priority},
             ai_summary = ${classification.summary},
             body_cleaned = ${aiBody},
-            status = ${reopen ? "open" : row.status},
+            status = ${statusAfter},
             updated_at = now()
         WHERE id = ${row.id}
+          AND deleted_at IS NULL
       `;
 
       return {
@@ -109,7 +109,7 @@ async function fetchJobTickets(
     return (await sql()`
       SELECT id, sender_email, subject, body, body_cleaned, category, status
       FROM tickets
-      WHERE id = ANY(${ids})
+      WHERE id = ANY(${ids}) AND deleted_at IS NULL
       ORDER BY updated_at DESC
       OFFSET ${offset}
       LIMIT ${limit}
@@ -121,6 +121,7 @@ async function fetchJobTickets(
       SELECT id, sender_email, subject, body, body_cleaned, category, status
       FROM tickets
       WHERE lower(category) IN ('spam', 'spam (מובנה)')
+        AND deleted_at IS NULL
       ORDER BY updated_at DESC
       OFFSET ${offset}
       LIMIT ${limit}
@@ -132,6 +133,7 @@ async function fetchJobTickets(
       SELECT id, sender_email, subject, body, body_cleaned, category, status
       FROM tickets
       WHERE category = ${PENDING_TRIAGE_CATEGORY}
+        AND deleted_at IS NULL
       ORDER BY created_at ASC
       OFFSET ${offset}
       LIMIT ${limit}
@@ -143,6 +145,7 @@ async function fetchJobTickets(
       SELECT id, sender_email, subject, body, body_cleaned, category, status
       FROM tickets
       WHERE category <> ${"customer_followup"}
+        AND deleted_at IS NULL
       ORDER BY created_at ASC
       OFFSET ${offset}
       LIMIT ${limit}
@@ -154,25 +157,32 @@ async function fetchJobTickets(
 
 export async function countBatchTargets(scope: string, ids: string[]): Promise<number> {
   if (ids.length > 0) {
-    const rows = await sql()`SELECT count(*)::int AS c FROM tickets WHERE id = ANY(${ids})`;
+    const rows = await sql()`
+      SELECT count(*)::int AS c FROM tickets WHERE id = ANY(${ids}) AND deleted_at IS NULL
+    `;
     return Number((rows[0] as { c: number }).c ?? 0);
   }
   if (scope === "spam") {
     const rows = await sql()`
       SELECT count(*)::int AS c FROM tickets
       WHERE lower(category) IN ('spam', 'spam (מובנה)')
+        AND deleted_at IS NULL
     `;
     return Number((rows[0] as { c: number }).c ?? 0);
   }
   if (scope === "pending_triage") {
     const rows = await sql()`
-      SELECT count(*)::int AS c FROM tickets WHERE category = ${PENDING_TRIAGE_CATEGORY}
+      SELECT count(*)::int AS c
+      FROM tickets
+      WHERE category = ${PENDING_TRIAGE_CATEGORY} AND deleted_at IS NULL
     `;
     return Number((rows[0] as { c: number }).c ?? 0);
   }
   if (scope === "all") {
     const rows = await sql()`
-      SELECT count(*)::int AS c FROM tickets WHERE category <> ${"customer_followup"}
+      SELECT count(*)::int AS c
+      FROM tickets
+      WHERE category <> ${"customer_followup"} AND deleted_at IS NULL
     `;
     return Number((rows[0] as { c: number }).c ?? 0);
   }

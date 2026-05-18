@@ -15,6 +15,8 @@ export type TicketListFilters = {
   page: number;
   pageSize: number;
   offset: number;
+  excludeSpamFilter: boolean;
+  trashOnly: boolean;
 };
 
 export function parseTicketListFilters(searchParams: URLSearchParams): TicketListFilters | { error: string } {
@@ -27,6 +29,11 @@ export function parseTicketListFilters(searchParams: URLSearchParams): TicketLis
 
   const category = searchParams.get("category");
   const categoryFilter = category && category !== "all" ? category : null;
+  const trashOnly = searchParams.get("trash") === "1";
+  const excludeSpamFilter =
+    !trashOnly &&
+    !categoryFilter &&
+    searchParams.get("includeSpam") !== "1";
 
   const status = searchParams.get("status");
   const activeStatusFilter = status === "active";
@@ -76,6 +83,8 @@ export function parseTicketListFilters(searchParams: URLSearchParams): TicketLis
     like,
     page,
     pageSize,
-    offset
+    offset,
+    excludeSpamFilter,
+    trashOnly
   };
 }

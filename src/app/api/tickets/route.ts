@@ -37,7 +37,15 @@ export async function GET(request: NextRequest) {
         created_at, updated_at,
         count(*) OVER()::int AS total_count
       FROM tickets
-      WHERE (${f.categoryFilter}::text IS NULL OR category = ${f.categoryFilter})
+      WHERE (
+          (${f.trashOnly}::boolean = true AND deleted_at IS NOT NULL)
+          OR (${f.trashOnly}::boolean = false AND deleted_at IS NULL)
+        )
+        AND (${f.categoryFilter}::text IS NULL OR category = ${f.categoryFilter})
+        AND (
+          ${f.excludeSpamFilter}::boolean = false
+          OR lower(trim(category)) NOT IN ('spam', 'spam (מובנה)')
+        )
         AND (
           ${f.activeStatusFilter}::boolean = false
           OR (status NOT IN ('closed', 'handled'))

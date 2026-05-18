@@ -16,6 +16,7 @@ import { BulkActionBar } from "@/components/BulkActionBar";
 import type { DashboardStatsModel } from "@/components/DashboardStats";
 import { readStatsCache, writeStatsCache } from "@/lib/dashboard-cache";
 import { AiAgentPanel } from "@/components/AiAgentPanel";
+import { AiInsightsPanel } from "@/components/AiInsightsPanel";
 import { BatchProgressBar } from "@/components/BatchProgressBar";
 import { TicketWorkbench } from "@/components/TicketWorkbench";
 import { ReplyTicketModal } from "@/components/ReplyTicketModal";
@@ -25,7 +26,7 @@ import {
   runAgentCommand,
   runBatchReclassifyWithSse,
   saveInquiryForAction,
-  streamBatchJobWithSse,
+  continueBatchJobWithPolling,
   sendBulkTicketReply,
   sendTicketReply,
   updateTicket,
@@ -412,7 +413,7 @@ export default function DashboardPage() {
 
   const onBulkSpam = async () => {
     const ids = Array.from(selectedIds);
-    await updateTicketsBulk(ids, { category: "Spam", status: "closed" });
+    await updateTicketsBulk(ids, { category: "spam", status: "closed" });
     setSelectedIds(new Set());
     await afterMutation({ full: true });
   };
@@ -498,11 +499,11 @@ export default function DashboardPage() {
   };
 
   const onReclassifyPendingTriage = async () => {
-    await runBatchAi("pending_triage", { limit: 150 });
+    await runBatchAi("pending_triage", { limit: 5000 });
   };
 
   const onReclassifySpamWithAi = async () => {
-    await runBatchAi("spam", { limit: 150 });
+    await runBatchAi("spam", { limit: 5000 });
   };
 
   const runCrmMaintenance = useCallback(async () => {
@@ -564,7 +565,7 @@ export default function DashboardPage() {
 
       if (result.jobId) {
         showBatchProgress("סוכן AI ממשיך סיווג…", 0, 0);
-        const batch = await streamBatchJobWithSse(result.jobId, {
+        const batch = await continueBatchJobWithPolling(result.jobId, {
           onProgress: (p) => showBatchProgress("סוכן AI ממשיך סיווג…", p.processed, p.total)
         });
         await refreshAll();
@@ -700,6 +701,9 @@ export default function DashboardPage() {
           </button>
         </div>
       </details>
+      <Link href="/trash" className="lux-button rounded-xl px-3 py-1.5 text-xs">
+        סל מחזור
+      </Link>
       <Link href="/saved-inquiries" className="lux-button rounded-xl px-3 py-1.5 text-xs">
         פניות שמורות
       </Link>
@@ -972,6 +976,8 @@ export default function DashboardPage() {
             </button>
           </div>
 
+          <AiInsightsPanel />
+
           <details className="crm-agent-panel rounded-2xl border border-primary/15 bg-white/90">
             <summary className="cursor-pointer select-none px-3 py-2 text-xs font-bold text-on-surface">
               סוכן AI (אופציונלי)
@@ -995,7 +1001,7 @@ export default function DashboardPage() {
                 }}
                 className="crm-touch-target lux-button border-violet-200 bg-violet-50 text-violet-950"
               >
-                {aiReclassifying ? "מסווג עם AI…" : "סיווג AI — כל התור (SSE)"}
+                {aiReclassifying ? "מסווג עם AI…" : "סיווג AI — כל התור"}
               </button>
             </div>
           ) : null}

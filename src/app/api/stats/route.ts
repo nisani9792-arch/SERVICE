@@ -42,11 +42,13 @@ export async function GET(request: NextRequest) {
             AND status NOT IN ('closed', 'handled')
         )::int AS customer_followup
       FROM tickets
+      WHERE deleted_at IS NULL
     `;
 
     const catRows = await sql()`
       SELECT category, count(*)::int AS c
       FROM tickets
+      WHERE deleted_at IS NULL
       GROUP BY category
       ORDER BY c DESC
     `;

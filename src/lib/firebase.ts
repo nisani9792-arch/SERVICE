@@ -214,7 +214,12 @@ export const runAgentCommand = async (
   return res.json() as Promise<AgentCommandResponse>;
 };
 
-export { runBatchReclassifyWithSse, streamBatchJobWithSse } from "@/lib/reclassify-sse";
+export {
+  runBatchReclassifyWithSse,
+  runBatchReclassifyWithPolling,
+  continueBatchJobWithPolling,
+  streamBatchJobWithSse
+} from "@/lib/reclassify-sse";
 export type { BatchSseProgress, BatchSseComplete } from "@/lib/reclassify-sse";
 
 export type TicketReplyResponse = {
@@ -355,6 +360,31 @@ export const updateSavedInquiry = async (
     body: JSON.stringify({ id, ...input })
   });
   if (!res.ok) throw new Error("Failed to update saved inquiry");
+};
+
+export const fetchTrashTickets = async (): Promise<Ticket[]> => {
+  const res = await fetch("/api/tickets/trash?pageSize=100", { cache: "no-store", credentials: "same-origin" });
+  if (!res.ok) throw new Error("Failed to fetch trash");
+  const data = (await res.json()) as { items: Ticket[] };
+  return data.items;
+};
+
+export const restoreTrashTickets = async (ids: string[]) => {
+  const res = await fetch("/api/tickets/trash", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids })
+  });
+  if (!res.ok) throw new Error("Failed to restore");
+};
+
+export const deleteTrashTicketsPermanent = async (ids: string[]) => {
+  const res = await fetch("/api/tickets/trash", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids })
+  });
+  if (!res.ok) throw new Error("Failed to permanently delete");
 };
 
 export const deleteSavedInquiry = async (id: string) => {

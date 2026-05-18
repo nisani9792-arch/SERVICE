@@ -209,7 +209,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "ids array is required" }, { status: 400 });
     }
 
-    await sql()`DELETE FROM tickets WHERE id = ANY(${ids})`;
+    await sql()`
+      UPDATE tickets SET deleted_at = now(), updated_at = now()
+      WHERE id = ANY(${ids}) AND deleted_at IS NULL
+    `;
     invalidateStatsCache();
     return NextResponse.json({ ok: true, deleted: ids.length });
   } catch (error) {
