@@ -64,7 +64,7 @@ export async function isReplyToOurOutbound(
   const rows = await sql()`
     SELECT message_id
     FROM outbound_email_message_ids
-    WHERE message_id = ANY(${ids}::text[])
+    WHERE message_id = ANY(${ids})
     LIMIT 1
   `;
   return rows.length > 0;

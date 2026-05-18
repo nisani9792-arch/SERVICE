@@ -478,13 +478,13 @@ async function insertEmailTicket(
       ${classification.status},
       ${"email"},
       ${message.messageAt},
-      ${[sourceTag]}::text[],
+      ${[sourceTag]},
       ${message.importKey},
       ${message.messageId},
       ${message.mailboxUid},
       now()
     )
-    ON CONFLICT (email_import_key) WHERE email_import_key IS NOT NULL DO NOTHING
+    ON CONFLICT (email_import_key) WHERE (email_import_key IS NOT NULL) DO NOTHING
     RETURNING id
   `;
 
