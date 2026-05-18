@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireGateAccess } from "@/lib/api-guard";
 import { getRegisteredDisplayName } from "@/lib/access-state";
 import { sql } from "@/lib/neon";
+import { ensureTicketListColumns } from "@/lib/ticket-schema";
 import { invalidateStatsCache } from "@/lib/stats-cache";
 import { rowToTicket } from "@/lib/ticket-row";
 
@@ -15,6 +16,7 @@ export async function GET(
   if (denied) return denied;
 
   try {
+    await ensureTicketListColumns();
     const rows = await sql()`
       SELECT id, ticket_number, sender_email, sender_name, subject, body, body_cleaned,
              category, priority, ai_summary, status, source,

@@ -190,7 +190,7 @@ body {
 }
 
 .crm-virtual-list {
-  contain: strict;
+  contain: layout style;
 }
 
 .crm-agent-panel {

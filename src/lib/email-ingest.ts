@@ -9,7 +9,7 @@ import {
 import { cleanMessageForAi } from "@/lib/message-filter";
 import { sql } from "@/lib/neon";
 import { allocateNextTicketNumber } from "@/lib/ticket-sequence";
-import { ensureTicketUpgradeSchema } from "@/lib/ticket-schema";
+import { ensureTicketListColumns } from "@/lib/ticket-schema";
 import {
   isReplyToOurOutbound,
   isThreadReplyMessage
@@ -230,7 +230,7 @@ async function alreadyImported(importKey: string): Promise<boolean> {
 }
 
 async function ensureEmailIngestSchema(): Promise<void> {
-  await ensureTicketUpgradeSchema();
+  await ensureTicketListColumns();
   await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_import_key TEXT`;
   await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_message_id TEXT`;
   await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_mailbox_uid TEXT`;

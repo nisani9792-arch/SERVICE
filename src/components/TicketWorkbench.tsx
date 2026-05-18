@@ -14,7 +14,7 @@ import {
   X
 } from "lucide-react";
 import { CategoryBadge } from "@/components/CategoryBadge";
-import { VirtualTicketList } from "@/components/VirtualTicketList";
+import { TicketListPanel } from "@/components/TicketListPanel";
 import { formatTicketNumber } from "@/lib/ticket-sequence";
 import { TicketAttachments } from "@/components/TicketAttachments";
 import { TriageAssignBar } from "@/components/TriageAssignBar";
@@ -349,7 +349,7 @@ export function TicketWorkbench({
           </label>
         </div>
 
-        <div className="crm-list-scroll flex max-h-[min(68dvh,68vh)] min-h-[16rem] flex-col md:max-h-[72vh] md:min-h-[20rem]">
+        <div className="crm-list-scroll max-h-[min(68dvh,68vh)] min-h-[16rem] overflow-y-auto overscroll-contain md:max-h-[72vh] md:min-h-[20rem]">
           {isLoading ? (
             <div className="space-y-1.5 p-1" aria-busy="true" aria-label="טוען פניות">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -361,7 +361,7 @@ export function TicketWorkbench({
               אין פניות להצגה לפי המסננים.
             </div>
           ) : (
-            <VirtualTicketList
+            <TicketListPanel
               tickets={tickets}
               activeTicketId={activeTicket?.id ?? null}
               selectedIds={selectedIds}

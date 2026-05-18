@@ -44,7 +44,10 @@ export const fetchTicketPage = async (
   if (query.email) sp.set("email", query.email);
 
   const res = await fetch(`${API}?${sp.toString()}`, { ...FETCH_INIT, signal });
-  if (!res.ok) throw new Error("Failed to fetch tickets");
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { details?: string; error?: string } | null;
+    throw new Error(data?.details || data?.error || "Failed to fetch tickets");
+  }
   return res.json();
 };
 

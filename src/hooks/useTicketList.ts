@@ -23,7 +23,7 @@ export function useTicketList(query: TicketListQuery) {
   const qRef = useRef(query);
   qRef.current = query;
   const abortRef = useRef<AbortController | null>(null);
-  const pendingSilentRef = useRef(false);
+  const loadGenRef = useRef(0);
 
   const stableKey = useMemo(
     () =>
@@ -65,57 +65,59 @@ export function useTicketList(query: TicketListQuery) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (options?: { silent?: boolean }) => {
-    if (abortRef.current) {
-      pendingSilentRef.current = Boolean(options?.silent);
-      abortRef.current.abort();
-    }
+  const load = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const gen = ++loadGenRef.current;
 
-    const controller = new AbortController();
-    abortRef.current = controller;
+      if (abortRef.current) {
+        abortRef.current.abort();
+      }
 
-    if (!options?.silent) {
-      setData((prev) => {
-        if (prev.items.length === 0) setIsLoading(true);
-        else setIsRefreshing(true);
-        return prev;
-      });
-    }
+      const controller = new AbortController();
+      abortRef.current = controller;
 
-    try {
-      const res = await fetchTicketPage(qRef.current, controller.signal);
-      if (controller.signal.aborted) return;
-      setData((prev) => {
-        const next = {
-          items: res.items,
-          total: res.total,
-          page: res.page,
-          pageSize: res.pageSize
-        };
-        if (listUnchanged(prev, next)) return prev;
-        if (!options?.silent) {
-          writeListCache(stableKey, res);
+      if (!options?.silent) {
+        setData((prev) => {
+          if (prev.items.length === 0) setIsLoading(true);
+          else setIsRefreshing(true);
+          return prev;
+        });
+      }
+
+      try {
+        const res = await fetchTicketPage(qRef.current, controller.signal);
+        if (controller.signal.aborted || gen !== loadGenRef.current) return;
+
+        setData((prev) => {
+          const next = {
+            items: res.items,
+            total: res.total,
+            page: res.page,
+            pageSize: res.pageSize
+          };
+          if (listUnchanged(prev, next)) return prev;
+          if (!options?.silent) {
+            writeListCache(stableKey, res);
+          }
+          return next;
+        });
+        setError(null);
+      } catch (err) {
+        if (controller.signal.aborted || gen !== loadGenRef.current) return;
+        if (err instanceof Error && err.name === "AbortError") return;
+        setError("טעינת הפניות נכשלה — נסה לרענן את הדף");
+      } finally {
+        if (abortRef.current === controller) {
+          abortRef.current = null;
         }
-        return next;
-      });
-      setError(null);
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      if (err instanceof Error && err.name === "AbortError") return;
-      setError("טעינת הפניות נכשלה");
-    } finally {
-      if (abortRef.current === controller) {
-        abortRef.current = null;
+        if (gen === loadGenRef.current) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
       }
-      setIsLoading(false);
-      setIsRefreshing(false);
-
-      if (pendingSilentRef.current) {
-        pendingSilentRef.current = false;
-        void load({ silent: true });
-      }
-    }
-  }, [stableKey]);
+    },
+    [stableKey]
+  );
 
   useEffect(() => {
     const cached = readListStateCache(stableKey);
@@ -128,7 +130,10 @@ export function useTicketList(query: TicketListQuery) {
       setIsLoading(true);
     }
     void load();
-    return () => abortRef.current?.abort();
+    return () => {
+      loadGenRef.current += 1;
+      abortRef.current?.abort();
+    };
   }, [stableKey, load, query.pageSize]);
 
   const refresh = useCallback(() => load({ silent: true }), [load]);
@@ -137,7 +142,9 @@ export function useTicketList(query: TicketListQuery) {
     setData((prev) => ({
       ...prev,
       items: prev.items.map((item) =>
-        item.id === ticketId ? { ...item, ...patch, updatedAt: patch.updatedAt ?? new Date().toISOString() } : item
+        item.id === ticketId
+          ? { ...item, ...patch, updatedAt: patch.updatedAt ?? new Date().toISOString() }
+          : item
       )
     }));
   }, []);

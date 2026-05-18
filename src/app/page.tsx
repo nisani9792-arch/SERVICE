@@ -186,8 +186,10 @@ export default function DashboardPage() {
   }, [refreshStats]);
 
   useLiveRefresh(() => {
-    void refreshAll();
-  }, 120_000);
+    void refresh();
+    scheduleStatsRefresh();
+    setLastSyncedAt(new Date());
+  }, 300_000);
 
   const handleAutoEmailSync = useCallback(
     (sync?: { imported: number }) => {
@@ -196,8 +198,8 @@ export default function DashboardPage() {
           kind: "success",
           text: `סנכרון אוטומטי: ${sync.imported} פניות חדשות ממייל.`
         });
+        void refreshAll();
       }
-      void refreshAll();
     },
     [refreshAll]
   );
@@ -706,8 +708,17 @@ export default function DashboardPage() {
         />
 
         {listError ? (
-          <div className="lux-card rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
-            {listError}
+          <div className="lux-card flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+            <span>{listError}</span>
+            <button
+              type="button"
+              className="crm-touch-target rounded-lg border border-danger/40 bg-white px-3 py-1 text-xs font-semibold text-danger"
+              onClick={() => {
+                void refreshAll();
+              }}
+            >
+              נסה שוב
+            </button>
           </div>
         ) : null}
 
@@ -855,11 +866,18 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <AiAgentPanel
-            selectedCount={selectedIds.size}
-            busy={aiReclassifying}
-            onRun={onAgentCommand}
-          />
+          <details className="crm-agent-panel rounded-2xl border border-primary/15 bg-white/90">
+            <summary className="cursor-pointer select-none px-3 py-2 text-xs font-bold text-on-surface">
+              סוכן AI (אופציונלי)
+            </summary>
+            <div className="border-t border-outline/50 p-2">
+              <AiAgentPanel
+                selectedCount={selectedIds.size}
+                busy={aiReclassifying}
+                onRun={onAgentCommand}
+              />
+            </div>
+          </details>
 
           {activeCategory === PENDING_TRIAGE_CATEGORY ? (
             <div className="flex justify-end">

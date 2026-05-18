@@ -4,7 +4,7 @@ import { classifyTicketContent } from "@/lib/gemini";
 import { cleanMessageForAi } from "@/lib/message-filter";
 import { sql } from "@/lib/neon";
 import { allocateNextTicketNumber } from "@/lib/ticket-sequence";
-import { ensureTicketUpgradeSchema } from "@/lib/ticket-schema";
+import { ensureTicketListColumns, ensureTicketUpgradeSchema } from "@/lib/ticket-schema";
 import { parseTicketListFilters } from "@/lib/ticket-filters";
 import { rowToTicket } from "@/lib/ticket-row";
 
@@ -17,6 +17,8 @@ export async function GET(request: NextRequest) {
   if (denied) return denied;
 
   try {
+    await ensureTicketListColumns();
+
     const parsed = parseTicketListFilters(new URL(request.url).searchParams);
     if ("error" in parsed) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });

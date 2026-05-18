@@ -2,17 +2,37 @@ import { sql } from "@/lib/neon";
 
 const START_NUMBER = 10000;
 
-let schemaReady: Promise<void> | null = null;
+let columnsReady: Promise<void> | null = null;
+let fullUpgradeReady: Promise<void> | null = null;
 
-/** Adds ticket_number, body_cleaned, sequence table, and backfills existing rows once. */
-export async function ensureTicketUpgradeSchema(): Promise<void> {
-  if (!schemaReady) {
-    schemaReady = runEnsure();
+/** Fast path for list/detail APIs — adds columns only, no heavy backfill. */
+export async function ensureTicketListColumns(): Promise<void> {
+  if (!columnsReady) {
+    columnsReady = (async () => {
+      await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS ticket_number INTEGER`;
+      await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS body_cleaned TEXT NOT NULL DEFAULT ''`;
+    })().catch((err) => {
+      columnsReady = null;
+      throw err;
+    });
   }
-  return schemaReady;
+  return columnsReady;
 }
 
-async function runEnsure(): Promise<void> {
+/** Full upgrade — run via POST /api/init (includes backfill + batch tables). */
+export async function ensureTicketUpgradeSchema(): Promise<void> {
+  await ensureTicketListColumns();
+
+  if (!fullUpgradeReady) {
+    fullUpgradeReady = runFullUpgrade().catch((err) => {
+      fullUpgradeReady = null;
+      throw err;
+    });
+  }
+  return fullUpgradeReady;
+}
+
+async function runFullUpgrade(): Promise<void> {
   await sql()`
     CREATE TABLE IF NOT EXISTS ticket_number_seq (
       id TEXT PRIMARY KEY,
@@ -24,9 +44,6 @@ async function runEnsure(): Promise<void> {
     VALUES ('default', ${START_NUMBER})
     ON CONFLICT (id) DO NOTHING
   `;
-
-  await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS ticket_number INTEGER`;
-  await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS body_cleaned TEXT NOT NULL DEFAULT ''`;
 
   await sql()`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_ticket_number

@@ -27,7 +27,7 @@ export function AiAgentPanel({ selectedCount, busy, onRun }: AiAgentPanelProps) 
   };
 
   return (
-    <section className="crm-agent-panel rounded-2xl border border-primary/20 bg-gradient-to-bl from-primary-soft/40 to-white p-3 shadow-sm">
+    <section className="rounded-xl bg-gradient-to-bl from-primary-soft/30 to-white p-2">
       <div className="mb-2 flex items-center gap-2">
         <span className="inline-flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
           <Bot className="size-4" aria-hidden />
