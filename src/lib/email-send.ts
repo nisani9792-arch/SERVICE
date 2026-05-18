@@ -117,12 +117,18 @@ export async function getEmailDeliveryStatus(): Promise<EmailDeliveryStatus> {
   }
 
   const ingestRaw = process.env.EMAIL_INGEST_PROVIDER?.trim().toLowerCase();
+  const imapReady = Boolean(
+    firstNonEmpty(process.env.EMAIL_IMAP_USER, process.env.GMAIL_USER) &&
+      firstNonEmpty(process.env.EMAIL_IMAP_APP_PASSWORD, process.env.GMAIL_APP_PASSWORD)
+  );
   const ingestProvider =
     ingestRaw === "imap" || ingestRaw === "gmail_api"
       ? ingestRaw
-      : process.env.RENDER === "true" || gmailOk
-        ? "gmail_api"
-        : "imap";
+      : imapReady
+        ? "imap"
+        : gmailOk
+          ? "gmail_api"
+          : "imap";
 
   if (ingestProvider === "gmail_api" && !gmailOk) {
     hint =

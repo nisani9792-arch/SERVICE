@@ -191,12 +191,10 @@ export default function DashboardPage() {
       setLastEmailSyncedAt(new Date());
 
       if (!result.ok) {
-        if (source === "manual") {
-          setEmailSyncMessage({
-            kind: "error",
-            text: `סנכרון המייל נכשל: ${result.details || result.error || "שגיאה לא ידועה"}`
-          });
-        }
+        setEmailSyncMessage({
+          kind: "error",
+          text: `סנכרון המייל נכשל: ${result.details || result.error || "שגיאה לא ידועה"}`
+        });
         return;
       }
 

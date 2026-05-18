@@ -7,17 +7,21 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const status = await getEmailDeliveryStatus();
-    const ok =
-      status.gmailApiConfigured &&
-      status.replyProvider === "gmail_api" &&
-      status.ingestProvider === "gmail_api";
+    const replyOk =
+      status.replyProvider !== "gmail_api" || status.gmailApiConfigured;
+    const ingestOk =
+      status.ingestProvider === "imap" || status.gmailApiConfigured;
 
     return NextResponse.json({
-      ok,
+      ok: replyOk && ingestOk,
+      replyOk,
+      ingestOk,
       ...status,
       hint:
         status.hint ??
-        (ok ? "מוכן לייבוא ושליחת מייל (Gmail API)" : "הגדר Gmail API credentials")
+        (replyOk && ingestOk
+          ? `מוכן — ייבוא: ${status.ingestProvider}, שליחה: ${status.replyProvider}`
+          : "בדוק הגדרות מייל ב-Render")
     });
   } catch (error) {
     return NextResponse.json(

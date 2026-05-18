@@ -111,6 +111,16 @@ function positiveInt(value: string | undefined, fallback: number): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+export function isImapConfigured(): boolean {
+  const user = (process.env.EMAIL_IMAP_USER ?? process.env.GMAIL_USER)?.trim();
+  const appPassword = (
+    process.env.EMAIL_IMAP_APP_PASSWORD ?? process.env.GMAIL_APP_PASSWORD
+  )
+    ?.replace(/\s+/g, "")
+    .trim();
+  return Boolean(user && appPassword);
+}
+
 function getGmailConfig(): GmailConfig {
   const user = (process.env.EMAIL_IMAP_USER ?? process.env.GMAIL_USER)?.trim();
   const appPassword = (
@@ -533,18 +543,26 @@ async function parseFetchedMessage(
 async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailIngestResult> {
   await ensureEmailIngestSchema();
 
+  const connectMs = Math.min(30000, config.timeoutMs);
+  const socketMs = config.timeoutMs;
+
   const client = new ImapFlow({
     host: config.host,
     port: config.port,
     secure: true,
-    connectionTimeout: config.timeoutMs,
-    greetingTimeout: config.timeoutMs,
-    socketTimeout: config.timeoutMs,
+    disableAutoIdle: true,
+    connectionTimeout: connectMs,
+    greetingTimeout: connectMs,
+    socketTimeout: socketMs,
     auth: {
       user: config.user,
       pass: config.appPassword
     },
-    logger: false
+    logger: false,
+    tls: {
+      servername: config.host,
+      minVersion: "TLSv1.2"
+    }
   });
 
   const result: EmailIngestResult = {
@@ -668,43 +686,70 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
 
 function resolveIngestProvider(): "gmail_api" | "imap" {
   const raw = process.env.EMAIL_INGEST_PROVIDER?.trim().toLowerCase();
-  if (raw === "imap") return "imap";
-  if (raw === "gmail_api") return "gmail_api";
-  // Default: Gmail API on Render (IMAP port 993 often blocked or slow).
-  if (process.env.RENDER === "true") return "gmail_api";
-  if (isGmailApiConfigured()) return "gmail_api";
+  const imapReady = isImapConfigured();
+  const gmailReady = isGmailApiConfigured();
+
+  if (raw === "imap") return imapReady ? "imap" : gmailReady ? "gmail_api" : "imap";
+  if (raw === "gmail_api") return gmailReady ? "gmail_api" : imapReady ? "imap" : "gmail_api";
+
+  // Default: IMAP (App Password) — worked reliably before Gmail API ingest switch.
+  if (imapReady) return "imap";
+  if (gmailReady) return "gmail_api";
   return "imap";
+}
+
+function isImapConnectFailure(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return /IMAP connect|timed out|ETIMEDOUT|ECONNREFUSED|ENOTFOUND|socket/i.test(msg);
+}
+
+async function ingestViaGmailApiOrThrow(): Promise<EmailIngestResult> {
+  const { ingestInboxViaGmailApi, isGmailApiIngestConfigured, gmailApiIngestScopeHint, isInsufficientScopeError } =
+    await import("@/lib/gmail-inbox-ingest");
+
+  if (!isGmailApiIngestConfigured()) {
+    throw new Error(
+      "Gmail API לא מוגדר. הגדר GMAIL_* או EMAIL_IMAP_APP_PASSWORD ב-Render."
+    );
+  }
+
+  try {
+    return await ingestInboxViaGmailApi();
+  } catch (error) {
+    if (isInsufficientScopeError(error)) {
+      throw new Error(`הרשאות Gmail API חסרות. ${gmailApiIngestScopeHint()}`);
+    }
+    throw error;
+  }
 }
 
 export async function ingestGmailInbox(): Promise<EmailIngestResult> {
   const provider = resolveIngestProvider();
 
   if (provider === "gmail_api") {
-    const { ingestInboxViaGmailApi, isGmailApiIngestConfigured, gmailApiIngestScopeHint, isInsufficientScopeError } =
-      await import("@/lib/gmail-inbox-ingest");
+    return ingestViaGmailApiOrThrow();
+  }
 
-    if (!isGmailApiIngestConfigured()) {
-      throw new Error(
-        "Gmail API לא מוגדר לייבוא מייל. " + gmailApiIngestScopeHint()
-      );
+  if (!isImapConfigured()) {
+    if (isGmailApiConfigured()) {
+      return ingestViaGmailApiOrThrow();
     }
-
-    try {
-      return await ingestInboxViaGmailApi();
-    } catch (error) {
-      if (isInsufficientScopeError(error)) {
-        throw new Error(
-          `הרשאות Gmail API חסרות לקריאת דואר. ${gmailApiIngestScopeHint()}`
-        );
-      }
-      throw error;
-    }
+    throw new Error("EMAIL_IMAP_USER and EMAIL_IMAP_APP_PASSWORD must be configured");
   }
 
   const config = getGmailConfig();
-  return withTimeout(
-    ingestGmailInboxInternal(config),
-    config.timeoutMs + 15000,
-    "Email ingest"
-  );
+
+  try {
+    return await withTimeout(
+      ingestGmailInboxInternal(config),
+      config.timeoutMs + 20000,
+      "Email ingest"
+    );
+  } catch (error) {
+    if (isGmailApiConfigured() && isImapConnectFailure(error)) {
+      console.error("[email-ingest] IMAP failed, falling back to Gmail API:", error);
+      return ingestViaGmailApiOrThrow();
+    }
+    throw error;
+  }
 }

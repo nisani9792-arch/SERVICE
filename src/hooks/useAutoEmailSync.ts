@@ -56,7 +56,7 @@ export function useAutoEmailSync(enabled = true) {
 
     const entryTimer = window.setTimeout(() => {
       void run(true);
-    }, 300);
+    }, 150);
 
     const periodicTimer = window.setInterval(() => {
       void run(false);

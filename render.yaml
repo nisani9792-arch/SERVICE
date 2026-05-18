@@ -53,7 +53,7 @@ services:
       - key: EMAIL_REPLY_PROVIDER
         value: "gmail_api"
       - key: EMAIL_INGEST_PROVIDER
-        value: "gmail_api"
+        value: "imap"
       - key: EMAIL_INGEST_SECRET
         sync: false
       - key: EMAIL_IMAP_MAILBOX
@@ -102,7 +102,7 @@ services:
   - type: cron
     name: jusic-email-ingest
     runtime: node
-    schedule: "0 */2 * * *"
+    schedule: "*/5 * * * *"
     buildCommand: npm install
     startCommand: npm run email-ingest:trigger
     envVars:
