@@ -14,6 +14,7 @@ export type EmailSyncResult = {
   archived?: number;
   archiveMailbox?: string;
   errors?: string[];
+  skipReasons?: string[];
   error?: string;
   details?: string;
 };
@@ -46,9 +47,10 @@ export function dispatchEmailSyncEvent(result: EmailSyncResult): void {
 }
 
 export async function runEmailIngestClient(
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options?: { force?: boolean }
 ): Promise<EmailSyncResult> {
-  if (inFlight) return inFlight;
+  if (inFlight && !options?.force) return inFlight;
 
   inFlight = (async () => {
     const res = await fetch("/api/email-ingest", {
@@ -84,7 +86,8 @@ export async function runEmailIngestClient(
       scanned: data.scanned ?? 0,
       archived: data.archived,
       archiveMailbox: data.archiveMailbox,
-      errors: Array.isArray(data.errors) ? data.errors : undefined
+      errors: Array.isArray(data.errors) ? data.errors : undefined,
+      skipReasons: Array.isArray(data.skipReasons) ? data.skipReasons : undefined
     };
   })().finally(() => {
     inFlight = null;

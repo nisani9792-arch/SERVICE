@@ -4,21 +4,13 @@ import { useEffect, useRef } from "react";
 import {
   dispatchEmailSyncEvent,
   EMAIL_SYNC_PERIODIC_MS,
-  runEmailIngestClient,
-  shouldRunPeriodicEmailSync
+  runEmailIngestClient
 } from "@/lib/email-sync-client";
 
-export type AutoEmailSyncResult = {
-  imported: number;
-  skipped: number;
-  scanned: number;
-};
-
 /**
- * Immediate Gmail ingest when the operator enters the app, then every 2 hours
- * while the session stays open.
+ * Sync inbox on every app entry (route/mount) and when returning to the tab.
  */
-export function useAutoEmailSync(enabled = true) {
+export function useAutoEmailSync(enabled = true, entryKey = "default") {
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
 
@@ -27,15 +19,14 @@ export function useAutoEmailSync(enabled = true) {
 
     let cancelled = false;
 
-    const run = async (force: boolean) => {
+    const run = async () => {
       if (!enabledRef.current || cancelled) return;
-      if (!force && !shouldRunPeriodicEmailSync()) return;
 
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 120_000);
 
       try {
-        const result = await runEmailIngestClient(controller.signal);
+        const result = await runEmailIngestClient(controller.signal, { force: true });
         if (!cancelled) {
           dispatchEmailSyncEvent(result);
         }
@@ -55,17 +46,24 @@ export function useAutoEmailSync(enabled = true) {
     };
 
     const entryTimer = window.setTimeout(() => {
-      void run(true);
-    }, 150);
+      void run();
+    }, 100);
 
-    const periodicTimer = window.setInterval(() => {
-      void run(false);
-    }, EMAIL_SYNC_PERIODIC_MS);
+    let lastVisibilitySync = 0;
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || cancelled) return;
+      const now = Date.now();
+      if (now - lastVisibilitySync < EMAIL_SYNC_PERIODIC_MS) return;
+      lastVisibilitySync = now;
+      void run();
+    };
+
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       cancelled = true;
       window.clearTimeout(entryTimer);
-      window.clearInterval(periodicTimer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [enabled]);
+  }, [enabled, entryKey]);
 }

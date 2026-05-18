@@ -1,9 +1,11 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useAutoEmailSync } from "@/hooks/useAutoEmailSync";
 
-/** Runs inbox ingest as soon as the operator passes the gate. */
+/** Runs inbox ingest on gate unlock and on each in-app navigation. */
 export function EmailSyncOnEntry() {
-  useAutoEmailSync(true);
+  const pathname = usePathname();
+  useAutoEmailSync(true, pathname);
   return null;
 }

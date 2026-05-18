@@ -87,6 +87,7 @@ export type EmailIngestResult = {
   archived: number;
   archiveMailbox: string;
   errors: string[];
+  skipReasons?: string[];
   provider?: "gmail_api" | "imap";
 };
 
@@ -98,11 +99,15 @@ export type IngestSettings = {
   timeoutMs: number;
 };
 
+import type { InboundSkipReason } from "@/lib/email-ingest-labels";
+export type { InboundSkipReason } from "@/lib/email-ingest-labels";
+
 export type InboundProcessResult = {
   imported: boolean;
   reopened: boolean;
   skipped: boolean;
   shouldArchive: boolean;
+  skipReason?: InboundSkipReason;
   error?: string;
 };
 
@@ -245,12 +250,34 @@ export async function processInboundEmailMessage(
   message: ParsedEmailMessage,
   ctx: { ownerEmail: string; sourceTag: string }
 ): Promise<InboundProcessResult> {
-  if (isSystemOrListMessage(message) || isOwnOutgoingMessage(message, ctx.ownerEmail)) {
-    return { imported: false, reopened: false, skipped: true, shouldArchive: true };
+  if (isSystemOrListMessage(message)) {
+    return {
+      imported: false,
+      reopened: false,
+      skipped: true,
+      shouldArchive: true,
+      skipReason: "system"
+    };
+  }
+
+  if (isOwnOutgoingMessage(message, ctx.ownerEmail)) {
+    return {
+      imported: false,
+      reopened: false,
+      skipped: true,
+      shouldArchive: true,
+      skipReason: "own_outgoing"
+    };
   }
 
   if (await isReplyToOurOutbound(message.inReplyTo, message.references)) {
-    return { imported: false, reopened: false, skipped: true, shouldArchive: true };
+    return {
+      imported: false,
+      reopened: false,
+      skipped: true,
+      shouldArchive: true,
+      skipReason: "reply_to_us"
+    };
   }
 
   const existing = await findImportedTicket(message.importKey);
@@ -260,7 +287,8 @@ export async function processInboundEmailMessage(
       imported: false,
       reopened,
       skipped: !reopened,
-      shouldArchive: true
+      shouldArchive: true,
+      skipReason: reopened ? undefined : "duplicate"
     };
   }
 
@@ -275,13 +303,20 @@ export async function processInboundEmailMessage(
       return { imported: true, reopened: false, skipped: false, shouldArchive: true };
     }
 
-    return { imported: false, reopened: false, skipped: true, shouldArchive: false };
+    return {
+      imported: false,
+      reopened: false,
+      skipped: true,
+      shouldArchive: false,
+      skipReason: "insert_conflict"
+    };
   } catch (error) {
     return {
       imported: false,
       reopened: false,
       skipped: true,
       shouldArchive: false,
+      skipReason: "error",
       error: error instanceof Error ? error.message : "Insert failed"
     };
   }
@@ -350,7 +385,7 @@ async function reopenEmailTicketIfHidden(ticketId: string): Promise<boolean> {
     SET status = 'open',
         updated_at = now()
     WHERE id = ${ticketId}
-      AND category = ${PENDING_TRIAGE_CATEGORY}
+      AND category = 'pending_triage'
       AND status IN ('closed', 'handled')
     RETURNING id
   `;
@@ -377,9 +412,22 @@ export async function ensureEmailIngestSchema(): Promise<void> {
     SET status = 'open',
         updated_at = now()
     WHERE source = 'email'
-      AND category = ${PENDING_TRIAGE_CATEGORY}
+      AND category = 'pending_triage'
       AND status IN ('closed', 'handled')
   `;
+}
+
+export function recordProcessResult(
+  result: EmailIngestResult,
+  processed: InboundProcessResult
+): void {
+  if (processed.error) {
+    result.errors.push(processed.error);
+  }
+  if (processed.skipReason) {
+    result.skipReasons = result.skipReasons ?? [];
+    result.skipReasons.push(processed.skipReason);
+  }
 }
 
 async function insertEmailTicket(
@@ -430,7 +478,7 @@ async function insertEmailTicket(
       ${classification.status},
       ${"email"},
       ${message.messageAt},
-      ARRAY[${sourceTag}]::text[],
+      ${[sourceTag]}::text[],
       ${message.importKey},
       ${message.messageId},
       ${message.mailboxUid},
@@ -574,6 +622,7 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
     archived: 0,
     archiveMailbox: config.archiveMailbox || DEFAULT_GMAIL_ARCHIVE_MAILBOX,
     errors: [],
+    skipReasons: [],
     provider: "imap"
   };
 
@@ -654,9 +703,7 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
           sourceTag: config.sourceTag
         });
 
-        if (processed.error) {
-          result.errors.push(processed.error);
-        }
+        recordProcessResult(result, processed);
         if (processed.imported) result.imported += 1;
         if (processed.reopened) result.reopened += 1;
         if (processed.skipped) result.skipped += 1;
@@ -664,6 +711,8 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
       } catch (error) {
         result.skipped += 1;
         result.errors.push(error instanceof Error ? error.message : "Unknown email parsing error");
+        result.skipReasons = result.skipReasons ?? [];
+        result.skipReasons.push("error");
       }
     }
 

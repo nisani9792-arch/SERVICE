@@ -10,6 +10,7 @@ import {
   Upload
 } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
+import { MobileDock } from "@/components/MobileDock";
 import { SearchBar } from "@/components/SearchBar";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import type { DashboardStatsModel } from "@/components/DashboardStats";
@@ -32,6 +33,7 @@ import {
 } from "@/lib/firebase";
 import { useTicketList } from "@/hooks/useTicketList";
 import { useListPageSize } from "@/hooks/useListPageSize";
+import { formatSkipReasons } from "@/lib/email-ingest-labels";
 import {
   EMAIL_SYNC_EVENT,
   runEmailIngestClient,
@@ -200,10 +202,11 @@ export default function DashboardPage() {
 
       void refreshAll();
 
-      const errorHint =
-        result.errors?.length && source === "manual"
-          ? ` שגיאות: ${result.errors.slice(0, 2).join(" · ")}`
-          : "";
+      const skipHint = formatSkipReasons(result.skipReasons);
+      const errorHint = result.errors?.length
+        ? ` שגיאות: ${result.errors.slice(0, 2).join(" · ")}`
+        : "";
+      const skipDetail = skipHint ? ` סיבות דילוג: ${skipHint}.` : "";
 
       if ((result.imported ?? 0) > 0 || (result.reopened ?? 0) > 0) {
         const parts: string[] = [];
@@ -219,12 +222,10 @@ export default function DashboardPage() {
         return;
       }
 
-      if (source === "manual") {
-        setEmailSyncMessage({
-          kind: "success",
-          text: `סנכרון מיילים הושלם: לא נמצאו פניות חדשות (${result.scanned ?? 0} מיילים נסרקו, ${result.skipped ?? 0} דולגו).${errorHint}`
-        });
-      }
+      setEmailSyncMessage({
+        kind: "success",
+        text: `סנכרון מיילים: לא נמצאו פניות חדשות (${result.scanned ?? 0} נסרקו, ${result.skipped ?? 0} דולגו).${skipDetail}${errorHint}`
+      });
     },
     [refreshAll]
   );
@@ -257,7 +258,7 @@ export default function DashboardPage() {
     const timeout = window.setTimeout(() => controller.abort(), 120_000);
 
     try {
-      const result = await runEmailIngestClient(controller.signal);
+      const result = await runEmailIngestClient(controller.signal, { force: true });
       setLastSyncedAt(new Date());
       applyEmailSyncResult(result, "manual");
     } catch (error) {
@@ -705,14 +706,6 @@ export default function DashboardPage() {
         </div>
       </details>
 
-      <button
-        type="button"
-        onClick={() => setShowNewModal(true)}
-        className="lux-button-primary fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-4 z-30 size-12 rounded-full p-0 shadow-lg md:hidden"
-        aria-label="פנייה חדשה"
-      >
-        <Plus className="size-5" />
-      </button>
     </>
   );
 
@@ -722,6 +715,10 @@ export default function DashboardPage() {
         <AppHeader
           actions={headerActions}
           onRefresh={handleHeaderRefresh}
+          onEmailSync={() => {
+            void handleEmailSync();
+          }}
+          emailSyncing={emailSyncing}
           refreshing={headerRefreshing}
           lastSyncedAt={lastEmailSyncedAt ?? lastSyncedAt}
         />
@@ -743,10 +740,8 @@ export default function DashboardPage() {
 
         {emailSyncMessage ? (
           <div
-            className={`lux-card rounded-2xl px-4 py-3 text-sm ${
-              emailSyncMessage.kind === "success"
-                ? "border-success/30 bg-success/10 text-success"
-                : "border-danger/30 bg-danger/10 text-danger"
+            className={`crm-toast ${
+              emailSyncMessage.kind === "success" ? "crm-toast-success" : "crm-toast-error"
             }`}
           >
             {emailSyncMessage.text}
@@ -1005,6 +1000,20 @@ export default function DashboardPage() {
         count={selectedIds.size}
         onClose={() => setShowBulkReply(false)}
         onSubmit={onBulkSendReply}
+      />
+
+      <MobileDock
+        onSyncMail={() => {
+          void handleEmailSync();
+        }}
+        onNewTicket={() => setShowNewModal(true)}
+        onTriage={() => {
+          setActiveCategory(PENDING_TRIAGE_CATEGORY);
+          setActiveStatus("active");
+          setPage(1);
+        }}
+        emailSyncing={emailSyncing}
+        triageCount={triageCount}
       />
 
       <BatchProgressBar

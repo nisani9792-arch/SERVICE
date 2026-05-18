@@ -4,11 +4,18 @@
 
 :root {
   color-scheme: light;
-  --color-primary: #5a5ac9;
-  --color-accent: #0d9488;
-  --crm-mesh-1: rgba(90, 90, 201, 0.12);
-  --crm-mesh-2: rgba(13, 148, 136, 0.09);
-  --crm-glass: rgba(255, 255, 255, 0.88);
+  --crm-primary: #4f46e5;
+  --crm-primary-dark: #4338ca;
+  --crm-accent: #0d9488;
+  --crm-surface: #f4f6fb;
+  --crm-card: #ffffff;
+  --crm-border: #e2e8f0;
+  --crm-text: #0f172a;
+  --crm-muted: #64748b;
+  --crm-success: #15803d;
+  --crm-danger: #dc2626;
+  --crm-radius: 1rem;
+  --crm-shadow: 0 4px 24px -8px rgba(15, 23, 42, 0.12);
   --crm-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -24,10 +31,11 @@
 
 body {
   background:
-    radial-gradient(ellipse 140% 80% at 100% -30%, var(--crm-mesh-1), transparent 52%),
-    radial-gradient(ellipse 100% 60% at 0% 100%, var(--crm-mesh-2), transparent 48%),
-    linear-gradient(180deg, #fdfcfe 0%, #f3f1f8 45%, #f8f7fb 100%);
-  @apply text-on-surface antialiased;
+    radial-gradient(ellipse 120% 70% at 100% -20%, rgba(79, 70, 229, 0.1), transparent 55%),
+    radial-gradient(ellipse 90% 50% at 0% 100%, rgba(13, 148, 136, 0.08), transparent 50%),
+    var(--crm-surface);
+  color: var(--crm-text);
+  @apply antialiased;
   text-rendering: optimizeLegibility;
 }
 
@@ -36,8 +44,71 @@ body {
   overflow-x: hidden;
 }
 
-.crm-workspace {
-  padding-bottom: max(5.5rem, env(safe-area-inset-bottom));
+.crm-shell {
+  @apply mx-auto min-h-screen w-full max-w-[1440px] px-3 pb-28 pt-3 sm:px-4 md:pb-8 md:pt-4;
+}
+
+.crm-card {
+  border-radius: var(--crm-radius);
+  border: 1px solid var(--crm-border);
+  background: var(--crm-card);
+  box-shadow: var(--crm-shadow);
+}
+
+.crm-card-flat {
+  border-radius: var(--crm-radius);
+  border: 1px solid var(--crm-border);
+  background: var(--crm-card);
+}
+
+.crm-btn {
+  @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-semibold transition;
+  border-color: var(--crm-border);
+  background: white;
+  color: var(--crm-text);
+  touch-action: manipulation;
+}
+
+.crm-btn:hover {
+  border-color: rgba(79, 70, 229, 0.35);
+  background: #f8fafc;
+}
+
+.crm-btn-primary {
+  @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-xs font-bold text-white shadow-md transition;
+  background: linear-gradient(135deg, var(--crm-primary) 0%, var(--crm-primary-dark) 100%);
+  touch-action: manipulation;
+}
+
+.crm-btn-primary:hover {
+  filter: brightness(1.05);
+}
+
+.crm-btn-ghost {
+  @apply inline-flex min-h-9 items-center justify-center gap-1 rounded-lg px-2.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100;
+  touch-action: manipulation;
+}
+
+.crm-kpi {
+  @apply min-w-[8.5rem] shrink-0 rounded-2xl border p-3 text-right transition;
+  scroll-snap-align: start;
+}
+
+.crm-kpi-active {
+  border-color: var(--crm-primary);
+  background: var(--crm-primary);
+  color: white;
+  box-shadow: 0 8px 24px -8px rgba(79, 70, 229, 0.5);
+}
+
+.crm-kpi-idle {
+  border-color: var(--crm-border);
+  background: white;
+  color: var(--crm-text);
+}
+
+.crm-kpi-idle:hover {
+  border-color: rgba(79, 70, 229, 0.3);
 }
 
 .crm-kpi-scroll {
@@ -45,169 +116,86 @@ body {
   scroll-snap-type: x proximity;
 }
 
-.crm-kpi-scroll > button {
-  scroll-snap-align: start;
+.crm-input {
+  @apply w-full rounded-xl border bg-white px-3 py-2.5 text-sm outline-none transition;
+  border-color: var(--crm-border);
 }
 
-@media (min-width: 768px) {
-  .crm-workspace {
-    padding-bottom: 2rem;
-  }
+.crm-input:focus {
+  border-color: rgba(79, 70, 229, 0.5);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
 
-.lux-card {
-  @apply rounded-xl2 border border-outline/90 shadow-card;
-  background: var(--crm-glass);
-  transition:
-    box-shadow 180ms var(--crm-ease),
-    transform 180ms var(--crm-ease);
+.crm-badge-sync {
+  @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold;
+  background: #ecfdf5;
+  color: #047857;
 }
 
-.lux-button {
-  @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-outline/90 bg-white/95 px-3.5 py-2 text-xs font-medium text-on-surface shadow-sm;
-  transition:
-    border-color 160ms var(--crm-ease),
-    background-color 160ms var(--crm-ease),
-    box-shadow 160ms var(--crm-ease);
-  touch-action: manipulation;
+.crm-badge-sync-pending {
+  background: #fef3c7;
+  color: #b45309;
 }
 
-.lux-button:hover {
-  @apply border-primary/25 bg-primary-soft/30 shadow-md;
+.crm-mobile-dock {
+  @apply fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 px-3 py-2 backdrop-blur-md md:hidden;
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  border-color: var(--crm-border);
 }
 
-.lux-button-primary {
-  @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-bl from-primary via-primary to-primary/90 px-3.5 py-2 text-xs font-semibold text-white shadow-soft;
-  transition:
-    filter 160ms var(--crm-ease),
-    box-shadow 160ms var(--crm-ease);
-  touch-action: manipulation;
+.crm-workbench {
+  @apply grid min-h-[min(72vh,820px)] gap-3 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)];
 }
 
-.lux-button-primary:hover {
-  filter: brightness(1.03);
-  @apply shadow-md;
+.crm-list-panel {
+  @apply flex min-h-0 flex-col overflow-hidden rounded-2xl border bg-white;
+  border-color: var(--crm-border);
 }
 
-.crm-app-header {
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.7) inset,
-    0 20px 50px -24px rgba(30, 27, 36, 0.12);
+.crm-detail-panel {
+  @apply hidden min-h-0 flex-col overflow-hidden rounded-2xl border bg-white lg:flex;
+  border-color: var(--crm-border);
 }
 
-.crm-display-title {
-  letter-spacing: -0.03em;
+.crm-detail-sheet {
+  @apply fixed inset-0 z-50 flex flex-col bg-white lg:hidden;
 }
 
-.brand-logo-aura {
-  padding: 3px;
-  border-radius: 1.35rem;
-  background: conic-gradient(from 210deg, var(--color-primary), var(--color-accent), #c4b5fd, var(--color-primary));
-  box-shadow: 0 12px 40px -12px rgba(90, 90, 201, 0.45);
-}
-
-.brand-logo-inner {
-  @apply flex size-20 items-center justify-center rounded-[1.4rem] bg-transparent shadow-sm md:size-24;
-}
-
-.crm-bento-card {
-  min-height: 7.5rem;
-}
-
-.crm-kpi-card {
-  @apply shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md;
-}
-
-.crm-skeleton {
-  @apply animate-pulse bg-gradient-to-r from-surface-container via-white to-surface-container;
-}
-
-
-.crm-donut {
-  width: 5.5rem;
-  height: 5.5rem;
-  border-radius: 9999px;
-  padding: 0.4rem;
-  box-shadow: 0 4px 14px rgba(30, 27, 36, 0.08);
-}
-
-.crm-donut-inner {
-  width: 100%;
-  height: 100%;
-  border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(215, 210, 226, 0.55);
-}
-
-.crm-search {
-  @apply rounded-2xl border border-outline/80 bg-surface-high/95 shadow-sm transition focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/15;
-}
-
-.crm-sidebar {
-  @apply rounded-2xl border border-outline/70 bg-surface-high/95 shadow-card backdrop-blur-md;
-}
-
-.md3-table-shell {
-  @apply overflow-hidden rounded-2xl border border-outline/75 shadow-card;
-}
-
-.md3-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.md3-icon-btn {
-  @apply inline-flex size-8 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-surface-container;
-}
-
-.md3-pager-btn {
-  @apply rounded-full border border-outline bg-white px-3 py-1.5 text-xs font-medium text-on-surface transition enabled:hover:bg-surface-container disabled:cursor-not-allowed disabled:opacity-45;
-}
-
-.md3-toolbar-btn {
-  @apply inline-flex min-h-10 items-center justify-center gap-1 rounded-full border border-outline bg-white px-3 py-1.5 text-xs font-medium text-on-surface transition enabled:hover:bg-surface-container disabled:cursor-not-allowed disabled:opacity-50;
-}
-
-/* Mobile-first touch targets (Material 3 ~48px) */
 .crm-touch-target {
-  min-height: 3rem;
-  min-width: 3rem;
-  touch-action: manipulation;
+  min-height: 44px;
+  min-width: 44px;
 }
 
-.crm-touch-input {
-  font-size: 16px;
-  touch-action: manipulation;
+.crm-toast {
+  @apply rounded-2xl px-4 py-3 text-sm font-medium;
 }
 
-@media (min-width: 768px) {
-  .crm-touch-input {
-    font-size: 0.875rem;
-  }
+.crm-toast-success {
+  @apply border border-emerald-200 bg-emerald-50 text-emerald-900;
 }
 
-.crm-list-scroll {
-  -webkit-overflow-scrolling: touch;
+.crm-toast-error {
+  @apply border border-red-200 bg-red-50 text-red-900;
 }
 
-.crm-virtual-list {
-  contain: layout style;
+/* Legacy aliases */
+.lux-card {
+  border-radius: var(--crm-radius);
+  border: 1px solid var(--crm-border);
+  background: var(--crm-card);
+  box-shadow: var(--crm-shadow);
 }
-
-.crm-agent-panel {
-  scroll-margin-top: 1rem;
+.lux-button {
+  @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-semibold;
+  border-color: var(--crm-border);
+  background: white;
 }
-
-.crm-mobile-bottom-bar {
-  padding-bottom: max(5rem, calc(env(safe-area-inset-bottom) + 4rem));
+.lux-button-primary {
+  @apply crm-btn-primary;
 }
-
-@media (min-width: 768px) {
-  .crm-mobile-bottom-bar {
-    padding-bottom: 2rem;
-  }
+.crm-workspace {
+  @apply crm-shell;
 }
-
-.crm-kpi-card {
-  min-height: 5.5rem;
-  min-width: 9.5rem;
+.crm-app-header {
+  @apply crm-card mb-3 px-3 py-2.5;
 }

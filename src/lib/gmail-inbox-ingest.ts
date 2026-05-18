@@ -7,6 +7,7 @@ import {
   importKeyFor,
   normalizeMessageId,
   processInboundEmailMessage,
+  recordProcessResult,
   type EmailIngestResult,
   type ParsedEmailMessage
 } from "@/lib/email-ingest";
@@ -140,6 +141,7 @@ export async function ingestInboxViaGmailApi(): Promise<EmailIngestResult> {
     archived: 0,
     archiveMailbox: "Gmail API (הסרת תווית INBOX)",
     errors: [],
+    skipReasons: [],
     provider: "gmail_api"
   };
 
@@ -181,9 +183,7 @@ export async function ingestInboxViaGmailApi(): Promise<EmailIngestResult> {
         sourceTag: settings.sourceTag
       });
 
-      if (processed.error) {
-        result.errors.push(processed.error);
-      }
+      recordProcessResult(result, processed);
       if (processed.imported) result.imported += 1;
       if (processed.reopened) result.reopened += 1;
       if (processed.skipped) result.skipped += 1;
@@ -193,6 +193,7 @@ export async function ingestInboxViaGmailApi(): Promise<EmailIngestResult> {
       result.errors.push(
         error instanceof Error ? error.message : "Gmail API message processing failed"
       );
+      result.skipReasons?.push("error");
     }
   }
 
