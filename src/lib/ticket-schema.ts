@@ -34,7 +34,7 @@ export async function ensureTicketUpgradeSchema(): Promise<void> {
 
 async function runFullUpgrade(): Promise<void> {
   // Neon driver: never use ${param} inside CREATE TABLE DEFAULT — causes bind errors.
-  await sql`
+  await sql()`
     CREATE TABLE IF NOT EXISTS ticket_number_seq (
       id TEXT PRIMARY KEY,
       last_number INTEGER NOT NULL DEFAULT 10000
