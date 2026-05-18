@@ -81,6 +81,7 @@ export type EmailIngestResult = {
   ok: true;
   scanned: number;
   imported: number;
+  reopened: number;
   skipped: number;
   archived: number;
   archiveMailbox: string;
@@ -174,6 +175,22 @@ function firstAddress(address: AddressObject | undefined): { email: string; name
   };
 }
 
+function senderFromParsedMail(parsed: ParsedMail): { email: string; name: string } {
+  const from = firstAddress(parsed.from);
+  if (from.email) return from;
+
+  const replyTo = firstAddress(parsed.replyTo);
+  if (replyTo.email) return replyTo;
+
+  const headerFrom = String(parsed.headers.get("from") ?? "").trim();
+  const match = headerFrom.match(/<?([^\s<>]+@[^\s<>]+)>?/);
+  if (match?.[1]) {
+    return { email: match[1].trim().toLowerCase(), name: from.name || replyTo.name };
+  }
+
+  return { email: "", name: from.name || replyTo.name };
+}
+
 function importKeyFor(messageId: string | null, mailboxUid: string): string {
   return messageId ? `message-id:${messageId}` : `uid:${mailboxUid}`;
 }
@@ -216,12 +233,34 @@ function forcedClassificationFor(message: ParsedEmailMessage): ForcedClassificat
   return null;
 }
 
-async function alreadyImported(importKey: string): Promise<boolean> {
+async function findImportedTicket(
+  importKey: string
+): Promise<{ id: string; status: string; category: string } | null> {
   const rows = await sql()`
-    SELECT id
+    SELECT id, status, category
     FROM tickets
     WHERE email_import_key = ${importKey}
     LIMIT 1
+  `;
+  if (!rows.length) return null;
+  const row = rows[0] as { id: string; status: string; category: string };
+  return {
+    id: String(row.id),
+    status: String(row.status ?? ""),
+    category: String(row.category ?? "")
+  };
+}
+
+/** Re-surface email tickets that were imported but hidden as closed. */
+async function reopenEmailTicketIfHidden(ticketId: string): Promise<boolean> {
+  const rows = await sql()`
+    UPDATE tickets
+    SET status = 'open',
+        updated_at = now()
+    WHERE id = ${ticketId}
+      AND category = ${PENDING_TRIAGE_CATEGORY}
+      AND status IN ('closed', 'handled')
+    RETURNING id
   `;
   return rows.length > 0;
 }
@@ -239,6 +278,15 @@ async function ensureEmailIngestSchema(): Promise<void> {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_email_import_key
     ON tickets (email_import_key)
     WHERE email_import_key IS NOT NULL
+  `;
+
+  await sql()`
+    UPDATE tickets
+    SET status = 'open',
+        updated_at = now()
+    WHERE source = 'email'
+      AND category = ${PENDING_TRIAGE_CATEGORY}
+      AND status IN ('closed', 'handled')
   `;
 }
 
@@ -287,7 +335,7 @@ async function insertEmailTicket(
       ${classification.category},
       ${classification.priority},
       ${classification.summary},
-      ${forcedClassification?.status ?? "open"},
+      ${classification.status},
       ${"email"},
       ${message.messageAt},
       ARRAY[${sourceTag}]::text[],
@@ -306,7 +354,11 @@ async function insertEmailTicket(
 
   const ticketId = String((rows[0] as { id: string }).id);
   if (message.attachments.length > 0) {
-    await saveTicketAttachments(ticketId, message.attachments);
+    try {
+      await saveTicketAttachments(ticketId, message.attachments);
+    } catch (error) {
+      console.error("[email-ingest] attachment save failed", error);
+    }
   }
 
   return { inserted: true, ticketId };
@@ -363,7 +415,7 @@ async function parseFetchedMessage(
   source: Buffer
 ): Promise<ParsedEmailMessage | null> {
   const parsed = await simpleParser(source);
-  const sender = firstAddress(parsed.from);
+  const sender = senderFromParsedMail(parsed);
   const subject = String(parsed.subject ?? "").trim() || "(ללא נושא)";
 
   if (!sender.email) {
@@ -417,6 +469,7 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
     ok: true,
     scanned: 0,
     imported: 0,
+    reopened: 0,
     skipped: 0,
     archived: 0,
     archiveMailbox: config.archiveMailbox || DEFAULT_GMAIL_ARCHIVE_MAILBOX,
@@ -433,12 +486,19 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
   const lock = await client.getMailboxLock(config.mailbox);
   try {
     const since = new Date(Date.now() - config.lookbackDays * 24 * 60 * 60 * 1000);
-    const foundUids = await withTimeout(
-      client.search({ since }, { uid: true }),
-      config.timeoutMs,
-      "IMAP search"
-    );
-    const uidsToFetch = (Array.isArray(foundUids) ? foundUids : [])
+    const [sinceUids, unseenUids] = await Promise.all([
+      withTimeout(client.search({ since }, { uid: true }), config.timeoutMs, "IMAP search since"),
+      withTimeout(client.search({ seen: false }, { uid: true }), config.timeoutMs, "IMAP search unseen").catch(
+        () => [] as number[]
+      )
+    ]);
+
+    const uidSet = new Set<number>();
+    for (const uid of [...(Array.isArray(sinceUids) ? sinceUids : []), ...(Array.isArray(unseenUids) ? unseenUids : [])]) {
+      if (Number.isFinite(uid) && uid > 0) uidSet.add(uid);
+    }
+
+    const uidsToFetch = Array.from(uidSet)
       .sort((a, b) => a - b)
       .slice(-config.maxMessages);
 
@@ -484,22 +544,30 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
           continue;
         }
 
-        const duplicate = await alreadyImported(message.importKey);
+        const existing = await findImportedTicket(message.importKey);
         const forcedClassification = forcedClassificationFor(message);
-        const insertResult = duplicate
-          ? { inserted: false, ticketId: null }
-          : await insertEmailTicket(message, config.sourceTag, forcedClassification);
 
-        if (insertResult.inserted || duplicate) {
+        if (existing) {
+          const reopened = await reopenEmailTicketIfHidden(existing.id);
           processedUids.push(uid);
+          if (reopened) {
+            result.reopened += 1;
+          } else {
+            result.skipped += 1;
+          }
+          continue;
         }
 
+        const insertResult = await insertEmailTicket(message, config.sourceTag, forcedClassification);
+
         if (insertResult.inserted) {
+          processedUids.push(uid);
           result.imported += 1;
         } else {
           result.skipped += 1;
         }
       } catch (error) {
+        result.skipped += 1;
         result.errors.push(error instanceof Error ? error.message : "Unknown email parsing error");
       }
     }

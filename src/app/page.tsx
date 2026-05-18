@@ -202,13 +202,21 @@ export default function DashboardPage() {
 
       void refreshAll();
 
-      if ((result.imported ?? 0) > 0) {
+      const errorHint =
+        result.errors?.length && source === "manual"
+          ? ` שגיאות: ${result.errors.slice(0, 2).join(" · ")}`
+          : "";
+
+      if ((result.imported ?? 0) > 0 || (result.reopened ?? 0) > 0) {
+        const parts: string[] = [];
+        if ((result.imported ?? 0) > 0) parts.push(`${result.imported} פניות חדשות`);
+        if ((result.reopened ?? 0) > 0) parts.push(`${result.reopened} פניות נפתחו מחדש`);
         setEmailSyncMessage({
           kind: "success",
           text:
             source === "auto"
-              ? `סנכרון אוטומטי: ${result.imported} פניות חדשות ממייל.`
-              : `סנכרון מיילים הושלם: ${result.imported} פניות חדשות נוספו, ${result.skipped ?? 0} דולגו, ${result.archived ?? 0} הועברו לארכיון במייל${result.archiveMailbox ? ` (${result.archiveMailbox})` : ""}.`
+              ? `סנכרון אוטומטי: ${parts.join(", ")} ממייל.`
+              : `סנכרון מיילים הושלם: ${parts.join(", ")}.${errorHint}`
         });
         return;
       }
@@ -216,7 +224,7 @@ export default function DashboardPage() {
       if (source === "manual") {
         setEmailSyncMessage({
           kind: "success",
-          text: `סנכרון מיילים הושלם: לא נמצאו פניות חדשות (${result.scanned ?? 0} מיילים נסרקו, ${result.skipped ?? 0} דולגו).`
+          text: `סנכרון מיילים הושלם: לא נמצאו פניות חדשות (${result.scanned ?? 0} מיילים נסרקו, ${result.skipped ?? 0} דולגו).${errorHint}`
         });
       }
     },

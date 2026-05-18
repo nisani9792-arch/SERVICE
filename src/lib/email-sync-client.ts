@@ -8,10 +8,12 @@ export const EMAIL_SYNC_EVENT = "service-email-sync-complete";
 export type EmailSyncResult = {
   ok: boolean;
   imported: number;
+  reopened?: number;
   skipped: number;
   scanned: number;
   archived?: number;
   archiveMailbox?: string;
+  errors?: string[];
   error?: string;
   details?: string;
 };
@@ -77,10 +79,12 @@ export async function runEmailIngestClient(
     return {
       ok: true,
       imported: data.imported ?? 0,
+      reopened: data.reopened ?? 0,
       skipped: data.skipped ?? 0,
       scanned: data.scanned ?? 0,
       archived: data.archived,
-      archiveMailbox: data.archiveMailbox
+      archiveMailbox: data.archiveMailbox,
+      errors: Array.isArray(data.errors) ? data.errors : undefined
     };
   })().finally(() => {
     inFlight = null;
