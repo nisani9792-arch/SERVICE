@@ -23,7 +23,7 @@ export async function POST(
     }
 
     const rows = await sql()`
-      SELECT id, sender_email, subject, email_message_id
+      SELECT id, sender_email, subject, email_message_id, ticket_number
       FROM tickets
       WHERE id = ${params.id}
       LIMIT 1
@@ -35,6 +35,7 @@ export async function POST(
           sender_email: string;
           subject: string;
           email_message_id: string | null;
+          ticket_number: number | null;
         }
       | undefined;
 

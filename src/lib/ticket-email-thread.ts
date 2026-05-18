@@ -3,6 +3,7 @@ import { sql } from "@/lib/neon";
 import { saveTicketAttachments, type EmailAttachmentCandidate } from "@/lib/ticket-attachments";
 import { CUSTOMER_FOLLOWUP_CATEGORY, PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
 import { collectThreadMessageIds, findTicketIdForInboundThread } from "@/lib/outbound-message-ids";
+import { extractTicketNumbersFromText } from "@/lib/ticket-sequence";
 
 export type InboundEmailForThread = {
   importKey: string;
@@ -185,7 +186,82 @@ export async function attachInboundFollowUpToTicket(
   return { attached: true, reopened: wasClosed, duplicate: false };
 }
 
-export async function resolveTicketForInboundThread(
+/** Strip Re:/Fwd: and auto-reply prefixes (e.g. Google "צורפתם בהצלחה"). */
+export function normalizeReplySubject(subject: string): string {
+  let s = subject.trim();
+  for (let i = 0; i < 6; i += 1) {
+    const next = s
+      .replace(/^(re|fwd|fw|השב|העבר)\s*:\s*/i, "")
+      .replace(/^צורפתם בהצלחה\s*/i, "")
+      .replace(/^you(?:'ve| have) been added successfully\s*/i, "")
+      .replace(/^added successfully\s*/i, "")
+      .trim();
+    if (next === s) break;
+    s = next;
+  }
+  return s.toLowerCase();
+}
+
+export function isLikelyThreadReply(subject: string, inReplyTo: string | null): boolean {
+  if (inReplyTo?.trim()) return true;
+  const s = subject.trim();
+  if (/^\s*(re|fwd|fw|השב|העבר)\s*:/i.test(s)) return true;
+  if (/צורפתם בהצלחה/i.test(s)) return true;
+  if (/\b(re|השב)\s*:/i.test(s)) return true;
+  return false;
+}
+
+async function findTicketIdByNumber(ticketNumber: number): Promise<string | null> {
+  const rows = await sql()`
+    SELECT id FROM tickets WHERE ticket_number = ${ticketNumber} LIMIT 1
+  `;
+  if (rows.length === 0) return null;
+  return String((rows[0] as { id: string }).id);
+}
+
+async function findTicketIdBySenderReplySubject(
+  message: InboundEmailForThread
+): Promise<string | null> {
+  if (!isLikelyThreadReply(message.subject, message.inReplyTo)) return null;
+
+  const normalizedIncoming = normalizeReplySubject(message.subject);
+  if (normalizedIncoming.length < 4) return null;
+
+  const senderEmail = message.senderEmail.trim().toLowerCase();
+  if (!senderEmail.includes("@")) return null;
+
+  const rows = await sql()`
+    SELECT id, subject
+    FROM tickets
+    WHERE lower(trim(sender_email)) = ${senderEmail}
+    ORDER BY COALESCE(message_at, updated_at) DESC
+    LIMIT 40
+  `;
+
+  for (const row of rows) {
+    const ticketSubject = String((row as { subject: string }).subject ?? "");
+    const normalizedTicket = normalizeReplySubject(ticketSubject);
+    if (!normalizedTicket) continue;
+
+    if (normalizedTicket === normalizedIncoming) {
+      return String((row as { id: string }).id);
+    }
+
+    const minLen = Math.min(normalizedTicket.length, normalizedIncoming.length);
+    if (minLen >= 8) {
+      if (
+        normalizedTicket.includes(normalizedIncoming) ||
+        normalizedIncoming.includes(normalizedTicket)
+      ) {
+        return String((row as { id: string }).id);
+      }
+    }
+  }
+
+  return null;
+}
+
+async function resolveTicketFromEmailHeaders(
   message: InboundEmailForThread
 ): Promise<string | null> {
   const headerIds = collectThreadMessageIds(message.inReplyTo, message.references);
@@ -206,6 +282,25 @@ export async function resolveTicketForInboundThread(
   if (fromThread.length > 0) {
     return String((fromThread[0] as { ticket_id: string }).ticket_id);
   }
+
+  return null;
+}
+
+export async function resolveTicketForInboundThread(
+  message: InboundEmailForThread
+): Promise<string | null> {
+  const searchText = `${message.subject}\n${message.body.slice(0, 2000)}`;
+  const ticketNumbers = extractTicketNumbersFromText(searchText);
+  for (const num of ticketNumbers) {
+    const byNumber = await findTicketIdByNumber(num);
+    if (byNumber) return byNumber;
+  }
+
+  const fromHeaders = await resolveTicketFromEmailHeaders(message);
+  if (fromHeaders) return fromHeaders;
+
+  const fromSubject = await findTicketIdBySenderReplySubject(message);
+  if (fromSubject) return fromSubject;
 
   return null;
 }

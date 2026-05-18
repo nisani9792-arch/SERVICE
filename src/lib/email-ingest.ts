@@ -16,7 +16,6 @@ import {
   isInboundEmailAlreadyStored,
   tryAttachInboundThreadMessage
 } from "@/lib/ticket-email-thread";
-import { collectThreadMessageIds } from "@/lib/outbound-message-ids";
 
 const DEFAULT_MAILBOX = "INBOX";
 const DEFAULT_GMAIL_ARCHIVE_MAILBOX = "[Gmail]/All Mail";
@@ -290,28 +289,25 @@ export async function processInboundEmailMessage(
     };
   }
 
-  const threadIds = collectThreadMessageIds(message.inReplyTo, message.references);
-  if (threadIds.length > 0) {
-    const threadResult = await tryAttachInboundThreadMessage(message);
-    if (threadResult.attached) {
-      return {
-        imported: false,
-        followupAttached: true,
-        reopened: threadResult.reopened,
-        skipped: false,
-        shouldArchive: true
-      };
-    }
-    if (threadResult.duplicate) {
-      return {
-        imported: false,
-        followupAttached: false,
-        reopened: false,
-        skipped: true,
-        shouldArchive: true,
-        skipReason: "duplicate"
-      };
-    }
+  const threadResult = await tryAttachInboundThreadMessage(message);
+  if (threadResult.attached) {
+    return {
+      imported: false,
+      followupAttached: true,
+      reopened: threadResult.reopened,
+      skipped: false,
+      shouldArchive: true
+    };
+  }
+  if (threadResult.duplicate) {
+    return {
+      imported: false,
+      followupAttached: false,
+      reopened: false,
+      skipped: true,
+      shouldArchive: true,
+      skipReason: "duplicate"
+    };
   }
 
   const existing = await findImportedTicket(message.importKey);

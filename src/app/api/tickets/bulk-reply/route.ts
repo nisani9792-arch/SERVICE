@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     const rows = await sql()`
-      SELECT id, sender_email, subject, email_message_id
+      SELECT id, sender_email, subject, email_message_id, ticket_number
       FROM tickets
       WHERE id = ANY(${ids})
     `;
@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
         sender_email: string;
         subject: string;
         email_message_id: string | null;
+        ticket_number: number | null;
       };
       try {
         const result = await sendReplyForTicket(ticket, message, { closeAfterSend });

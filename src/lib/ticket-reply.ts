@@ -1,6 +1,7 @@
 import { replyFromAddress, sendCustomerReply } from "@/lib/email-send";
 import { enqueueOutboundEmail } from "@/lib/outbound-email";
 import { createOutboundMessageId, recordOutboundMessageId } from "@/lib/outbound-message-ids";
+import { formatTicketNumber } from "@/lib/ticket-sequence";
 import { sql } from "@/lib/neon";
 
 export type TicketReplySendResult =
@@ -83,7 +84,16 @@ type TicketRow = {
   sender_email: string;
   subject: string;
   email_message_id: string | null;
+  ticket_number: number | null;
 };
+
+function replySubjectForTicket(subject: string, ticketNumber: number | null): string {
+  const base = subject.trim() || "פנייה ל-Jusic";
+  if (ticketNumber == null || !Number.isInteger(ticketNumber)) return base;
+  const tag = formatTicketNumber(ticketNumber);
+  if (new RegExp(`#?\\s*tk\\s*[-\\s]*${ticketNumber}\\b`, "i").test(base)) return base;
+  return `${base} [${tag}]`;
+}
 
 export async function sendReplyForTicket(
   ticket: TicketRow,
@@ -101,7 +111,7 @@ export async function sendReplyForTicket(
   try {
     const sent = await sendCustomerReply({
       to: recipient,
-      subject: String(ticket.subject ?? ""),
+      subject: replySubjectForTicket(String(ticket.subject ?? ""), ticket.ticket_number),
       message,
       messageId: outboundMessageId,
       inReplyTo: ticket.email_message_id,

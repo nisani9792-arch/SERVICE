@@ -15,6 +15,21 @@ export function parseTicketNumberQuery(q: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
+/** Find all #TK-12345 / TK-12345 mentions in subject or body. */
+export function extractTicketNumbersFromText(text: string): number[] {
+  const seen = new Set<number>();
+  const patterns = [/#\s*tk\s*[-\s]*(\d+)/gi, /\btk\s*[-\s]*(\d{4,})\b/gi];
+  for (const pattern of patterns) {
+    const re = new RegExp(pattern.source, pattern.flags);
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text)) !== null) {
+      const n = Number(match[1]);
+      if (Number.isInteger(n) && n > 0) seen.add(n);
+    }
+  }
+  return Array.from(seen);
+}
+
 /** Allocates the next sequential ticket number (atomic). */
 export async function allocateNextTicketNumber(): Promise<number> {
   await ensureTicketUpgradeSchema();
