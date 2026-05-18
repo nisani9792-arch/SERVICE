@@ -115,8 +115,7 @@ export async function attachInboundFollowUpToTicket(
       ${message.body},
       ${message.subject},
       ${message.senderEmail},
-      ${message.messageAt},
-      now()
+      ${message.messageAt}
     )
     ON CONFLICT (email_import_key) DO NOTHING
     RETURNING id
