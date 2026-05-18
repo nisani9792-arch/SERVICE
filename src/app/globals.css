@@ -167,7 +167,38 @@ body {
 }
 
 .crm-toast {
-  @apply rounded-2xl px-4 py-3 text-sm font-medium;
+  @apply rounded-2xl px-4 py-3 text-sm font-medium shadow-lg;
+}
+
+.crm-toast-popup {
+  @apply fixed bottom-20 left-1/2 z-[120] w-[min(92vw,28rem)] -translate-x-1/2 text-center;
+  animation: crm-toast-in 0.28s ease-out;
+}
+
+.crm-toast-popup.crm-toast-leaving {
+  animation: crm-toast-out 0.35s ease-in forwards;
+}
+
+@keyframes crm-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 14px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes crm-toast-out {
+  from {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
 }
 
 .crm-toast-success {

@@ -54,6 +54,8 @@ import type { Ticket, TicketStatus } from "@/lib/types";
 
 type WorkbenchStatusFilter = TicketStatus | "active";
 
+const EMAIL_SYNC_TOAST_MS = 6000;
+
 export default function DashboardPage() {
   const [activeCategory, setActiveCategory] = useState<string | "all">("all");
   const [activeStatus, setActiveStatus] = useState<WorkbenchStatusFilter>("active");
@@ -83,6 +85,8 @@ export default function DashboardPage() {
     kind: "success" | "error";
     text: string;
   } | null>(null);
+  const [emailSyncToastLeaving, setEmailSyncToastLeaving] = useState(false);
+  const emailSyncToastTimerRef = useRef<number | null>(null);
   const [aiReclassifying, setAiReclassifying] = useState(false);
   const [batchProgress, setBatchProgress] = useState({
     visible: false,
@@ -247,6 +251,33 @@ export default function DashboardPage() {
     window.addEventListener(EMAIL_SYNC_EVENT, onAutoSync);
     return () => window.removeEventListener(EMAIL_SYNC_EVENT, onAutoSync);
   }, [applyEmailSyncResult]);
+
+  useEffect(() => {
+    if (!emailSyncMessage) {
+      setEmailSyncToastLeaving(false);
+      return;
+    }
+
+    setEmailSyncToastLeaving(false);
+    if (emailSyncToastTimerRef.current) {
+      clearTimeout(emailSyncToastTimerRef.current);
+    }
+
+    const fadeAt = Math.max(500, EMAIL_SYNC_TOAST_MS - 400);
+    const fadeTimer = window.setTimeout(() => setEmailSyncToastLeaving(true), fadeAt);
+    emailSyncToastTimerRef.current = window.setTimeout(() => {
+      setEmailSyncMessage(null);
+      setEmailSyncToastLeaving(false);
+    }, EMAIL_SYNC_TOAST_MS);
+
+    return () => {
+      clearTimeout(fadeTimer);
+      if (emailSyncToastTimerRef.current) {
+        clearTimeout(emailSyncToastTimerRef.current);
+        emailSyncToastTimerRef.current = null;
+      }
+    };
+  }, [emailSyncMessage]);
 
   const handleHeaderRefresh = useCallback(async () => {
     setHeaderRefreshing(true);
@@ -752,9 +783,11 @@ export default function DashboardPage() {
 
         {emailSyncMessage ? (
           <div
-            className={`crm-toast ${
+            role="status"
+            aria-live="polite"
+            className={`crm-toast crm-toast-popup ${
               emailSyncMessage.kind === "success" ? "crm-toast-success" : "crm-toast-error"
-            }`}
+            } ${emailSyncToastLeaving ? "crm-toast-leaving" : ""}`}
           >
             {emailSyncMessage.text}
           </div>
