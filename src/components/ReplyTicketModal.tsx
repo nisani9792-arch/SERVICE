@@ -13,7 +13,7 @@ interface ReplyTicketModalProps {
 type EmailStatusHint = {
   ok: boolean;
   fromAddress?: string;
-  resendFromFormatted?: string;
+  fromFormatted?: string;
   hint?: string;
 };
 
@@ -104,7 +104,7 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
   };
 
   const fromLine =
-    emailStatus?.resendFromFormatted || emailStatus?.fromAddress || "editor@jusic.co";
+    emailStatus?.fromFormatted || emailStatus?.fromAddress || "editor@jusic.co";
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -178,7 +178,7 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-outline/60 bg-surface-high/80 px-4 py-3">
-            <p className="text-[11px] text-on-surface-variant">Resend · Ctrl+Enter לשליחה</p>
+            <p className="text-[11px] text-on-surface-variant">Gmail API · Ctrl+Enter לשליחה</p>
             <div className="flex gap-2">
               <button type="button" onClick={onClose} className="lux-button min-h-10" disabled={isSending}>
                 ביטול
@@ -264,7 +264,7 @@ function ReplyMetaRow({
             emailStatus.ok ? "bg-success/15 text-success" : "bg-amber-100 text-amber-950"
           }`}
         >
-          {emailStatus.ok ? "מוכן לשליחה" : emailStatus.hint || "בדוק Resend"}
+          {emailStatus.ok ? "מוכן לשליחה" : emailStatus.hint || "בדוק Gmail API"}
         </span>
       ) : null}
     </div>

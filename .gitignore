@@ -8,6 +8,8 @@
 # local env
 .env
 .env*.local
+token.json
+credentials.json
 
 # logs
 npm-debug.log*

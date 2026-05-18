@@ -1,5 +1,6 @@
 import { sql } from "@/lib/neon";
-import { getEmailDeliveryStatus, sendCustomerReply } from "@/lib/email-send";
+import { isGmailApiConfigured } from "@/lib/gmail-api";
+import { sendCustomerReply } from "@/lib/email-send";
 
 export type OutboundEmailInput = {
   to: string;
@@ -13,7 +14,6 @@ export type QueueProcessResult = {
   sent: number;
   queued: number;
   failed: number;
-  waitingDomain: number;
 };
 
 let tableReady = false;
@@ -43,13 +43,9 @@ async function ensureQueueTable(): Promise<void> {
   await sql()`
     CREATE INDEX IF NOT EXISTS idx_outbound_email_pending
     ON outbound_email_queue (status, next_attempt_at)
-    WHERE status IN ('pending', 'waiting_domain')
+    WHERE status = 'pending'
   `;
   tableReady = true;
-}
-
-function isDomainNotReadyError(message: string): boolean {
-  return /domain.*not verified|לא מאומת|403|waiting.*domain/i.test(message);
 }
 
 export async function enqueueOutboundEmail(input: OutboundEmailInput): Promise<string> {
@@ -78,20 +74,15 @@ export async function enqueueOutboundEmail(input: OutboundEmailInput): Promise<s
 
 export async function processOutboundEmailQueue(limit = 25): Promise<QueueProcessResult> {
   await ensureQueueTable();
-  const status = await getEmailDeliveryStatus();
-  const fromDomain = status.fromAddress.split("@")[1] ?? "";
-  const domainReady =
-    status.effectiveProvider !== "resend" ||
-    !status.resendKeyConfigured ||
-    status.resendDomains?.some(
-      (d) => d.name.toLowerCase() === fromDomain.toLowerCase() && d.status === "verified"
-    ) ||
-    fromDomain === "resend.dev";
+
+  if (!isGmailApiConfigured()) {
+    return { processed: 0, sent: 0, queued: 0, failed: 0 };
+  }
 
   const rows = await sql()`
-    SELECT id, to_address, subject, body_text, status, attempt_count
+    SELECT id, to_address, subject, body_text, attempt_count
     FROM outbound_email_queue
-    WHERE status IN ('pending', 'waiting_domain')
+    WHERE status = 'pending'
       AND next_attempt_at <= now()
     ORDER BY created_at ASC
     LIMIT ${limit}
@@ -101,8 +92,7 @@ export async function processOutboundEmailQueue(limit = 25): Promise<QueueProces
     processed: rows.length,
     sent: 0,
     queued: 0,
-    failed: 0,
-    waitingDomain: 0
+    failed: 0
   };
 
   for (const row of rows) {
@@ -111,19 +101,6 @@ export async function processOutboundEmailQueue(limit = 25): Promise<QueueProces
     const subject = String(row.subject);
     const body = String(row.body_text);
     const attempt = Number(row.attempt_count ?? 0) + 1;
-
-    if (!domainReady) {
-      await sql()`
-        UPDATE outbound_email_queue
-        SET status = 'waiting_domain',
-            attempt_count = ${attempt},
-            last_error = 'Resend domain not verified yet',
-            next_attempt_at = now() + interval '15 minutes'
-        WHERE id = ${id}
-      `;
-      result.waitingDomain += 1;
-      continue;
-    }
 
     try {
       await sendCustomerReply({ to, subject, message: body });
@@ -138,8 +115,7 @@ export async function processOutboundEmailQueue(limit = 25): Promise<QueueProces
       result.sent += 1;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const waiting = isDomainNotReadyError(message);
-      const nextStatus = waiting ? "waiting_domain" : attempt >= 5 ? "failed" : "pending";
+      const nextStatus = attempt >= 5 ? "failed" : "pending";
       const backoffMinutes = Math.min(60, 5 * attempt);
 
       await sql()`
@@ -151,8 +127,7 @@ export async function processOutboundEmailQueue(limit = 25): Promise<QueueProces
         WHERE id = ${id}
       `;
 
-      if (waiting) result.waitingDomain += 1;
-      else if (nextStatus === "failed") result.failed += 1;
+      if (nextStatus === "failed") result.failed += 1;
       else result.queued += 1;
     }
   }

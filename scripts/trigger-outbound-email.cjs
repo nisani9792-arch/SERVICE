@@ -1,5 +1,5 @@
 /**
- * Render Cron entrypoint: process outbound email queue (Resend).
+ * Render Cron entrypoint: process outbound email queue (Gmail API).
  * Set EMAIL_OUTBOUND_SECRET and EMAIL_OUTBOUND_URL (or RENDER_EXTERNAL_URL).
  */
 require("dotenv").config({ path: ".env.local" });

@@ -1,0 +1,150 @@
+import { google } from "googleapis";
+
+const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
+
+export type GmailSendInput = {
+  to: string;
+  subject: string;
+  text: string;
+  html?: string;
+  fromEmail?: string;
+  fromName?: string;
+  messageId?: string | null;
+  inReplyTo?: string | null;
+  references?: string[];
+};
+
+export type GmailSendResult = {
+  gmailId: string;
+  messageId: string;
+};
+
+function firstNonEmpty(...values: Array<string | undefined>): string | undefined {
+  return values.map((v) => v?.trim()).find(Boolean);
+}
+
+function encodeRawMessage(raw: string): string {
+  return Buffer.from(raw, "utf-8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+function formatHeaderMessageId(value: string | null | undefined): string | undefined {
+  const cleaned = String(value ?? "")
+    .trim()
+    .replace(/^<|>$/g, "");
+  if (!cleaned || !cleaned.includes("@")) return undefined;
+  return `<${cleaned}>`;
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function buildMimeMessage(input: GmailSendInput): string {
+  const fromEmail =
+    firstNonEmpty(input.fromEmail, process.env.EMAIL_FROM, process.env.EMAIL_IMAP_USER) ??
+    "editor@jusic.co";
+  const fromName = firstNonEmpty(input.fromName, process.env.EMAIL_FROM_NAME) ?? "Jusic";
+  const from = `${fromName} <${fromEmail}>`;
+  const subject = input.subject.trim() || "פנייה ל-Jusic";
+  const to = input.to.trim();
+
+  const headers: string[] = [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: =?UTF-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`,
+    "MIME-Version: 1.0"
+  ];
+
+  const outboundId = formatHeaderMessageId(input.messageId);
+  if (outboundId) headers.push(`Message-ID: ${outboundId}`);
+
+  const inReplyTo = formatHeaderMessageId(input.inReplyTo);
+  if (inReplyTo) headers.push(`In-Reply-To: ${inReplyTo}`);
+
+  const refs = (input.references ?? [])
+    .map((r) => formatHeaderMessageId(r))
+    .filter((r): r is string => Boolean(r));
+  if (refs.length) headers.push(`References: ${refs.join(" ")}`);
+
+  const textBody = input.text.trim();
+  const htmlBody =
+    input.html?.trim() ||
+    `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6"><p>${escapeHtml(textBody).replace(/\n/g, "<br>")}</p></div>`;
+
+  const boundary = `service_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
+
+  const parts = [
+    headers.join("\r\n"),
+    "",
+    `--${boundary}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    Buffer.from(textBody, "utf-8").toString("base64"),
+    `--${boundary}`,
+    "Content-Type: text/html; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    Buffer.from(htmlBody, "utf-8").toString("base64"),
+    `--${boundary}--`,
+    ""
+  ];
+
+  return parts.join("\r\n");
+}
+
+function getOAuthClient() {
+  const clientId = firstNonEmpty(process.env.GMAIL_CLIENT_ID);
+  const clientSecret = firstNonEmpty(process.env.GMAIL_CLIENT_SECRET);
+  const refreshToken = firstNonEmpty(process.env.GMAIL_REFRESH_TOKEN);
+
+  if (!clientId || !clientSecret) {
+    throw new Error("GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET must be set");
+  }
+  if (!refreshToken) {
+    throw new Error(
+      "GMAIL_REFRESH_TOKEN חסר. הרץ scripts/gmail_mailer.py פעם אחת לאימות, והעתק את refresh_token ל-Render."
+    );
+  }
+
+  const oauth2 = new google.auth.OAuth2(clientId, clientSecret);
+  oauth2.setCredentials({ refresh_token: refreshToken, scope: GMAIL_SEND_SCOPE });
+  return oauth2;
+}
+
+export function isGmailApiConfigured(): boolean {
+  return Boolean(
+    firstNonEmpty(process.env.GMAIL_CLIENT_ID) &&
+      firstNonEmpty(process.env.GMAIL_CLIENT_SECRET) &&
+      firstNonEmpty(process.env.GMAIL_REFRESH_TOKEN)
+  );
+}
+
+export async function sendViaGmailApi(input: GmailSendInput): Promise<GmailSendResult> {
+  const auth = getOAuthClient();
+  const gmail = google.gmail({ version: "v1", auth });
+  const raw = buildMimeMessage(input);
+
+  const response = await gmail.users.messages.send({
+    userId: "me",
+    requestBody: { raw: encodeRawMessage(raw) }
+  });
+
+  const gmailId = response.data.id ?? `gmail-${Date.now()}`;
+  const domain =
+    firstNonEmpty(input.fromEmail, process.env.EMAIL_FROM)?.split("@")[1] ?? "gmail.com";
+  const messageId =
+    formatHeaderMessageId(input.messageId)?.replace(/^<|>$/g, "") ??
+    `gmail.${gmailId}@${domain}`;
+
+  return { gmailId, messageId };
+}

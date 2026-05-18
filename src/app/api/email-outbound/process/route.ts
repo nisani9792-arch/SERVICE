@@ -10,7 +10,7 @@ function authorizeCron(request: NextRequest): boolean {
   return header === secret;
 }
 
-/** Cron/worker: flush outbound email queue (Resend). */
+/** Cron/worker: flush outbound email queue (Gmail API). */
 export async function POST(request: NextRequest) {
   if (!authorizeCron(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

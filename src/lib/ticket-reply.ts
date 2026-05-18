@@ -31,8 +31,8 @@ function parseReferences(value: unknown): string[] {
     .filter(Boolean);
 }
 
-function isResendDomainError(details: string): boolean {
-  return /domain.*not verified|לא מאומת|verify your domain|domain is not verified|403.*domain/i.test(
+function isRetryableSendError(details: string): boolean {
+  return /429|quota|rate.?limit|timeout|ECONNRESET|ETIMEDOUT|network|temporarily|503|502/i.test(
     details
   );
 }
@@ -120,7 +120,7 @@ export async function sendReplyForTicket(
   } catch (error) {
     const details = error instanceof Error ? error.message : "Unknown send error";
 
-    if (isResendDomainError(details)) {
+    if (isRetryableSendError(details)) {
       const queueId = await enqueueOutboundEmail({
         to: recipient,
         subject: String(ticket.subject ?? ""),
@@ -137,8 +137,8 @@ export async function sendReplyForTicket(
         closed: closeAfterSend,
         closureNote: closeAfterSend ? message : null,
         message: closeAfterSend
-          ? `המייל בתור לשליחה (אימות דומיין ב-Resend). הפנייה נסגרה — הערת טיפול: «${notePreview}»`
-          : "המייל בתור לשליחה. הפנייה נשארה פתוחה עד שהשליחה תושלם."
+          ? `שליחה נדחתה זמנית — המענה בתור. הפנייה נסגרה עם הערה: «${notePreview}»`
+          : "שליחה נדחתה זמנית — המענה בתור."
       };
     }
 

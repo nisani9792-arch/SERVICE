@@ -26,16 +26,9 @@ export async function GET() {
   };
 
   const email = await getEmailDeliveryStatus();
-  const fromDomain = email.fromAddress.split("@")[1] ?? "";
-  const verified = email.resendDomains?.some(
-    (d) => d.name.toLowerCase() === fromDomain.toLowerCase() && d.status === "verified"
-  );
   checks.email = {
-    ok:
-      email.effectiveProvider === "resend"
-        ? email.resendKeyConfigured && (verified === true || fromDomain === "resend.dev")
-        : email.smtpConfigured,
-    detail: `provider=${email.effectiveProvider}, resendKey=${email.resendKeyConfigured}, from=${email.resendFromFormatted}, domain=${fromDomain}, verified=${verified ?? "n/a"}`
+    ok: email.gmailApiConfigured || email.smtpConfigured,
+    detail: `provider=${email.replyProvider}, gmailApi=${email.gmailApiConfigured}, from=${email.fromFormatted}`
   };
 
   try {
