@@ -15,6 +15,9 @@ type EmailStatusHint = {
   fromAddress?: string;
   fromFormatted?: string;
   hint?: string;
+  replyViaSmtpFallback?: boolean;
+  missingGmailEnv?: string[];
+  gmailEnv?: { clientId: boolean; clientSecret: boolean; refreshToken: boolean };
 };
 
 export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModalProps) {
@@ -39,7 +42,10 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
 
   const loadEmailStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/email-status", { cache: "no-store" });
+      const res = await fetch("/api/email-status", {
+        cache: "no-store",
+        credentials: "same-origin"
+      });
       if (!res.ok) return;
       setEmailStatus((await res.json()) as EmailStatusHint);
     } catch {
@@ -178,7 +184,13 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-outline/60 bg-surface-high/80 px-4 py-3">
-            <p className="text-[11px] text-on-surface-variant">Gmail API · Ctrl+Enter לשליחה</p>
+            <p className="text-[11px] text-on-surface-variant">
+              {emailStatus?.replyViaSmtpFallback
+                ? "SMTP (גיבוי) · Ctrl+Enter"
+                : emailStatus?.ok
+                  ? "Gmail API · Ctrl+Enter"
+                  : "Ctrl+Enter לשליחה"}
+            </p>
             <div className="flex gap-2">
               <button type="button" onClick={onClose} className="lux-button min-h-10" disabled={isSending}>
                 ביטול
@@ -264,7 +276,14 @@ function ReplyMetaRow({
             emailStatus.ok ? "bg-success/15 text-success" : "bg-amber-100 text-amber-950"
           }`}
         >
-          {emailStatus.ok ? "מוכן לשליחה" : emailStatus.hint || "בדוק Gmail API"}
+          {emailStatus.ok
+            ? emailStatus.replyViaSmtpFallback
+              ? "SMTP (גיבוי)"
+              : "מוכן לשליחה"
+            : emailStatus.hint ||
+              (emailStatus.missingGmailEnv?.length
+                ? `חסר: ${emailStatus.missingGmailEnv.join(", ")}`
+                : "בדוק Gmail API ב-Render")}
         </span>
       ) : null}
     </div>

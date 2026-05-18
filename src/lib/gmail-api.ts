@@ -132,12 +132,40 @@ export function getGmailApiClient(): gmail_v1.Gmail {
   return google.gmail({ version: "v1", auth });
 }
 
+export type GmailEnvPresence = {
+  clientId: boolean;
+  clientSecret: boolean;
+  refreshToken: boolean;
+};
+
+export function getGmailEnvPresence(): GmailEnvPresence {
+  return {
+    clientId: Boolean(firstNonEmpty(process.env.GMAIL_CLIENT_ID)),
+    clientSecret: Boolean(firstNonEmpty(process.env.GMAIL_CLIENT_SECRET)),
+    refreshToken: Boolean(firstNonEmpty(process.env.GMAIL_REFRESH_TOKEN))
+  };
+}
+
+export function getMissingGmailEnvKeys(): string[] {
+  const presence = getGmailEnvPresence();
+  const missing: string[] = [];
+  if (!presence.clientId) missing.push("GMAIL_CLIENT_ID");
+  if (!presence.clientSecret) missing.push("GMAIL_CLIENT_SECRET");
+  if (!presence.refreshToken) missing.push("GMAIL_REFRESH_TOKEN");
+  return missing;
+}
+
+export function formatGmailConfigError(): string {
+  const missing = getMissingGmailEnvKeys();
+  if (missing.length === 0) {
+    return "Gmail API לא מוגדר. בדוק שהערכים ב-Render שייכים לשירות Web (jusic-crm) ולחץ Manual Deploy.";
+  }
+  return `Gmail API לא מוגדר — חסר ב-Environment (שירות Web): ${missing.join(", ")}. אחרי עדכון: Manual Deploy.`;
+}
+
 export function isGmailApiConfigured(): boolean {
-  return Boolean(
-    firstNonEmpty(process.env.GMAIL_CLIENT_ID) &&
-      firstNonEmpty(process.env.GMAIL_CLIENT_SECRET) &&
-      firstNonEmpty(process.env.GMAIL_REFRESH_TOKEN)
-  );
+  const presence = getGmailEnvPresence();
+  return presence.clientId && presence.clientSecret && presence.refreshToken;
 }
 
 export async function sendViaGmailApi(input: GmailSendInput): Promise<GmailSendResult> {

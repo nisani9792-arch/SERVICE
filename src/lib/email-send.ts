@@ -1,5 +1,10 @@
 import nodemailer from "nodemailer";
-import { isGmailApiConfigured, sendViaGmailApi } from "@/lib/gmail-api";
+import {
+  formatGmailConfigError,
+  getMissingGmailEnvKeys,
+  isGmailApiConfigured,
+  sendViaGmailApi
+} from "@/lib/gmail-api";
 
 export type SendCustomerReplyInput = {
   to: string;
@@ -21,6 +26,8 @@ export type EmailDeliveryStatus = {
   fromFormatted: string;
   replyProvider: string;
   ingestProvider: string;
+  missingGmailEnv?: string[];
+  replyViaSmtpFallback?: boolean;
   hint?: string;
 };
 
@@ -37,6 +44,13 @@ function replyProvider(): "gmail_api" | "smtp" {
   const raw = (process.env.EMAIL_REPLY_PROVIDER ?? "gmail_api").trim().toLowerCase();
   if (raw === "smtp") return "smtp";
   return "gmail_api";
+}
+
+function isSmtpConfigured(): boolean {
+  return Boolean(
+    firstNonEmpty(process.env.EMAIL_SMTP_USER, process.env.EMAIL_IMAP_USER) &&
+      firstNonEmpty(process.env.EMAIL_SMTP_APP_PASSWORD, process.env.EMAIL_IMAP_APP_PASSWORD)
+  );
 }
 
 export function normalizeEmailAddress(raw: string): string {
@@ -102,18 +116,20 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
 
 export async function getEmailDeliveryStatus(): Promise<EmailDeliveryStatus> {
   const gmailOk = isGmailApiConfigured();
-  const smtpConfigured = Boolean(
-    firstNonEmpty(process.env.EMAIL_SMTP_USER, process.env.EMAIL_IMAP_USER) &&
-      firstNonEmpty(process.env.EMAIL_SMTP_APP_PASSWORD, process.env.EMAIL_IMAP_APP_PASSWORD)
-  );
+  const smtpConfigured = isSmtpConfigured();
   const provider = replyProvider();
+  const missingGmailEnv = getMissingGmailEnvKeys();
+  const replyViaSmtpFallback = provider === "gmail_api" && !gmailOk && smtpConfigured;
 
   let hint: string | undefined;
-  if (!gmailOk && provider === "gmail_api") {
-    hint =
-      "הגדר GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET ו-GMAIL_REFRESH_TOKEN (הרץ scripts/gmail_mailer.py לאימות ראשוני)";
+  if (replyViaSmtpFallback) {
+    hint = `Gmail API חסר (${missingGmailEnv.join(", ")}). שליחה תעבור דרך SMTP/App Password.`;
+  } else if (!gmailOk && provider === "gmail_api") {
+    hint = formatGmailConfigError();
   } else if (gmailOk) {
     hint = "מוכן לשליחה דרך Gmail API";
+  } else if (provider === "smtp" && smtpConfigured) {
+    hint = "מוכן לשליחה דרך SMTP";
   }
 
   const ingestRaw = process.env.EMAIL_INGEST_PROVIDER?.trim().toLowerCase();
@@ -145,6 +161,8 @@ export async function getEmailDeliveryStatus(): Promise<EmailDeliveryStatus> {
     fromFormatted: replyFromFormatted(),
     replyProvider: provider,
     ingestProvider,
+    missingGmailEnv: missingGmailEnv.length ? missingGmailEnv : undefined,
+    replyViaSmtpFallback,
     hint
   };
 }
@@ -252,9 +270,14 @@ export async function sendCustomerReply(input: SendCustomerReplyInput): Promise<
 
   if (provider === "gmail_api") {
     if (!isGmailApiConfigured()) {
-      throw new Error(
-        "Gmail API לא מוגדר. הוסף GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN ב-Environment."
-      );
+      if (isSmtpConfigured()) {
+        console.warn(
+          "[email-send] Gmail API env missing; falling back to SMTP:",
+          getMissingGmailEnvKeys().join(", ")
+        );
+        return sendViaSmtp(input);
+      }
+      throw new Error(formatGmailConfigError());
     }
     return sendViaGmail(input);
   }
