@@ -256,7 +256,7 @@ export default function DashboardPage() {
     setEmailSyncing(true);
     setEmailSyncMessage(null);
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 60000);
+    const timeout = window.setTimeout(() => controller.abort(), 120_000);
 
     try {
       const result = await runEmailIngestClient(controller.signal);

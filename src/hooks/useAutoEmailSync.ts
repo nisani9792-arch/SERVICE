@@ -32,7 +32,7 @@ export function useAutoEmailSync(enabled = true) {
       if (!force && !shouldRunPeriodicEmailSync()) return;
 
       const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 55_000);
+      const timeout = window.setTimeout(() => controller.abort(), 120_000);
 
       try {
         const result = await runEmailIngestClient(controller.signal);

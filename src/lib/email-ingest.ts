@@ -10,6 +10,7 @@ import { cleanMessageForAi } from "@/lib/message-filter";
 import { sql } from "@/lib/neon";
 import { allocateNextTicketNumber } from "@/lib/ticket-sequence";
 import { ensureTicketListColumns } from "@/lib/ticket-schema";
+import { isGmailApiConfigured } from "@/lib/gmail-api";
 import { isReplyToOurOutbound } from "@/lib/outbound-message-ids";
 
 const DEFAULT_MAILBOX = "INBOX";
@@ -17,7 +18,7 @@ const DEFAULT_GMAIL_ARCHIVE_MAILBOX = "[Gmail]/All Mail";
 const DEFAULT_LOOKBACK_DAYS = 14;
 const DEFAULT_MAX_MESSAGES = 50;
 const DEFAULT_SOURCE_TAG = "EDITOR";
-const DEFAULT_INGEST_TIMEOUT_MS = 45000;
+const DEFAULT_INGEST_TIMEOUT_MS = 90000;
 
 const SYSTEM_SENDER_DOMAINS = [
   "instagram.com",
@@ -56,7 +57,7 @@ type GmailConfig = {
   timeoutMs: number;
 };
 
-type ParsedEmailMessage = {
+export type ParsedEmailMessage = {
   importKey: string;
   messageId: string | null;
   mailboxUid: string;
@@ -86,6 +87,23 @@ export type EmailIngestResult = {
   archived: number;
   archiveMailbox: string;
   errors: string[];
+  provider?: "gmail_api" | "imap";
+};
+
+export type IngestSettings = {
+  ownerEmail: string;
+  lookbackDays: number;
+  maxMessages: number;
+  sourceTag: string;
+  timeoutMs: number;
+};
+
+export type InboundProcessResult = {
+  imported: boolean;
+  reopened: boolean;
+  skipped: boolean;
+  shouldArchive: boolean;
+  error?: string;
 };
 
 function positiveInt(value: string | undefined, fallback: number): number {
@@ -133,7 +151,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   }
 }
 
-function normalizeMessageId(value: string | null | undefined): string | null {
+export function normalizeMessageId(value: string | null | undefined): string | null {
   const cleaned = String(value ?? "")
     .trim()
     .replace(/^<|>$/g, "")
@@ -141,7 +159,7 @@ function normalizeMessageId(value: string | null | undefined): string | null {
   return cleaned || null;
 }
 
-function htmlToText(html: string): string {
+export function htmlToText(html: string): string {
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -191,8 +209,72 @@ function senderFromParsedMail(parsed: ParsedMail): { email: string; name: string
   return { email: "", name: from.name || replyTo.name };
 }
 
-function importKeyFor(messageId: string | null, mailboxUid: string): string {
+export function importKeyFor(messageId: string | null, mailboxUid: string): string {
   return messageId ? `message-id:${messageId}` : `uid:${mailboxUid}`;
+}
+
+export function getIngestSettings(): IngestSettings {
+  const ownerEmail = (
+    process.env.EMAIL_IMAP_USER ??
+    process.env.GMAIL_USER ??
+    process.env.EMAIL_FROM
+  )
+    ?.trim()
+    .toLowerCase();
+
+  return {
+    ownerEmail: ownerEmail ?? "",
+    lookbackDays: positiveInt(process.env.EMAIL_INGEST_LOOKBACK_DAYS, DEFAULT_LOOKBACK_DAYS),
+    maxMessages: positiveInt(process.env.EMAIL_INGEST_MAX_MESSAGES, DEFAULT_MAX_MESSAGES),
+    sourceTag: process.env.EMAIL_INGEST_SOURCE_TAG?.trim() || DEFAULT_SOURCE_TAG,
+    timeoutMs: positiveInt(process.env.EMAIL_INGEST_TIMEOUT_MS, DEFAULT_INGEST_TIMEOUT_MS)
+  };
+}
+
+export async function processInboundEmailMessage(
+  message: ParsedEmailMessage,
+  ctx: { ownerEmail: string; sourceTag: string }
+): Promise<InboundProcessResult> {
+  if (isSystemOrListMessage(message) || isOwnOutgoingMessage(message, ctx.ownerEmail)) {
+    return { imported: false, reopened: false, skipped: true, shouldArchive: true };
+  }
+
+  if (await isReplyToOurOutbound(message.inReplyTo, message.references)) {
+    return { imported: false, reopened: false, skipped: true, shouldArchive: true };
+  }
+
+  const existing = await findImportedTicket(message.importKey);
+  if (existing) {
+    const reopened = await reopenEmailTicketIfHidden(existing.id);
+    return {
+      imported: false,
+      reopened,
+      skipped: !reopened,
+      shouldArchive: true
+    };
+  }
+
+  try {
+    const insertResult = await insertEmailTicket(
+      message,
+      ctx.sourceTag,
+      forcedClassificationFor(message)
+    );
+
+    if (insertResult.inserted) {
+      return { imported: true, reopened: false, skipped: false, shouldArchive: true };
+    }
+
+    return { imported: false, reopened: false, skipped: true, shouldArchive: false };
+  } catch (error) {
+    return {
+      imported: false,
+      reopened: false,
+      skipped: true,
+      shouldArchive: false,
+      error: error instanceof Error ? error.message : "Insert failed"
+    };
+  }
 }
 
 function senderDomain(email: string): string {
@@ -265,7 +347,7 @@ async function reopenEmailTicketIfHidden(ticketId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-async function ensureEmailIngestSchema(): Promise<void> {
+export async function ensureEmailIngestSchema(): Promise<void> {
   await ensureTicketListColumns();
   await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_import_key TEXT`;
   await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_message_id TEXT`;
@@ -473,10 +555,27 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
     skipped: 0,
     archived: 0,
     archiveMailbox: config.archiveMailbox || DEFAULT_GMAIL_ARCHIVE_MAILBOX,
-    errors: []
+    errors: [],
+    provider: "imap"
   };
 
-  await withTimeout(client.connect(), config.timeoutMs, "IMAP connect");
+  const connectAttempts = 3;
+  let lastConnectError: Error | null = null;
+  for (let attempt = 1; attempt <= connectAttempts; attempt += 1) {
+    try {
+      await withTimeout(client.connect(), Math.min(25000, config.timeoutMs), "IMAP connect");
+      lastConnectError = null;
+      break;
+    } catch (error) {
+      lastConnectError = error instanceof Error ? error : new Error("IMAP connect failed");
+      if (attempt < connectAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+      }
+    }
+  }
+  if (lastConnectError) {
+    throw lastConnectError;
+  }
   result.archiveMailbox = await withTimeout(
     resolveArchiveMailbox(client, config),
     config.timeoutMs,
@@ -532,40 +631,18 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
           continue;
         }
 
-        if (isSystemOrListMessage(message) || isOwnOutgoingMessage(message, config.user)) {
-          result.skipped += 1;
-          processedUids.push(uid);
-          continue;
+        const processed = await processInboundEmailMessage(message, {
+          ownerEmail: config.user,
+          sourceTag: config.sourceTag
+        });
+
+        if (processed.error) {
+          result.errors.push(processed.error);
         }
-
-        if (await isReplyToOurOutbound(message.inReplyTo, message.references)) {
-          result.skipped += 1;
-          processedUids.push(uid);
-          continue;
-        }
-
-        const existing = await findImportedTicket(message.importKey);
-        const forcedClassification = forcedClassificationFor(message);
-
-        if (existing) {
-          const reopened = await reopenEmailTicketIfHidden(existing.id);
-          processedUids.push(uid);
-          if (reopened) {
-            result.reopened += 1;
-          } else {
-            result.skipped += 1;
-          }
-          continue;
-        }
-
-        const insertResult = await insertEmailTicket(message, config.sourceTag, forcedClassification);
-
-        if (insertResult.inserted) {
-          processedUids.push(uid);
-          result.imported += 1;
-        } else {
-          result.skipped += 1;
-        }
+        if (processed.imported) result.imported += 1;
+        if (processed.reopened) result.reopened += 1;
+        if (processed.skipped) result.skipped += 1;
+        if (processed.shouldArchive) processedUids.push(uid);
       } catch (error) {
         result.skipped += 1;
         result.errors.push(error instanceof Error ? error.message : "Unknown email parsing error");
@@ -589,11 +666,45 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
   return result;
 }
 
+function resolveIngestProvider(): "gmail_api" | "imap" {
+  const raw = process.env.EMAIL_INGEST_PROVIDER?.trim().toLowerCase();
+  if (raw === "imap") return "imap";
+  if (raw === "gmail_api") return "gmail_api";
+  // Default: Gmail API on Render (IMAP port 993 often blocked or slow).
+  if (process.env.RENDER === "true") return "gmail_api";
+  if (isGmailApiConfigured()) return "gmail_api";
+  return "imap";
+}
+
 export async function ingestGmailInbox(): Promise<EmailIngestResult> {
+  const provider = resolveIngestProvider();
+
+  if (provider === "gmail_api") {
+    const { ingestInboxViaGmailApi, isGmailApiIngestConfigured, gmailApiIngestScopeHint, isInsufficientScopeError } =
+      await import("@/lib/gmail-inbox-ingest");
+
+    if (!isGmailApiIngestConfigured()) {
+      throw new Error(
+        "Gmail API לא מוגדר לייבוא מייל. " + gmailApiIngestScopeHint()
+      );
+    }
+
+    try {
+      return await ingestInboxViaGmailApi();
+    } catch (error) {
+      if (isInsufficientScopeError(error)) {
+        throw new Error(
+          `הרשאות Gmail API חסרות לקריאת דואר. ${gmailApiIngestScopeHint()}`
+        );
+      }
+      throw error;
+    }
+  }
+
   const config = getGmailConfig();
   return withTimeout(
     ingestGmailInboxInternal(config),
-    config.timeoutMs + 10000,
+    config.timeoutMs + 15000,
     "Email ingest"
   );
 }

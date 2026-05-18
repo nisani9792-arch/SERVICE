@@ -5,6 +5,7 @@ import { invalidateStatsCache } from "@/lib/stats-cache";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 function isSameOriginPost(request: NextRequest): boolean {
   if (request.method !== "POST") return false;

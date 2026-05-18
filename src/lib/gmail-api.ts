@@ -1,6 +1,12 @@
 import { google } from "googleapis";
+import type { gmail_v1 } from "googleapis";
 
-const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
+/** Scopes for send + inbox read/archive (HTTPS — works on Render; IMAP often times out). */
+export const GMAIL_API_SCOPES = [
+  "https://www.googleapis.com/auth/gmail.send",
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.modify"
+] as const;
 
 export type GmailSendInput = {
   to: string;
@@ -117,8 +123,13 @@ function getOAuthClient() {
   }
 
   const oauth2 = new google.auth.OAuth2(clientId, clientSecret);
-  oauth2.setCredentials({ refresh_token: refreshToken, scope: GMAIL_SEND_SCOPE });
+  oauth2.setCredentials({ refresh_token: refreshToken, scope: GMAIL_API_SCOPES.join(" ") });
   return oauth2;
+}
+
+export function getGmailApiClient(): gmail_v1.Gmail {
+  const auth = getOAuthClient();
+  return google.gmail({ version: "v1", auth });
 }
 
 export function isGmailApiConfigured(): boolean {

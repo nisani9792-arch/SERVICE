@@ -52,6 +52,8 @@ services:
         value: "Jusic"
       - key: EMAIL_REPLY_PROVIDER
         value: "gmail_api"
+      - key: EMAIL_INGEST_PROVIDER
+        value: "gmail_api"
       - key: EMAIL_INGEST_SECRET
         sync: false
       - key: EMAIL_IMAP_MAILBOX
@@ -63,7 +65,7 @@ services:
       - key: EMAIL_INGEST_MAX_MESSAGES
         value: "50"
       - key: EMAIL_INGEST_TIMEOUT_MS
-        value: "45000"
+        value: "90000"
       - key: EMAIL_INGEST_ATTACHMENTS
         value: "true"
       - key: EMAIL_ATTACHMENT_MAX_BYTES

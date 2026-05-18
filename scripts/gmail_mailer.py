@@ -29,7 +29,11 @@ from googleapiclient.errors import HttpError
 ROOT = Path(__file__).resolve().parent.parent
 ENV_PATH = ROOT / ".env"
 TOKEN_PATH = ROOT / "token.json"
-SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.modify",
+]
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("gmail_mailer")

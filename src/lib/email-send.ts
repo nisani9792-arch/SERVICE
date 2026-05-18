@@ -20,6 +20,7 @@ export type EmailDeliveryStatus = {
   fromAddress: string;
   fromFormatted: string;
   replyProvider: string;
+  ingestProvider: string;
   hint?: string;
 };
 
@@ -115,12 +116,29 @@ export async function getEmailDeliveryStatus(): Promise<EmailDeliveryStatus> {
     hint = "מוכן לשליחה דרך Gmail API";
   }
 
+  const ingestRaw = process.env.EMAIL_INGEST_PROVIDER?.trim().toLowerCase();
+  const ingestProvider =
+    ingestRaw === "imap" || ingestRaw === "gmail_api"
+      ? ingestRaw
+      : process.env.RENDER === "true" || gmailOk
+        ? "gmail_api"
+        : "imap";
+
+  if (ingestProvider === "gmail_api" && !gmailOk) {
+    hint =
+      hint ??
+      "ייבוא מייל דורש GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN עם הרשאות readonly+modify";
+  } else if (ingestProvider === "gmail_api") {
+    hint = hint ? `${hint}; ייבוא דרך Gmail API` : "ייבוא ושליחה דרך Gmail API";
+  }
+
   return {
     gmailApiConfigured: gmailOk,
     smtpConfigured,
     fromAddress: replyFromAddress(),
     fromFormatted: replyFromFormatted(),
     replyProvider: provider,
+    ingestProvider,
     hint
   };
 }
