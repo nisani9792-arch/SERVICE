@@ -8,12 +8,11 @@ interface BulkReplyModalProps {
   isOpen: boolean;
   count: number;
   onClose: () => void;
-  onSubmit: (message: string, options?: { closeAfterSend?: boolean }) => Promise<void>;
+  onSubmit: (message: string) => Promise<void>;
 }
 
 export function BulkReplyModal({ isOpen, count, onClose, onSubmit }: BulkReplyModalProps) {
   const [message, setMessage] = useState("");
-  const [closeAfterSend, setCloseAfterSend] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [templates, setTemplates] = useState<ReplyTemplate[]>([]);
@@ -45,7 +44,6 @@ export function BulkReplyModal({ isOpen, count, onClose, onSubmit }: BulkReplyMo
     if (!isOpen) return;
     setMessage("");
     setError(null);
-    setCloseAfterSend(true);
     void loadTemplates();
     requestAnimationFrame(() => textareaRef.current?.focus());
   }, [isOpen, loadTemplates]);
@@ -67,7 +65,7 @@ export function BulkReplyModal({ isOpen, count, onClose, onSubmit }: BulkReplyMo
     setIsSending(true);
     setError(null);
     try {
-      await onSubmit(trimmed, { closeAfterSend });
+      await onSubmit(trimmed);
       setMessage("");
       onClose();
     } catch (err) {
@@ -131,17 +129,6 @@ export function BulkReplyModal({ isOpen, count, onClose, onSubmit }: BulkReplyMo
               </p>
             ) : null}
 
-            <label className="inline-flex items-center gap-2 text-xs text-on-surface-variant">
-              <input
-                type="checkbox"
-                className="size-4 accent-primary"
-                checked={closeAfterSend}
-                onChange={(e) => setCloseAfterSend(e.target.checked)}
-                disabled={isSending}
-              />
-              סגור פניות אחרי שליחה
-            </label>
-
             {error ? (
               <p className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
                 {error}
@@ -154,7 +141,7 @@ export function BulkReplyModal({ isOpen, count, onClose, onSubmit }: BulkReplyMo
               </button>
               <button type="submit" className="lux-button-primary" disabled={isSending || !message.trim()}>
                 {isSending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                {isSending ? "שולח…" : closeAfterSend ? "שלח וסגור הכל" : "שלח לכולם"}
+                {isSending ? "שולח…" : "שלח וסגור הכל"}
               </button>
             </div>
           </form>

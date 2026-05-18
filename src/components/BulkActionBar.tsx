@@ -1,16 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  CheckCheck,
-  CircleDot,
-  Flag,
-  Send,
-  Sparkles,
-  Tag,
-  Trash2,
-  X
-} from "lucide-react";
+import { CircleDot, Flag, Send, Sparkles, Tag, Trash2, X } from "lucide-react";
 import { ACTIVE_CATEGORIES, CATEGORY_LABELS_HE } from "@/lib/categories";
 import type { LegacyTicketCategory, TicketStatus } from "@/lib/types";
 
@@ -19,7 +10,6 @@ interface BulkActionBarProps {
   onReply: () => void;
   onAiClassify: () => void;
   aiBusy?: boolean;
-  onCloseTickets: () => Promise<void>;
   onDelete: () => Promise<void>;
   onChangeCategory: (category: string) => Promise<void>;
   onSetStatus: (status: TicketStatus) => Promise<void>;
@@ -33,7 +23,6 @@ export function BulkActionBar({
   onReply,
   onAiClassify,
   aiBusy = false,
-  onCloseTickets,
   onDelete,
   onChangeCategory,
   onSetStatus,
@@ -125,16 +114,6 @@ export function BulkActionBar({
                   {CATEGORY_LABELS_HE[cat as LegacyTicketCategory]}
                 </button>
               ))}
-              <button
-                type="button"
-                className="w-full rounded-xl px-3 py-2 text-right text-sm font-medium text-green-800 hover:bg-green-50"
-                onClick={async () => {
-                  setShowCategoryPicker(false);
-                  await wrap(() => onChangeCategory("handled"))();
-                }}
-              >
-                {CATEGORY_LABELS_HE.handled}
-              </button>
             </div>
           ) : null}
         </div>
@@ -154,8 +133,7 @@ export function BulkActionBar({
               {(
                 [
                   ["open", "פתוח"],
-                  ["in_progress", "בטיפול"],
-                  ["closed", "סגור"]
+                  ["in_progress", "בטיפול"]
                 ] as const
               ).map(([value, label]) => (
                 <button
@@ -202,17 +180,9 @@ export function BulkActionBar({
           סמן כספאם
         </button>
 
-        <button type="button" onClick={wrap(onCloseTickets)} className="md3-toolbar-btn" disabled={isBusy}>
-          <CheckCheck className="size-3.5" />
-          סמן כטופל
-        </button>
-
         <button
           type="button"
-          onClick={async () => {
-            if (!window.confirm(`למחוק ${count} פניות לצמיתות?`)) return;
-            await wrap(onDelete)();
-          }}
+          onClick={wrap(onDelete)}
           className="md3-toolbar-btn border-rose-200 bg-rose-50 text-rose-800"
           disabled={isBusy}
         >

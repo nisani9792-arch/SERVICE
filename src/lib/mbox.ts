@@ -13,6 +13,8 @@
  * than throwing so a single bad email never aborts a large Takeout import.
  */
 
+import { repairEmailAddress } from "@/lib/email-address-repair";
+
 export interface MboxMessage {
   senderEmail: string;
   senderName: string;
@@ -307,7 +309,7 @@ const parseSingleMessage = (msgText: string): MboxMessage | null => {
   const text = extractText(headers, body, 0).trim();
 
   return {
-    senderEmail: email,
+    senderEmail: repairEmailAddress(email),
     senderName: name,
     to,
     cc,

@@ -48,7 +48,6 @@ import { EditTicketModal } from "@/components/EditTicketModal";
 import { ExportContactsModal } from "@/components/ExportContactsModal";
 import { ReplyTemplatesModal } from "@/components/ReplyTemplatesModal";
 import { BulkReplyModal } from "@/components/BulkReplyModal";
-import { CloseTicketModal } from "@/components/CloseTicketModal";
 import { categoryLabel } from "@/lib/categories";
 import type { Ticket, TicketStatus } from "@/lib/types";
 
@@ -72,8 +71,8 @@ export default function DashboardPage() {
   const [showReplyTemplates, setShowReplyTemplates] = useState(false);
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
   const [replyingTicket, setReplyingTicket] = useState<Ticket | null>(null);
-  const [closingTicketIds, setClosingTicketIds] = useState<string[] | null>(null);
   const [showBulkReply, setShowBulkReply] = useState(false);
+  const maintenanceStartedRef = useRef(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
 
@@ -360,25 +359,6 @@ export default function DashboardPage() {
 
   const onClearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
-  const onMarkClosed = (ticketId: string) => {
-    setClosingTicketIds([ticketId]);
-  };
-
-  const onSubmitCloseTickets = async (closureNote: string) => {
-    const ids = closingTicketIds ?? [];
-    if (ids.length === 0) return;
-
-    if (ids.length === 1) {
-      await updateTicket(ids[0], { category: "handled", closureNote });
-    } else {
-      await updateTicketsBulk(ids, { category: "handled", closureNote });
-      setSelectedIds(new Set());
-    }
-
-    setClosingTicketIds(null);
-    await afterMutation({ full: true });
-  };
-
   const onSetTicketStatus = async (ticketId: string, status: TicketStatus) => {
     patchItem(ticketId, { status });
     try {
@@ -391,7 +371,6 @@ export default function DashboardPage() {
   };
 
   const onDelete = async (ticketId: string) => {
-    if (!window.confirm("למחוק את הפנייה לצמיתות?")) return;
     removeItem(ticketId);
     if (activeTicketId === ticketId) setActiveTicketId(null);
     try {
@@ -402,16 +381,9 @@ export default function DashboardPage() {
     }
   };
 
-  const onBulkClose = async () => {
-    const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
-    setClosingTicketIds(ids);
-  };
-
   const onBulkDelete = async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    if (!window.confirm(`למחוק ${ids.length.toLocaleString("he-IL")} פניות לצמיתות?`)) return;
     await deleteTicketsBulk(ids);
     setSelectedIds(new Set());
     await afterMutation({ full: true });
@@ -486,11 +458,9 @@ export default function DashboardPage() {
   };
 
   const runBatchAi = async (
-    scope: "spam" | "pending_triage" | "ids",
-    options?: { ids?: string[]; limit?: number; confirmMessage?: string }
+    scope: "spam" | "pending_triage" | "ids" | "all",
+    options?: { ids?: string[]; limit?: number }
   ) => {
-    if (options?.confirmMessage && !window.confirm(options.confirmMessage)) return;
-
     setAiReclassifying(true);
     showBatchProgress("סיווג AI…", 0, 0);
 
@@ -498,7 +468,9 @@ export default function DashboardPage() {
       const result = await runBatchReclassifyWithSse({
         scope,
         ids: options?.ids,
-        limit: options?.limit ?? (scope === "ids" ? options?.ids?.length : 150),
+        limit:
+          options?.limit ??
+          (scope === "all" ? 10_000 : scope === "ids" ? options?.ids?.length : 150),
         onProgress: (p) => showBatchProgress("סיווג AI…", p.processed, p.total)
       });
 
@@ -521,27 +493,69 @@ export default function DashboardPage() {
   const onBulkAiClassify = async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    await runBatchAi("ids", {
-      ids,
-      confirmMessage: `לסווג מחדש ${ids.length} פניות עם AI (בפעימות)?`
-    });
+    await runBatchAi("ids", { ids });
     setSelectedIds(new Set());
   };
 
   const onReclassifyPendingTriage = async () => {
-    await runBatchAi("pending_triage", {
-      limit: 150,
-      confirmMessage: "לסווג מחדש את תור ממתין לסינון עם AI (בפעימות)?"
-    });
+    await runBatchAi("pending_triage", { limit: 150 });
   };
 
   const onReclassifySpamWithAi = async () => {
-    await runBatchAi("spam", {
-      limit: 150,
-      confirmMessage:
-        "לסרוק מחדש פניות שסומנו כספאם עם AI? פניות אמיתיות יועברו לקטגוריה מתאימה."
-    });
+    await runBatchAi("spam", { limit: 150 });
   };
+
+  const runCrmMaintenance = useCallback(async () => {
+    setAiReclassifying(true);
+    showBatchProgress("תיקון כתובות מייל…", 0, 1);
+    try {
+      const repairRes = await fetch("/api/tickets/repair-email-addresses", {
+        method: "POST",
+        credentials: "same-origin"
+      });
+      if (!repairRes.ok) {
+        const err = (await repairRes.json().catch(() => null)) as { details?: string; error?: string } | null;
+        throw new Error(err?.details || err?.error || "תיקון מיילים נכשל");
+      }
+      const repair = (await repairRes.json()) as {
+        beforeMalformed: number;
+        afterMalformed: number;
+      };
+
+      await runBatchReclassifyWithSse({
+        scope: "all",
+        limit: 10_000,
+        onProgress: (p) => showBatchProgress("סיווג AI לכל הפניות…", p.processed, p.total)
+      });
+      await refreshAll();
+      const fixed = Math.max(0, (repair.beforeMalformed ?? 0) - (repair.afterMalformed ?? 0));
+      setEmailSyncMessage({
+        kind: "success",
+        text: `תחזוקה הושלמה: תוקנו ${fixed} כתובות מייל, סיווג AI לכל הפניות הושלם.`
+      });
+    } catch (error) {
+      setEmailSyncMessage({
+        kind: "error",
+        text: error instanceof Error ? error.message : "תחזוקת CRM נכשלה"
+      });
+    } finally {
+      setAiReclassifying(false);
+      hideBatchProgress();
+    }
+  }, [refreshAll]);
+
+  useEffect(() => {
+    if (maintenanceStartedRef.current) return;
+    maintenanceStartedRef.current = true;
+    const key = "jusic-crm-maint-2026-05-18";
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+    } catch {
+      return;
+    }
+    void runCrmMaintenance();
+  }, [runCrmMaintenance]);
 
   const onAgentCommand = async (text: string) => {
     setAiReclassifying(true);
@@ -571,9 +585,9 @@ export default function DashboardPage() {
     }
   };
 
-  const onSendReply = async (message: string, options?: { closeAfterSend?: boolean }) => {
+  const onSendReply = async (message: string) => {
     if (!replyingTicket) return;
-    const result = await sendTicketReply(replyingTicket.id, message, options);
+    const result = await sendTicketReply(replyingTicket.id, message, { closeAfterSend: true });
     if (result.closureNote && replyingTicket) {
       patchItem(replyingTicket.id, {
         closureNote: result.closureNote,
@@ -593,10 +607,10 @@ export default function DashboardPage() {
     }
   };
 
-  const onBulkSendReply = async (message: string, options?: { closeAfterSend?: boolean }) => {
+  const onBulkSendReply = async (message: string) => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    const result = await sendBulkTicketReply(ids, message, options);
+    const result = await sendBulkTicketReply(ids, message, { closeAfterSend: true });
     setSelectedIds(new Set());
     await afterMutation({ full: true });
     const parts = [
@@ -942,6 +956,19 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              disabled={aiReclassifying}
+              onClick={() => {
+                void runCrmMaintenance();
+              }}
+              className="crm-touch-target lux-button border-violet-200 bg-violet-50 text-violet-950 text-xs"
+            >
+              {aiReclassifying ? "תחזוקה רצה…" : "תיקון מיילים + סיווג AI לכל הפניות"}
+            </button>
+          </div>
+
           <details className="crm-agent-panel rounded-2xl border border-primary/15 bg-white/90">
             <summary className="cursor-pointer select-none px-3 py-2 text-xs font-bold text-on-surface">
               סוכן AI (אופציונלי)
@@ -986,7 +1013,6 @@ export default function DashboardPage() {
             onSelectPage={onSelectPage}
             onPageChange={setPage}
             onEdit={setEditingTicket}
-            onMarkClosed={onMarkClosed}
             onDelete={(id) => {
               void onDelete(id);
             }}
@@ -1012,7 +1038,6 @@ export default function DashboardPage() {
               void onBulkAiClassify();
             }}
             aiBusy={aiReclassifying}
-            onCloseTickets={onBulkClose}
             onDelete={onBulkDelete}
             onChangeCategory={onBulkChangeCategory}
             onSetStatus={onBulkSetStatus}
@@ -1048,12 +1073,6 @@ export default function DashboardPage() {
         ticket={replyingTicket}
         onClose={() => setReplyingTicket(null)}
         onSubmit={onSendReply}
-      />
-      <CloseTicketModal
-        isOpen={closingTicketIds !== null}
-        count={closingTicketIds?.length ?? 0}
-        onCancel={() => setClosingTicketIds(null)}
-        onSubmit={onSubmitCloseTickets}
       />
       <ExportContactsModal isOpen={showExportModal} onClose={() => setShowExportModal(false)} />
       <ReplyTemplatesModal isOpen={showReplyTemplates} onClose={() => setShowReplyTemplates(false)} />

@@ -17,11 +17,10 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       ids?: string[];
       message?: string;
-      closeAfterSend?: boolean;
     };
     const ids = Array.isArray(body.ids) ? body.ids.filter(Boolean).slice(0, MAX_BULK) : [];
     const message = (body.message ?? "").trim();
-    const closeAfterSend = body.closeAfterSend !== false;
+    const closeAfterSend = true;
 
     if (ids.length === 0) {
       return NextResponse.json({ error: "ids array is required" }, { status: 400 });

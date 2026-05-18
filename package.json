@@ -15,6 +15,7 @@
     "import:gemini-json": "node scripts/import-gemini-json.cjs",
     "classify:general": "node scripts/classify-general-tickets.cjs",
     "repair:email-domains": "node scripts/repair-email-domains.cjs",
+    "maintenance:crm": "node scripts/run-maintenance.cjs",
     "email-ingest:trigger": "node scripts/trigger-email-ingest.cjs",
     "email-outbound:trigger": "node scripts/trigger-outbound-email.cjs",
     "db-backup:trigger": "node scripts/trigger-db-backup.cjs"

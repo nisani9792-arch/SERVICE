@@ -2,17 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import {
-  CheckCheck,
-  CircleDot,
-  ExternalLink,
-  Pencil,
-  Save,
-  Send,
-  Tag,
-  Trash2,
-  X
-} from "lucide-react";
+import { CircleDot, ExternalLink, Pencil, Save, Send, Tag, Trash2, X } from "lucide-react";
 import { CategoryBadge } from "@/components/CategoryBadge";
 import { TicketListPanel } from "@/components/TicketListPanel";
 import { formatTicketNumber } from "@/lib/ticket-sequence";
@@ -56,7 +46,6 @@ interface TicketDetailPanelProps {
   onSetStatus: (id: string, status: TicketStatus) => void;
   onReply: (ticket: Ticket) => void;
   onSaveInquiry: (ticket: Ticket) => void;
-  onMarkClosed: (id: string) => void;
   onEdit: (ticket: Ticket) => void;
   onDelete: (id: string) => void;
   onChangeCategory: (id: string, category: string) => void;
@@ -70,7 +59,6 @@ function TicketDetailPanel({
   onSetStatus,
   onReply,
   onSaveInquiry,
-  onMarkClosed,
   onEdit,
   onDelete,
   onChangeCategory,
@@ -167,24 +155,14 @@ function TicketDetailPanel({
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            className="inline-flex items-center justify-center gap-1 rounded-xl border border-outline bg-white px-2 py-2 text-xs font-bold text-on-surface"
-            onClick={() => onSaveInquiry(ticket)}
-          >
-            <Save className="size-3.5" />
-            שמירת הפנייה
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center justify-center gap-1 rounded-xl border border-success/30 bg-success/10 px-2 py-2 text-xs font-bold text-success"
-            onClick={() => onMarkClosed(ticket.id)}
-          >
-            <CheckCheck className="size-3.5" />
-            טיפול וסגירה
-          </button>
-        </div>
+        <button
+          type="button"
+          className="inline-flex w-full items-center justify-center gap-1 rounded-xl border border-outline bg-white px-2 py-2 text-xs font-bold text-on-surface"
+          onClick={() => onSaveInquiry(ticket)}
+        >
+          <Save className="size-3.5" />
+          שמירת הפנייה
+        </button>
 
         <div className="grid grid-cols-2 gap-2">
           <button
@@ -258,7 +236,6 @@ interface TicketWorkbenchProps {
   onSelectPage: (select: boolean) => void;
   onPageChange: (page: number) => void;
   onEdit: (ticket: Ticket) => void;
-  onMarkClosed: (id: string) => void;
   onDelete: (id: string) => void;
   onSetStatus: (id: string, status: TicketStatus) => void;
   onChangeCategory: (id: string, category: string) => void;
@@ -283,7 +260,6 @@ export function TicketWorkbench({
   onSelectPage,
   onPageChange,
   onEdit,
-  onMarkClosed,
   onDelete,
   onSetStatus,
   onChangeCategory,
@@ -318,7 +294,6 @@ export function TicketWorkbench({
         onSetStatus,
         onReply,
         onSaveInquiry,
-        onMarkClosed,
         onEdit,
         onDelete,
         onChangeCategory,

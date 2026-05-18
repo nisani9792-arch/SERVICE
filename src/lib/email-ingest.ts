@@ -1,5 +1,6 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser, type AddressObject, type ParsedMail } from "mailparser";
+import { repairEmailAddress } from "@/lib/email-address-repair";
 import { PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
 import {
   extractAttachmentsFromParsedMail,
@@ -631,7 +632,7 @@ async function parseFetchedMessage(
     mailboxUid,
     inReplyTo: normalizeMessageId(parsed.inReplyTo),
     references,
-    senderEmail: sender.email,
+    senderEmail: repairEmailAddress(sender.email),
     senderName: sender.name,
     subject,
     body: bodyFromParsedMail(parsed),

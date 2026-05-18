@@ -18,7 +18,7 @@ export type BatchSseComplete = {
 };
 
 export type RunBatchReclassifyOptions = {
-  scope: "spam" | "pending_triage" | "ids";
+  scope: "spam" | "pending_triage" | "ids" | "all";
   limit?: number;
   ids?: string[];
   chunkSize?: number;
@@ -87,7 +87,7 @@ export async function runBatchReclassifyWithSse(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      scope: options.scope === "ids" ? "spam" : options.scope,
+      scope: options.scope === "ids" ? "spam" : options.scope === "all" ? "all" : options.scope,
       limit: options.limit ?? 100,
       ids: options.ids,
       chunkSize: options.chunkSize ?? 25

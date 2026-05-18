@@ -7,7 +7,7 @@ import type { ReplyTemplate, Ticket } from "@/lib/types";
 interface ReplyTicketModalProps {
   ticket: Ticket | null;
   onClose: () => void;
-  onSubmit: (message: string, options?: { closeAfterSend?: boolean }) => Promise<void>;
+  onSubmit: (message: string) => Promise<void>;
 }
 
 type EmailStatusHint = {
@@ -22,7 +22,6 @@ type EmailStatusHint = {
 
 export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModalProps) {
   const [message, setMessage] = useState("");
-  const [closeAfterSend, setCloseAfterSend] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [templates, setTemplates] = useState<ReplyTemplate[]>([]);
@@ -67,12 +66,10 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
     if (!ticket) {
       setMessage("");
       setError(null);
-      setCloseAfterSend(true);
       return;
     }
     setMessage("");
     setError(null);
-    setCloseAfterSend(true);
     void loadTemplates();
     void loadEmailStatus();
     requestAnimationFrame(() => textareaRef.current?.focus());
@@ -84,7 +81,7 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
     setIsSending(true);
     setError(null);
     try {
-      await onSubmit(trimmed, { closeAfterSend });
+      await onSubmit(trimmed);
       setMessage("");
       onClose();
     } catch (err) {
@@ -92,7 +89,7 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
     } finally {
       setIsSending(false);
     }
-  }, [message, isSending, ticket, closeAfterSend, onSubmit, onClose]);
+  }, [message, isSending, ticket, onSubmit, onClose]);
 
   useEffect(() => {
     if (!ticket) return;
@@ -185,17 +182,6 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
               ) : null}
             </label>
 
-            <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-on-surface-variant">
-              <input
-                type="checkbox"
-                className="size-4 accent-primary"
-                checked={closeAfterSend}
-                onChange={(event) => setCloseAfterSend(event.target.checked)}
-                disabled={isSending}
-              />
-              סגור את הפנייה אחרי שליחה מוצלחת
-            </label>
-
             {error ? (
               <div className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-xs font-semibold text-danger">
                 {error}
@@ -221,7 +207,7 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
                 disabled={isSending || !message.trim()}
               >
                 {isSending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                {isSending ? "שולח…" : closeAfterSend ? "שליחה וסגירה" : "שליחה"}
+                {isSending ? "שולח…" : "שליחה וסגירה"}
               </button>
             </div>
           </div>

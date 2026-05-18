@@ -14,9 +14,9 @@ export async function POST(
   if (denied) return denied;
 
   try {
-    const body = (await request.json()) as { message?: string; closeAfterSend?: boolean };
+    const body = (await request.json()) as { message?: string };
     const message = (body.message ?? "").trim();
-    const closeAfterSend = body.closeAfterSend !== false;
+    const closeAfterSend = true;
 
     if (message.length < 2) {
       return NextResponse.json({ error: "Reply message is required" }, { status: 400 });

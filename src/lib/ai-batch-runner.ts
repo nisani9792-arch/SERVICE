@@ -138,6 +138,17 @@ async function fetchJobTickets(
     `) as TicketRow[];
   }
 
+  if (scope === "all") {
+    return (await sql()`
+      SELECT id, sender_email, subject, body, body_cleaned, category, status
+      FROM tickets
+      WHERE category <> ${"customer_followup"}
+      ORDER BY created_at ASC
+      OFFSET ${offset}
+      LIMIT ${limit}
+    `) as TicketRow[];
+  }
+
   return [];
 }
 
@@ -156,6 +167,12 @@ export async function countBatchTargets(scope: string, ids: string[]): Promise<n
   if (scope === "pending_triage") {
     const rows = await sql()`
       SELECT count(*)::int AS c FROM tickets WHERE category = ${PENDING_TRIAGE_CATEGORY}
+    `;
+    return Number((rows[0] as { c: number }).c ?? 0);
+  }
+  if (scope === "all") {
+    const rows = await sql()`
+      SELECT count(*)::int AS c FROM tickets WHERE category <> ${"customer_followup"}
     `;
     return Number((rows[0] as { c: number }).c ?? 0);
   }

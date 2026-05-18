@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const MAX_IDS = 200;
+const MAX_ALL_SCOPE = 10_000;
 const DEFAULT_CHUNK = 25;
 
 /** Start or continue a chunked AI re-classification job (never all tickets at once). */
@@ -49,7 +50,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const cap = Math.min(MAX_IDS, Math.max(1, Number(body.limit) || 100));
+    const defaultLimit = scope === "all" ? MAX_ALL_SCOPE : 100;
+    const maxCap = scope === "all" ? MAX_ALL_SCOPE : MAX_IDS;
+    const cap = Math.min(maxCap, Math.max(1, Number(body.limit) || defaultLimit));
     const total = Math.min(cap, await countBatchTargets(scope, ids));
     if (total === 0) {
       return NextResponse.json({
