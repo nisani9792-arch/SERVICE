@@ -5,8 +5,17 @@
 require("dotenv").config({ path: ".env.local" });
 require("dotenv").config();
 
+function normalizeBaseUrl(raw) {
+  const trimmed = String(raw || "").trim().replace(/\/$/, "");
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 async function main() {
-  const baseUrl = process.env.EMAIL_OUTBOUND_URL || process.env.RENDER_EXTERNAL_URL;
+  const baseUrl = normalizeBaseUrl(
+    process.env.EMAIL_OUTBOUND_URL || process.env.RENDER_EXTERNAL_URL
+  );
   const secret = process.env.EMAIL_OUTBOUND_SECRET;
 
   if (!baseUrl) {

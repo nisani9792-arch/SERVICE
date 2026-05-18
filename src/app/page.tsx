@@ -32,7 +32,11 @@ import {
 } from "@/lib/firebase";
 import { useTicketList } from "@/hooks/useTicketList";
 import { useListPageSize } from "@/hooks/useListPageSize";
-import { useAutoEmailSync } from "@/hooks/useAutoEmailSync";
+import {
+  EMAIL_SYNC_EVENT,
+  runEmailIngestClient,
+  type EmailSyncResult
+} from "@/lib/email-sync-client";
 import { useLiveRefresh } from "@/hooks/useLiveRefresh";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
@@ -47,16 +51,6 @@ import { categoryLabel } from "@/lib/categories";
 import type { Ticket, TicketStatus } from "@/lib/types";
 
 type WorkbenchStatusFilter = TicketStatus | "active";
-
-type EmailSyncResponse = {
-  imported?: number;
-  skipped?: number;
-  scanned?: number;
-  archived?: number;
-  archiveMailbox?: string;
-  error?: string;
-  details?: string;
-};
 
 export default function DashboardPage() {
   const [activeCategory, setActiveCategory] = useState<string | "all">("all");
@@ -81,6 +75,7 @@ export default function DashboardPage() {
 
   const [headerRefreshing, setHeaderRefreshing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [lastEmailSyncedAt, setLastEmailSyncedAt] = useState<Date | null>(null);
   const [emailSyncing, setEmailSyncing] = useState(false);
   const [emailSyncMessage, setEmailSyncMessage] = useState<{
     kind: "success" | "error";
@@ -191,20 +186,53 @@ export default function DashboardPage() {
     setLastSyncedAt(new Date());
   }, 300_000);
 
-  const handleAutoEmailSync = useCallback(
-    (sync?: { imported: number }) => {
-      if (sync?.imported && sync.imported > 0) {
+  const applyEmailSyncResult = useCallback(
+    (result: EmailSyncResult, source: "auto" | "manual") => {
+      setLastEmailSyncedAt(new Date());
+
+      if (!result.ok) {
+        if (source === "manual") {
+          setEmailSyncMessage({
+            kind: "error",
+            text: `סנכרון המייל נכשל: ${result.details || result.error || "שגיאה לא ידועה"}`
+          });
+        }
+        return;
+      }
+
+      void refreshAll();
+
+      if ((result.imported ?? 0) > 0) {
         setEmailSyncMessage({
           kind: "success",
-          text: `סנכרון אוטומטי: ${sync.imported} פניות חדשות ממייל.`
+          text:
+            source === "auto"
+              ? `סנכרון אוטומטי: ${result.imported} פניות חדשות ממייל.`
+              : `סנכרון מיילים הושלם: ${result.imported} פניות חדשות נוספו, ${result.skipped ?? 0} דולגו, ${result.archived ?? 0} הועברו לארכיון במייל${result.archiveMailbox ? ` (${result.archiveMailbox})` : ""}.`
         });
-        void refreshAll();
+        return;
+      }
+
+      if (source === "manual") {
+        setEmailSyncMessage({
+          kind: "success",
+          text: `סנכרון מיילים הושלם: לא נמצאו פניות חדשות (${result.scanned ?? 0} מיילים נסרקו, ${result.skipped ?? 0} דולגו).`
+        });
       }
     },
     [refreshAll]
   );
 
-  useAutoEmailSync(handleAutoEmailSync);
+  useEffect(() => {
+    const onAutoSync = (event: Event) => {
+      const detail = (event as CustomEvent<EmailSyncResult>).detail;
+      if (!detail) return;
+      applyEmailSyncResult(detail, "auto");
+    };
+
+    window.addEventListener(EMAIL_SYNC_EVENT, onAutoSync);
+    return () => window.removeEventListener(EMAIL_SYNC_EVENT, onAutoSync);
+  }, [applyEmailSyncResult]);
 
   const handleHeaderRefresh = useCallback(async () => {
     setHeaderRefreshing(true);
@@ -223,24 +251,9 @@ export default function DashboardPage() {
     const timeout = window.setTimeout(() => controller.abort(), 60000);
 
     try {
-      const res = await fetch("/api/email-ingest", {
-        method: "POST",
-        headers: { "x-service-dashboard": "true" },
-        cache: "no-store",
-        signal: controller.signal
-      });
-      const data = (await res.json()) as EmailSyncResponse;
-
-      if (!res.ok) {
-        throw new Error(data.details || data.error || "Email sync failed");
-      }
-
-      await refreshAll();
+      const result = await runEmailIngestClient(controller.signal);
       setLastSyncedAt(new Date());
-      setEmailSyncMessage({
-        kind: "success",
-        text: `סנכרון מיילים הושלם: ${data.imported ?? 0} פניות חדשות נוספו, ${data.skipped ?? 0} דולגו, ${data.archived ?? 0} הועברו לארכיון במייל${data.archiveMailbox ? ` (${data.archiveMailbox})` : ""}.`
-      });
+      applyEmailSyncResult(result, "manual");
     } catch (error) {
       setEmailSyncMessage({
         kind: "error",
@@ -256,7 +269,7 @@ export default function DashboardPage() {
       window.clearTimeout(timeout);
       setEmailSyncing(false);
     }
-  }, [refreshAll]);
+  }, [applyEmailSyncResult]);
 
   useEffect(() => {
     setPage(1);
@@ -704,7 +717,7 @@ export default function DashboardPage() {
           actions={headerActions}
           onRefresh={handleHeaderRefresh}
           refreshing={headerRefreshing}
-          lastSyncedAt={lastSyncedAt}
+          lastSyncedAt={lastEmailSyncedAt ?? lastSyncedAt}
         />
 
         {listError ? (

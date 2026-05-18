@@ -70,7 +70,3 @@ export async function isReplyToOurOutbound(
   return rows.length > 0;
 }
 
-/** Skip threaded replies — only brand-new inbound messages become tickets. */
-export function isThreadReplyMessage(inReplyTo: string | null, references: string[]): boolean {
-  return Boolean(inReplyTo) || references.length > 0;
-}

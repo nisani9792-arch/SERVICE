@@ -61,7 +61,7 @@ services:
       - key: EMAIL_INGEST_LOOKBACK_DAYS
         value: "14"
       - key: EMAIL_INGEST_MAX_MESSAGES
-        value: "25"
+        value: "50"
       - key: EMAIL_INGEST_TIMEOUT_MS
         value: "45000"
       - key: EMAIL_INGEST_ATTACHMENTS
@@ -100,14 +100,17 @@ services:
   - type: cron
     name: jusic-email-ingest
     runtime: node
-    schedule: "*/5 * * * *"
+    schedule: "0 */2 * * *"
     buildCommand: npm install
     startCommand: npm run email-ingest:trigger
     envVars:
       - key: NODE_VERSION
         value: "20.18.0"
       - key: EMAIL_INGEST_URL
-        sync: false
+        fromService:
+          type: web
+          name: jusic-crm
+          property: host
       - key: EMAIL_INGEST_SECRET
         sync: false
       - key: NODE_ENV
@@ -122,7 +125,10 @@ services:
       - key: NODE_VERSION
         value: "20.18.0"
       - key: EMAIL_OUTBOUND_URL
-        sync: false
+        fromService:
+          type: web
+          name: jusic-crm
+          property: host
       - key: EMAIL_OUTBOUND_SECRET
         sync: false
       - key: NODE_ENV

@@ -4,12 +4,21 @@
 require("dotenv").config({ path: ".env.local" });
 require("dotenv").config();
 
+function normalizeBaseUrl(raw) {
+  const trimmed = String(raw || "").trim().replace(/\/$/, "");
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 async function main() {
-  const baseUrl = process.env.EMAIL_INGEST_URL || process.env.RENDER_EXTERNAL_URL;
+  const baseUrl = normalizeBaseUrl(
+    process.env.EMAIL_INGEST_URL || process.env.RENDER_EXTERNAL_URL
+  );
   const secret = process.env.EMAIL_INGEST_SECRET;
 
   if (!baseUrl) {
-    throw new Error("EMAIL_INGEST_URL is not configured");
+    throw new Error("EMAIL_INGEST_URL or RENDER_EXTERNAL_URL is not configured");
   }
   if (!secret) {
     throw new Error("EMAIL_INGEST_SECRET is not configured");

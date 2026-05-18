@@ -10,15 +10,12 @@ import { cleanMessageForAi } from "@/lib/message-filter";
 import { sql } from "@/lib/neon";
 import { allocateNextTicketNumber } from "@/lib/ticket-sequence";
 import { ensureTicketListColumns } from "@/lib/ticket-schema";
-import {
-  isReplyToOurOutbound,
-  isThreadReplyMessage
-} from "@/lib/outbound-message-ids";
+import { isReplyToOurOutbound } from "@/lib/outbound-message-ids";
 
 const DEFAULT_MAILBOX = "INBOX";
 const DEFAULT_GMAIL_ARCHIVE_MAILBOX = "[Gmail]/All Mail";
 const DEFAULT_LOOKBACK_DAYS = 14;
-const DEFAULT_MAX_MESSAGES = 25;
+const DEFAULT_MAX_MESSAGES = 50;
 const DEFAULT_SOURCE_TAG = "EDITOR";
 const DEFAULT_INGEST_TIMEOUT_MS = 45000;
 
@@ -476,12 +473,6 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
         }
 
         if (isSystemOrListMessage(message) || isOwnOutgoingMessage(message, config.user)) {
-          result.skipped += 1;
-          processedUids.push(uid);
-          continue;
-        }
-
-        if (isThreadReplyMessage(message.inReplyTo, message.references)) {
           result.skipped += 1;
           processedUids.push(uid);
           continue;

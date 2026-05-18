@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import { EmailSyncOnEntry } from "@/components/EmailSyncOnEntry";
 import { LockScreen } from "@/components/LockScreen";
 import { OperatorRegistration } from "@/components/OperatorRegistration";
 import { useAccessGate } from "@/hooks/useAccessGate";
@@ -78,6 +79,11 @@ export function AccessGate({ children }: AccessGateProps) {
     );
   }
 
-  return <OperatorContext.Provider value={displayName}>{children}</OperatorContext.Provider>;
+  return (
+    <OperatorContext.Provider value={displayName}>
+      <EmailSyncOnEntry />
+      {children}
+    </OperatorContext.Provider>
+  );
 }
 
