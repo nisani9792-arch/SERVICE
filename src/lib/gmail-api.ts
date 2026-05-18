@@ -168,38 +168,6 @@ export function isGmailApiConfigured(): boolean {
   return presence.clientId && presence.clientSecret && presence.refreshToken;
 }
 
-/** User-facing hint when Google rejects OAuth (common after wrong secrets paste). */
-export function formatGmailOAuthError(error: unknown): string {
-  const raw =
-    error instanceof Error
-      ? error.message
-      : typeof error === "object" && error !== null && "message" in error
-        ? String((error as { message?: unknown }).message)
-        : String(error ?? "");
-  const code =
-    typeof error === "object" && error !== null && "code" in error
-      ? String((error as { code?: unknown }).code)
-      : "";
-  const blob = `${code} ${raw}`.toLowerCase();
-
-  if (blob.includes("unauthorized_client")) {
-    return [
-      "Gmail OAuth: unauthorized_client — ה-Client ID וה-Client Secret לא שייכים לאותו OAuth Client,",
-      "או שה-Refresh Token הונפק עבור אפליקציה אחרת.",
-      "ב-Google Cloud צור OAuth Client מסוג Desktop (לא Web), הרץ:",
-      "python scripts/gmail_mailer.py auth-only",
-      "והעתק את GMAIL_REFRESH_TOKEN ל-Render. או הגדר EMAIL_REPLY_PROVIDER=smtp + App Password.",
-    ].join(" ");
-  }
-  if (blob.includes("invalid_grant")) {
-    return [
-      "Gmail OAuth: invalid_grant — ה-Refresh Token לא תקף (בוטל או הוחלף).",
-      "הרץ שוב: python scripts/gmail_mailer.py auth-only והדבק refresh_token חדש ב-Render.",
-    ].join(" ");
-  }
-  return raw || "Gmail API send failed";
-}
-
 export async function sendViaGmailApi(input: GmailSendInput): Promise<GmailSendResult> {
   const auth = getOAuthClient();
   const gmail = google.gmail({ version: "v1", auth });
