@@ -7,14 +7,16 @@ import {
   Inbox,
   MessageSquareHeart,
   MicVocal,
+  Reply,
   ShieldAlert,
   LayoutGrid
 } from "lucide-react";
 import type { LegacyTicketCategory } from "@/lib/types";
-import { PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
+import { CUSTOMER_FOLLOWUP_CATEGORY, PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
 
 export const CATEGORY_LABELS_HE: Record<string, string> = {
   [PENDING_TRIAGE_CATEGORY]: "ממתין לסינון",
+  [CUSTOMER_FOLLOWUP_CATEGORY]: "תשובות חוזרות",
   suggestions: "בקשות / הצעות ייעול",
   bugs: "באגים ובעיות שימוש",
   premium: "מנויי פרימיום / הרשמה",
@@ -29,6 +31,7 @@ export const CATEGORY_LABELS_HE: Record<string, string> = {
 
 export const CATEGORY_COLORS: Record<string, string> = {
   [PENDING_TRIAGE_CATEGORY]: "bg-fuchsia-100 text-fuchsia-950 ring-1 ring-fuchsia-300",
+  [CUSTOMER_FOLLOWUP_CATEGORY]: "bg-amber-100 text-amber-950 ring-1 ring-amber-300",
   suggestions: "bg-blue-100 text-blue-800",
   bugs: "bg-rose-100 text-rose-800",
   premium: "bg-violet-100 text-violet-800",
@@ -43,6 +46,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
 
 export const CATEGORY_ICONS: Record<string, typeof BadgeHelp> = {
   [PENDING_TRIAGE_CATEGORY]: Inbox,
+  [CUSTOMER_FOLLOWUP_CATEGORY]: Reply,
   suggestions: MessageSquareHeart,
   bugs: Bug,
   premium: Crown,

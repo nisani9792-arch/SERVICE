@@ -13,6 +13,7 @@ export type DashboardStatsModel = {
   spamPercent: number;
   spamCount: number;
   pendingTriageCount?: number;
+  customerFollowupCount?: number;
 };
 
 interface DashboardStatsProps {

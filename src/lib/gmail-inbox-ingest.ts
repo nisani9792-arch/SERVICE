@@ -136,6 +136,7 @@ export async function ingestInboxViaGmailApi(): Promise<EmailIngestResult> {
     ok: true,
     scanned: 0,
     imported: 0,
+    followupsAttached: 0,
     reopened: 0,
     skipped: 0,
     archived: 0,
@@ -185,6 +186,7 @@ export async function ingestInboxViaGmailApi(): Promise<EmailIngestResult> {
 
       recordProcessResult(result, processed);
       if (processed.imported) result.imported += 1;
+      if (processed.followupAttached) result.followupsAttached += 1;
       if (processed.reopened) result.reopened += 1;
       if (processed.skipped) result.skipped += 1;
       if (processed.shouldArchive) toArchive.push(gmailId);

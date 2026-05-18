@@ -11,7 +11,12 @@ import { sql } from "@/lib/neon";
 import { allocateNextTicketNumber } from "@/lib/ticket-sequence";
 import { ensureTicketListColumns } from "@/lib/ticket-schema";
 import { isGmailApiConfigured } from "@/lib/gmail-api";
-import { isReplyToOurOutbound } from "@/lib/outbound-message-ids";
+import {
+  ensureTicketEmailThreadSchema,
+  isInboundEmailAlreadyStored,
+  tryAttachInboundThreadMessage
+} from "@/lib/ticket-email-thread";
+import { collectThreadMessageIds } from "@/lib/outbound-message-ids";
 
 const DEFAULT_MAILBOX = "INBOX";
 const DEFAULT_GMAIL_ARCHIVE_MAILBOX = "[Gmail]/All Mail";
@@ -82,6 +87,7 @@ export type EmailIngestResult = {
   ok: true;
   scanned: number;
   imported: number;
+  followupsAttached: number;
   reopened: number;
   skipped: number;
   archived: number;
@@ -104,6 +110,7 @@ export type { InboundSkipReason } from "@/lib/email-ingest-labels";
 
 export type InboundProcessResult = {
   imported: boolean;
+  followupAttached: boolean;
   reopened: boolean;
   skipped: boolean;
   shouldArchive: boolean;
@@ -253,6 +260,7 @@ export async function processInboundEmailMessage(
   if (isSystemOrListMessage(message)) {
     return {
       imported: false,
+      followupAttached: false,
       reopened: false,
       skipped: true,
       shouldArchive: true,
@@ -263,6 +271,7 @@ export async function processInboundEmailMessage(
   if (isOwnOutgoingMessage(message, ctx.ownerEmail)) {
     return {
       imported: false,
+      followupAttached: false,
       reopened: false,
       skipped: true,
       shouldArchive: true,
@@ -270,14 +279,39 @@ export async function processInboundEmailMessage(
     };
   }
 
-  if (await isReplyToOurOutbound(message.inReplyTo, message.references)) {
+  if (await isInboundEmailAlreadyStored(message.importKey)) {
     return {
       imported: false,
+      followupAttached: false,
       reopened: false,
       skipped: true,
       shouldArchive: true,
-      skipReason: "reply_to_us"
+      skipReason: "duplicate"
     };
+  }
+
+  const threadIds = collectThreadMessageIds(message.inReplyTo, message.references);
+  if (threadIds.length > 0) {
+    const threadResult = await tryAttachInboundThreadMessage(message);
+    if (threadResult.attached) {
+      return {
+        imported: false,
+        followupAttached: true,
+        reopened: threadResult.reopened,
+        skipped: false,
+        shouldArchive: true
+      };
+    }
+    if (threadResult.duplicate) {
+      return {
+        imported: false,
+        followupAttached: false,
+        reopened: false,
+        skipped: true,
+        shouldArchive: true,
+        skipReason: "duplicate"
+      };
+    }
   }
 
   const existing = await findImportedTicket(message.importKey);
@@ -285,6 +319,7 @@ export async function processInboundEmailMessage(
     const reopened = await reopenEmailTicketIfHidden(existing.id);
     return {
       imported: false,
+      followupAttached: false,
       reopened,
       skipped: !reopened,
       shouldArchive: true,
@@ -300,11 +335,18 @@ export async function processInboundEmailMessage(
     );
 
     if (insertResult.inserted) {
-      return { imported: true, reopened: false, skipped: false, shouldArchive: true };
+      return {
+        imported: true,
+        followupAttached: false,
+        reopened: false,
+        skipped: false,
+        shouldArchive: true
+      };
     }
 
     return {
       imported: false,
+      followupAttached: false,
       reopened: false,
       skipped: true,
       shouldArchive: false,
@@ -313,6 +355,7 @@ export async function processInboundEmailMessage(
   } catch (error) {
     return {
       imported: false,
+      followupAttached: false,
       reopened: false,
       skipped: true,
       shouldArchive: false,
@@ -394,6 +437,7 @@ async function reopenEmailTicketIfHidden(ticketId: string): Promise<boolean> {
 
 export async function ensureEmailIngestSchema(): Promise<void> {
   await ensureTicketListColumns();
+  await ensureTicketEmailThreadSchema();
   await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_import_key TEXT`;
   await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_message_id TEXT`;
   await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email_mailbox_uid TEXT`;
@@ -617,6 +661,7 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
     ok: true,
     scanned: 0,
     imported: 0,
+    followupsAttached: 0,
     reopened: 0,
     skipped: 0,
     archived: 0,
@@ -705,6 +750,7 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
 
         recordProcessResult(result, processed);
         if (processed.imported) result.imported += 1;
+        if (processed.followupAttached) result.followupsAttached += 1;
         if (processed.reopened) result.reopened += 1;
         if (processed.skipped) result.skipped += 1;
         if (processed.shouldArchive) processedUids.push(uid);

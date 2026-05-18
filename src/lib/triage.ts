@@ -1,6 +1,9 @@
 /** Inbox for manual sorting — new emails land here before a real category. */
 export const PENDING_TRIAGE_CATEGORY = "pending_triage";
 
+/** Customer replied on an existing thread after we responded. */
+export const CUSTOMER_FOLLOWUP_CATEGORY = "customer_followup";
+
 export const TRIAGE_ASSIGN_CATEGORIES = [
   "Customer_Support",
   "suggestions",

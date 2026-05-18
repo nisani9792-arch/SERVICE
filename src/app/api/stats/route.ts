@@ -36,7 +36,11 @@ export async function GET(request: NextRequest) {
         count(*) FILTER (
           WHERE category = 'pending_triage'
             AND status NOT IN ('closed', 'handled')
-        )::int AS pending_triage
+        )::int AS pending_triage,
+        count(*) FILTER (
+          WHERE category = 'customer_followup'
+            AND status NOT IN ('closed', 'handled')
+        )::int AS customer_followup
       FROM tickets
     `;
 
@@ -72,7 +76,8 @@ export async function GET(request: NextRequest) {
       openClosedRatio: { open: open + in_progress, closed },
       spamPercent: total > 0 ? Math.round((spamLike / total) * 1000) / 10 : 0,
       spamCount: spamLike,
-      pendingTriageCount: Number(agg?.pending_triage ?? 0)
+      pendingTriageCount: Number(agg?.pending_triage ?? 0),
+      customerFollowupCount: Number(agg?.customer_followup ?? 0)
     };
 
     setStatsCache(payload);

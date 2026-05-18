@@ -86,7 +86,7 @@ async function runEmailIngest(request: NextRequest) {
 
   try {
     const result = await ingestGmailInbox();
-    if (result.imported > 0 || result.reopened > 0) {
+    if (result.imported > 0 || result.followupsAttached > 0 || result.reopened > 0) {
       invalidateStatsCache();
     }
     return NextResponse.json(result);

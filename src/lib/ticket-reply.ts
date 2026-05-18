@@ -107,6 +107,7 @@ export async function sendReplyForTicket(
       inReplyTo: ticket.email_message_id,
       references: parseReferences(ticket.email_message_id)
     });
+    await recordOutboundMessageId(outboundMessageId, ticket.id);
     await recordOutboundMessageId(sent.messageId, ticket.id);
     await applyReplyTicketUpdate(ticket.id, message, { closeAfterSend, outboundQueued: false });
 

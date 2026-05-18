@@ -8,6 +8,7 @@ export const EMAIL_SYNC_EVENT = "service-email-sync-complete";
 export type EmailSyncResult = {
   ok: boolean;
   imported: number;
+  followupsAttached?: number;
   reopened?: number;
   skipped: number;
   scanned: number;
@@ -81,6 +82,7 @@ export async function runEmailIngestClient(
     return {
       ok: true,
       imported: data.imported ?? 0,
+      followupsAttached: data.followupsAttached ?? 0,
       reopened: data.reopened ?? 0,
       skipped: data.skipped ?? 0,
       scanned: data.scanned ?? 0,

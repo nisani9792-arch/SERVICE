@@ -41,7 +41,7 @@ import {
 } from "@/lib/email-sync-client";
 import { useLiveRefresh } from "@/hooks/useLiveRefresh";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
+import { CUSTOMER_FOLLOWUP_CATEGORY, PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
 import { ImportModal } from "@/components/ImportModal";
 import { NewTicketModal } from "@/components/NewTicketModal";
 import { EditTicketModal } from "@/components/EditTicketModal";
@@ -208,9 +208,16 @@ export default function DashboardPage() {
         : "";
       const skipDetail = skipHint ? ` סיבות דילוג: ${skipHint}.` : "";
 
-      if ((result.imported ?? 0) > 0 || (result.reopened ?? 0) > 0) {
+      if (
+        (result.imported ?? 0) > 0 ||
+        (result.followupsAttached ?? 0) > 0 ||
+        (result.reopened ?? 0) > 0
+      ) {
         const parts: string[] = [];
         if ((result.imported ?? 0) > 0) parts.push(`${result.imported} פניות חדשות`);
+        if ((result.followupsAttached ?? 0) > 0) {
+          parts.push(`${result.followupsAttached} תשובות חוזרות לפניות קיימות`);
+        }
         if ((result.reopened ?? 0) > 0) parts.push(`${result.reopened} פניות נפתחו מחדש`);
         setEmailSyncMessage({
           kind: "success",
@@ -580,8 +587,11 @@ export default function DashboardPage() {
   const closedCount = stats?.statusCounts.closed ?? 0;
   const activeCount = openCount + inProgressCount;
   const triageCount = stats?.pendingTriageCount ?? 0;
+  const followupCount = stats?.customerFollowupCount ?? 0;
   const workbenchTitle =
-    activeCategory === PENDING_TRIAGE_CATEGORY
+    activeCategory === CUSTOMER_FOLLOWUP_CATEGORY
+      ? "תשובות חוזרות"
+      : activeCategory === PENDING_TRIAGE_CATEGORY
       ? "ממתין לסינון"
       : activeStatus === "closed"
         ? "פניות שנסגרו"
@@ -589,7 +599,9 @@ export default function DashboardPage() {
           ? "פניות בטיפול"
           : "פניות פעילות";
   const workbenchSubtitle =
-    activeCategory === PENDING_TRIAGE_CATEGORY
+    activeCategory === CUSTOMER_FOLLOWUP_CATEGORY
+      ? "תשובות לקוח על פניות שכבר טופלו או נענו — באותה פנייה"
+      : activeCategory === PENDING_TRIAGE_CATEGORY
       ? "פניות חדשות ממייל — בחר קטגוריה בלחיצה אחת"
       : activeStatus === "closed"
         ? `מציג ${total.toLocaleString("he-IL")} פניות סגורות (כולל טופלו בעבר)`
@@ -750,7 +762,7 @@ export default function DashboardPage() {
 
         <section className="space-y-2">
           <div className="rounded-3xl border border-outline/70 bg-white/95 p-3 shadow-sm">
-            <div className="crm-kpi-scroll flex gap-2 overflow-x-auto pb-1 lg:grid lg:grid-cols-4 lg:overflow-visible lg:pb-0">
+            <div className="crm-kpi-scroll flex gap-2 overflow-x-auto pb-1 lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0">
               <button
                 type="button"
                 onClick={() => {
@@ -784,6 +796,23 @@ export default function DashboardPage() {
                 <span className="block text-xs font-semibold opacity-80">כניסה חדשה</span>
                 <span className="mt-1 block text-lg font-black">ממתין לסינון</span>
                 <span className="text-xs opacity-80">{triageCount.toLocaleString("he-IL")} לשיוך ובדיקה</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveCategory(CUSTOMER_FOLLOWUP_CATEGORY);
+                  setActiveStatus("active");
+                  setPage(1);
+                }}
+                className={`min-w-[9.5rem] shrink-0 rounded-2xl border p-3 text-right transition lg:min-w-0 ${
+                  activeCategory === CUSTOMER_FOLLOWUP_CATEGORY
+                    ? "border-amber-400 bg-amber-100 text-amber-950 shadow-sm"
+                    : "border-outline bg-white text-on-surface hover:border-amber-300"
+                }`}
+              >
+                <span className="block text-xs font-semibold opacity-80">שרשור מייל</span>
+                <span className="mt-1 block text-lg font-black">תשובות חוזרות</span>
+                <span className="text-xs opacity-80">{followupCount.toLocaleString("he-IL")} ממתינות לטיפול</span>
               </button>
               <button
                 type="button"

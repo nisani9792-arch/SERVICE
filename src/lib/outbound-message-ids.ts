@@ -46,10 +46,10 @@ export async function recordOutboundMessageId(
   `;
 }
 
-export async function isReplyToOurOutbound(
+export function collectThreadMessageIds(
   inReplyTo: string | null,
   references: string[]
-): Promise<boolean> {
+): string[] {
   const candidates = new Set<string>();
   const replyTo = normalizeMessageId(inReplyTo);
   if (replyTo) candidates.add(replyTo);
@@ -57,10 +57,18 @@ export async function isReplyToOurOutbound(
     const normalized = normalizeMessageId(ref);
     if (normalized) candidates.add(normalized);
   }
-  if (candidates.size === 0) return false;
+  return Array.from(candidates);
+}
+
+/** True when headers reference a message we sent (customer follow-up candidate). */
+export async function isReplyToOurOutbound(
+  inReplyTo: string | null,
+  references: string[]
+): Promise<boolean> {
+  const ids = collectThreadMessageIds(inReplyTo, references);
+  if (ids.length === 0) return false;
 
   await ensureTable();
-  const ids = Array.from(candidates);
   const rows = await sql()`
     SELECT message_id
     FROM outbound_email_message_ids
@@ -68,5 +76,38 @@ export async function isReplyToOurOutbound(
     LIMIT 1
   `;
   return rows.length > 0;
+}
+
+/** Resolve parent ticket from In-Reply-To / References (outbound ids or original inbound Message-ID). */
+export async function findTicketIdForInboundThread(messageIds: string[]): Promise<string | null> {
+  if (messageIds.length === 0) return null;
+
+  await ensureTable();
+  const outboundRows = await sql()`
+    SELECT ticket_id
+    FROM outbound_email_message_ids
+    WHERE message_id = ANY(${messageIds})
+      AND ticket_id IS NOT NULL
+    ORDER BY created_at DESC
+    LIMIT 1
+  `;
+  if (outboundRows.length > 0) {
+    const ticketId = (outboundRows[0] as { ticket_id: string | null }).ticket_id;
+    if (ticketId) return String(ticketId);
+  }
+
+  const ticketRows = await sql()`
+    SELECT id
+    FROM tickets
+    WHERE email_message_id IS NOT NULL
+      AND lower(replace(replace(trim(email_message_id), '<', ''), '>', '')) = ANY(${messageIds})
+    ORDER BY updated_at DESC
+    LIMIT 1
+  `;
+  if (ticketRows.length > 0) {
+    return String((ticketRows[0] as { id: string }).id);
+  }
+
+  return null;
 }
 
