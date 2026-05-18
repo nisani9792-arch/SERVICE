@@ -4,6 +4,7 @@ import { saveTicketAttachments, type EmailAttachmentCandidate } from "@/lib/tick
 import { CUSTOMER_FOLLOWUP_CATEGORY, PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
 import { collectThreadMessageIds, findTicketIdForInboundThread } from "@/lib/outbound-message-ids";
 import { extractTicketNumbersFromText } from "@/lib/ticket-sequence";
+import { isTicketClosedStatus, isTicketOperatorResolved } from "@/lib/ticket-resolution";
 
 export type InboundEmailForThread = {
   importKey: string;
@@ -126,14 +127,37 @@ export async function attachInboundFollowUpToTicket(
   }
 
   const priorRows = await sql()`
-    SELECT status FROM tickets WHERE id = ${ticketId} LIMIT 1
+    SELECT status, closure_note, tags, category, updated_at
+    FROM tickets
+    WHERE id = ${ticketId}
+    LIMIT 1
   `;
-  const priorStatus = String((priorRows[0] as { status?: string } | undefined)?.status ?? "");
-  const wasClosed = priorStatus === "closed" || priorStatus === "handled";
+  const prior = priorRows[0] as
+    | {
+        status?: string;
+        closure_note?: string;
+        tags?: string[] | null;
+        category?: string;
+        updated_at?: string;
+      }
+    | undefined;
+  const priorStatus = String(prior?.status ?? "");
+  const wasClosed = isTicketClosedStatus(priorStatus);
+  const wasResolved = prior ? isTicketOperatorResolved(prior) : false;
+
+  if (message.messageAt && prior?.updated_at) {
+    const msgAt = new Date(message.messageAt).getTime();
+    const ticketAt = new Date(prior.updated_at).getTime();
+    if (Number.isFinite(msgAt) && Number.isFinite(ticketAt) && msgAt <= ticketAt) {
+      return { attached: false, reopened: false, duplicate: true };
+    }
+  }
 
   const block = formatFollowUpBlock(message);
   const bodyCleaned = cleanMessageForAi(message.body);
   const followupTag = [CUSTOMER_FOLLOWUP_TAG];
+  const statusAfterFollowUp =
+    wasClosed && wasResolved ? "in_progress" : wasClosed ? "open" : null;
 
   const updated = await sql()`
     UPDATE tickets
@@ -148,7 +172,7 @@ export async function attachInboundFollowUpToTicket(
         ELSE ${CUSTOMER_FOLLOWUP_CATEGORY}
       END,
       status = CASE
-        WHEN status IN ('closed', 'handled') THEN 'open'
+        WHEN ${statusAfterFollowUp}::text IS NOT NULL THEN ${statusAfterFollowUp}
         ELSE status
       END,
       message_at = GREATEST(
@@ -183,7 +207,10 @@ export async function attachInboundFollowUpToTicket(
     }
   }
 
-  return { attached: true, reopened: wasClosed, duplicate: false };
+  const reopened =
+    wasClosed && (statusAfterFollowUp === "open" || statusAfterFollowUp === "in_progress");
+
+  return { attached: true, reopened, duplicate: false };
 }
 
 /** Strip Re:/Fwd: and auto-reply prefixes (e.g. Google "צורפתם בהצלחה"). */

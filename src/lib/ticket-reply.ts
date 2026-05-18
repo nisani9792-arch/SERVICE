@@ -1,6 +1,7 @@
 import { replyFromAddress, sendCustomerReply } from "@/lib/email-send";
 import { enqueueOutboundEmail } from "@/lib/outbound-email";
 import { createOutboundMessageId, recordOutboundMessageId } from "@/lib/outbound-message-ids";
+import { composeReplyMessage, getReplySignature } from "@/lib/reply-signature";
 import { formatTicketNumber } from "@/lib/ticket-sequence";
 import { sql } from "@/lib/neon";
 
@@ -51,6 +52,10 @@ async function applyReplyTicketUpdate(
       UPDATE tickets
       SET status = 'closed',
           closure_note = ${message},
+          category = CASE
+            WHEN category = 'pending_triage' THEN 'Customer_Support'
+            ELSE category
+          END,
           tags = COALESCE(
             (
               SELECT array_agg(DISTINCT e)
@@ -107,26 +112,31 @@ export async function sendReplyForTicket(
   }
 
   const outboundMessageId = createOutboundMessageId(replyFromAddress());
+  const signature = await getReplySignature();
+  const composedMessage = composeReplyMessage(message, signature);
 
   try {
     const sent = await sendCustomerReply({
       to: recipient,
       subject: replySubjectForTicket(String(ticket.subject ?? ""), ticket.ticket_number),
-      message,
+      message: composedMessage,
       messageId: outboundMessageId,
       inReplyTo: ticket.email_message_id,
       references: parseReferences(ticket.email_message_id)
     });
     await recordOutboundMessageId(outboundMessageId, ticket.id);
     await recordOutboundMessageId(sent.messageId, ticket.id);
-    await applyReplyTicketUpdate(ticket.id, message, { closeAfterSend, outboundQueued: false });
+    await applyReplyTicketUpdate(ticket.id, composedMessage, {
+      closeAfterSend,
+      outboundQueued: false
+    });
 
     return {
       ok: true,
       queued: false,
       messageId: outboundMessageId,
       closed: closeAfterSend,
-      closureNote: closeAfterSend ? message : null
+      closureNote: closeAfterSend ? composedMessage : null
     };
   } catch (error) {
     const details = error instanceof Error ? error.message : "Unknown send error";
@@ -134,19 +144,23 @@ export async function sendReplyForTicket(
     if (isRetryableSendError(details)) {
       const queueId = await enqueueOutboundEmail({
         to: recipient,
-        subject: String(ticket.subject ?? ""),
-        message,
-        idempotencyKey: `ticket-reply:${ticket.id}:${message.slice(0, 64)}`
+        subject: replySubjectForTicket(String(ticket.subject ?? ""), ticket.ticket_number),
+        message: composedMessage,
+        idempotencyKey: `ticket-reply:${ticket.id}:${composedMessage.slice(0, 64)}`
       });
-      await applyReplyTicketUpdate(ticket.id, message, { closeAfterSend, outboundQueued: true });
+      await applyReplyTicketUpdate(ticket.id, composedMessage, {
+        closeAfterSend,
+        outboundQueued: true
+      });
 
-      const notePreview = message.length > 120 ? `${message.slice(0, 120)}…` : message;
+      const notePreview =
+        composedMessage.length > 120 ? `${composedMessage.slice(0, 120)}…` : composedMessage;
       return {
         ok: true,
         queued: true,
         queueId,
         closed: closeAfterSend,
-        closureNote: closeAfterSend ? message : null,
+        closureNote: closeAfterSend ? composedMessage : null,
         message: closeAfterSend
           ? `שליחה נדחתה זמנית — המענה בתור. הפנייה נסגרה עם הערה: «${notePreview}»`
           : "שליחה נדחתה זמנית — המענה בתור."

@@ -75,6 +75,15 @@ export async function POST() {
     `;
 
     await db`
+      CREATE TABLE IF NOT EXISTS reply_signature (
+        id TEXT PRIMARY KEY DEFAULT 'default',
+        opening TEXT NOT NULL DEFAULT '',
+        closing TEXT NOT NULL DEFAULT '',
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `;
+
+    await db`
       CREATE TABLE IF NOT EXISTS saved_inquiries (
         id           TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
         ticket_id    TEXT,

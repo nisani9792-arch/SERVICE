@@ -27,6 +27,8 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
   const [error, setError] = useState<string | null>(null);
   const [templates, setTemplates] = useState<ReplyTemplate[]>([]);
   const [emailStatus, setEmailStatus] = useState<EmailStatusHint | null>(null);
+  const [signatureOpening, setSignatureOpening] = useState("");
+  const [signatureClosing, setSignatureClosing] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const loadTemplates = useCallback(async () => {
@@ -42,12 +44,20 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
 
   const loadEmailStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/email-status", {
-        cache: "no-store",
-        credentials: "same-origin"
-      });
-      if (!res.ok) return;
-      setEmailStatus((await res.json()) as EmailStatusHint);
+      const [statusRes, sigRes] = await Promise.all([
+        fetch("/api/email-status", { cache: "no-store", credentials: "same-origin" }),
+        fetch("/api/reply-signature", { cache: "no-store", credentials: "same-origin" })
+      ]);
+      if (statusRes.ok) {
+        setEmailStatus((await statusRes.json()) as EmailStatusHint);
+      }
+      if (sigRes.ok) {
+        const data = (await sigRes.json()) as {
+          signature: { opening: string; closing: string };
+        };
+        setSignatureOpening(data.signature.opening ?? "");
+        setSignatureClosing(data.signature.closing ?? "");
+      }
     } catch {
       setEmailStatus(null);
     }
@@ -155,14 +165,24 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
 
             <label className="block text-xs font-semibold text-on-surface-variant">
               נוסח המענה
+              {signatureOpening ? (
+                <p className="mt-1.5 rounded-lg border border-outline/60 bg-surface-container/80 px-3 py-2 text-sm text-on-surface-variant">
+                  {signatureOpening}
+                </p>
+              ) : null}
               <textarea
                 ref={textareaRef}
-                className="mt-1.5 min-h-[11rem] w-full resize-y rounded-xl border border-outline bg-white px-3 py-2.5 text-sm leading-relaxed outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
-                placeholder="כתוב כאן את התשובה ללקוח. Ctrl+Enter לשליחה מהירה."
+                className="mt-1.5 min-h-[9rem] w-full resize-y rounded-xl border border-outline bg-white px-3 py-2.5 text-sm leading-relaxed outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+                placeholder="כתוב כאן את גוף התשובה. פתיחה וסיום יתווספו אוטומטית. Ctrl+Enter לשליחה."
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 disabled={isSending}
               />
+              {signatureClosing ? (
+                <p className="mt-1.5 rounded-lg border border-outline/60 bg-surface-container/80 px-3 py-2 text-sm text-on-surface-variant">
+                  {signatureClosing}
+                </p>
+              ) : null}
             </label>
 
             <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-on-surface-variant">

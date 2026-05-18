@@ -1,8 +1,13 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { ClipboardCopy, Plus, Trash2, X } from "lucide-react";
+import { ClipboardCopy, Plus, Save, Trash2, X } from "lucide-react";
 import type { ReplyTemplate } from "@/lib/types";
+
+type ReplySignatureModel = {
+  opening: string;
+  closing: string;
+};
 
 interface ReplyTemplatesModalProps {
   isOpen: boolean;
@@ -16,14 +21,29 @@ export function ReplyTemplatesModal({ isOpen, onClose, onInsert }: ReplyTemplate
   const [body, setBody] = useState("");
   const [shortcut, setShortcut] = useState("");
   const [loading, setLoading] = useState(false);
+  const [signatureOpening, setSignatureOpening] = useState("");
+  const [signatureClosing, setSignatureClosing] = useState("");
+  const [signatureSaving, setSignatureSaving] = useState(false);
+  const [signatureSaved, setSignatureSaved] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/reply-templates", { cache: "no-store" });
-      if (!res.ok) throw new Error("failed");
-      const data = (await res.json()) as { items: ReplyTemplate[] };
-      setItems(data.items);
+      const [tplRes, sigRes] = await Promise.all([
+        fetch("/api/reply-templates", { cache: "no-store", credentials: "same-origin" }),
+        fetch("/api/reply-signature", { cache: "no-store", credentials: "same-origin" })
+      ]);
+      if (tplRes.ok) {
+        const data = (await tplRes.json()) as { items: ReplyTemplate[] };
+        setItems(data.items);
+      } else {
+        setItems([]);
+      }
+      if (sigRes.ok) {
+        const sigData = (await sigRes.json()) as { signature: ReplySignatureModel };
+        setSignatureOpening(sigData.signature.opening ?? "");
+        setSignatureClosing(sigData.signature.closing ?? "");
+      }
     } catch {
       setItems([]);
     } finally {
@@ -57,15 +77,80 @@ export function ReplyTemplatesModal({ isOpen, onClose, onInsert }: ReplyTemplate
     await load();
   };
 
+  const onSaveSignature = async (event: FormEvent) => {
+    event.preventDefault();
+    setSignatureSaving(true);
+    setSignatureSaved(false);
+    try {
+      const res = await fetch("/api/reply-signature", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          opening: signatureOpening,
+          closing: signatureClosing
+        })
+      });
+      if (!res.ok) throw new Error("save failed");
+      setSignatureSaved(true);
+    } catch {
+      window.alert("שמירת פתיחה/סיום נכשלה");
+    } finally {
+      setSignatureSaving(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
       <div className="lux-card flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl p-4">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">תבניות תשובה מהירה</h2>
+          <h2 className="text-lg font-semibold">תבניות וחתימת מענה</h2>
           <button type="button" onClick={onClose} className="lux-button p-2">
             <X className="size-4" />
           </button>
         </div>
+
+        <form
+          onSubmit={onSaveSignature}
+          className="mb-4 space-y-2 rounded-2xl border border-primary/25 bg-primary-soft/20 p-3"
+        >
+          <p className="text-xs font-bold text-on-surface">פתיחה וסיום קבועים (בכל מייל ללקוח)</p>
+          <label className="block text-[11px] font-medium text-on-surface-variant">
+            שורת פתיחה
+            <input
+              className="mt-1 w-full rounded-xl border border-outline bg-white px-3 py-2 text-sm"
+              value={signatureOpening}
+              onChange={(e) => {
+                setSignatureOpening(e.target.value);
+                setSignatureSaved(false);
+              }}
+            />
+          </label>
+          <label className="block text-[11px] font-medium text-on-surface-variant">
+            שורת סיום
+            <input
+              className="mt-1 w-full rounded-xl border border-outline bg-white px-3 py-2 text-sm"
+              value={signatureClosing}
+              onChange={(e) => {
+                setSignatureClosing(e.target.value);
+                setSignatureSaved(false);
+              }}
+            />
+          </label>
+          <div className="flex items-center gap-2">
+            <button
+              type="submit"
+              className="lux-button-primary inline-flex items-center gap-1 text-sm"
+              disabled={signatureSaving}
+            >
+              <Save className="size-4" />
+              {signatureSaving ? "שומר…" : "שמור פתיחה וסיום"}
+            </button>
+            {signatureSaved ? (
+              <span className="text-xs font-semibold text-success">נשמר</span>
+            ) : null}
+          </div>
+        </form>
 
         <form onSubmit={onCreate} className="mb-4 space-y-2 rounded-2xl border border-outline/70 bg-surface-container/50 p-3">
           <input

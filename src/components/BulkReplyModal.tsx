@@ -17,14 +17,25 @@ export function BulkReplyModal({ isOpen, count, onClose, onSubmit }: BulkReplyMo
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [templates, setTemplates] = useState<ReplyTemplate[]>([]);
+  const [signatureOpening, setSignatureOpening] = useState("");
+  const [signatureClosing, setSignatureClosing] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const loadTemplates = useCallback(async () => {
     try {
-      const res = await fetch("/api/reply-templates", { cache: "no-store" });
-      if (!res.ok) return;
-      const data = (await res.json()) as { items: ReplyTemplate[] };
-      setTemplates(data.items ?? []);
+      const [tplRes, sigRes] = await Promise.all([
+        fetch("/api/reply-templates", { cache: "no-store", credentials: "same-origin" }),
+        fetch("/api/reply-signature", { cache: "no-store", credentials: "same-origin" })
+      ]);
+      if (tplRes.ok) {
+        const data = (await tplRes.json()) as { items: ReplyTemplate[] };
+        setTemplates(data.items ?? []);
+      }
+      if (sigRes.ok) {
+        const sig = (await sigRes.json()) as { signature: { opening: string; closing: string } };
+        setSignatureOpening(sig.signature.opening ?? "");
+        setSignatureClosing(sig.signature.closing ?? "");
+      }
     } catch {
       setTemplates([]);
     }
@@ -101,14 +112,24 @@ export function BulkReplyModal({ isOpen, count, onClose, onSubmit }: BulkReplyMo
               </div>
             ) : null}
 
+            {signatureOpening ? (
+              <p className="rounded-lg border border-outline/60 bg-surface-container/80 px-3 py-2 text-sm text-on-surface-variant">
+                {signatureOpening}
+              </p>
+            ) : null}
             <textarea
               ref={textareaRef}
               className="min-h-[10rem] w-full rounded-xl border border-outline px-3 py-2 text-sm leading-relaxed outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
-              placeholder="נוסח המענה לכל הלקוחות שנבחרו"
+              placeholder="גוף המענה — פתיחה וסיום יתווספו אוטומטית"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               disabled={isSending}
             />
+            {signatureClosing ? (
+              <p className="rounded-lg border border-outline/60 bg-surface-container/80 px-3 py-2 text-sm text-on-surface-variant">
+                {signatureClosing}
+              </p>
+            ) : null}
 
             <label className="inline-flex items-center gap-2 text-xs text-on-surface-variant">
               <input

@@ -16,6 +16,7 @@ import {
   isInboundEmailAlreadyStored,
   tryAttachInboundThreadMessage
 } from "@/lib/ticket-email-thread";
+import { isTicketOperatorResolved } from "@/lib/ticket-resolution";
 
 const DEFAULT_MAILBOX = "INBOX";
 const DEFAULT_GMAIL_ARCHIVE_MAILBOX = "[Gmail]/All Mail";
@@ -312,7 +313,7 @@ export async function processInboundEmailMessage(
 
   const existing = await findImportedTicket(message.importKey);
   if (existing) {
-    const reopened = await reopenEmailTicketIfHidden(existing.id);
+    const reopened = await reopenEmailTicketIfHidden(existing);
     return {
       imported: false,
       followupAttached: false,
@@ -401,31 +402,51 @@ function forcedClassificationFor(message: ParsedEmailMessage): ForcedClassificat
 
 async function findImportedTicket(
   importKey: string
-): Promise<{ id: string; status: string; category: string } | null> {
+): Promise<{
+  id: string;
+  status: string;
+  category: string;
+  closure_note: string;
+  tags: string[];
+} | null> {
   const rows = await sql()`
-    SELECT id, status, category
+    SELECT id, status, category, closure_note, tags
     FROM tickets
     WHERE email_import_key = ${importKey}
     LIMIT 1
   `;
   if (!rows.length) return null;
-  const row = rows[0] as { id: string; status: string; category: string };
+  const row = rows[0] as {
+    id: string;
+    status: string;
+    category: string;
+    closure_note: string;
+    tags: string[] | null;
+  };
   return {
     id: String(row.id),
     status: String(row.status ?? ""),
-    category: String(row.category ?? "")
+    category: String(row.category ?? ""),
+    closure_note: String(row.closure_note ?? ""),
+    tags: Array.isArray(row.tags) ? row.tags.map(String) : []
   };
 }
 
-/** Re-surface email tickets that were imported but hidden as closed. */
-async function reopenEmailTicketIfHidden(ticketId: string): Promise<boolean> {
+/** Re-surface only hidden imports never handled by an operator. */
+async function reopenEmailTicketIfHidden(
+  ticket: NonNullable<Awaited<ReturnType<typeof findImportedTicket>>>
+): Promise<boolean> {
+  if (isTicketOperatorResolved(ticket)) return false;
+
   const rows = await sql()`
     UPDATE tickets
     SET status = 'open',
         updated_at = now()
-    WHERE id = ${ticketId}
+    WHERE id = ${ticket.id}
       AND category = 'pending_triage'
       AND status IN ('closed', 'handled')
+      AND (closure_note IS NULL OR trim(closure_note) = '')
+      AND NOT (COALESCE(tags, '{}'::text[]) && ${["REPLIED"]}::text[])
     RETURNING id
   `;
   return rows.length > 0;
@@ -445,15 +466,6 @@ export async function ensureEmailIngestSchema(): Promise<void> {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_email_import_key
     ON tickets (email_import_key)
     WHERE email_import_key IS NOT NULL
-  `;
-
-  await sql()`
-    UPDATE tickets
-    SET status = 'open',
-        updated_at = now()
-    WHERE source = 'email'
-      AND category = 'pending_triage'
-      AND status IN ('closed', 'handled')
   `;
 }
 
