@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import {
   formatGmailConfigError,
+  formatGmailOAuthError,
   getMissingGmailEnvKeys,
   isGmailApiConfigured,
   sendViaGmailApi
@@ -265,6 +266,15 @@ async function sendViaGmail(input: SendCustomerReplyInput): Promise<SendCustomer
   return { messageId: result.messageId };
 }
 
+function isGmailOAuthFailure(error: unknown): boolean {
+  const blob = formatGmailOAuthError(error).toLowerCase();
+  return (
+    blob.includes("unauthorized_client") ||
+    blob.includes("invalid_grant") ||
+    blob.includes("invalid_client")
+  );
+}
+
 export async function sendCustomerReply(input: SendCustomerReplyInput): Promise<SendCustomerReplyResult> {
   const provider = replyProvider();
 
@@ -279,7 +289,18 @@ export async function sendCustomerReply(input: SendCustomerReplyInput): Promise<
       }
       throw new Error(formatGmailConfigError());
     }
-    return sendViaGmail(input);
+    try {
+      return await sendViaGmail(input);
+    } catch (error) {
+      if (isSmtpConfigured() && isGmailOAuthFailure(error)) {
+        console.warn(
+          "[email-send] Gmail OAuth failed; falling back to SMTP:",
+          formatGmailOAuthError(error)
+        );
+        return sendViaSmtp(input);
+      }
+      throw new Error(formatGmailOAuthError(error));
+    }
   }
 
   return sendViaSmtp(input);
