@@ -8,6 +8,7 @@ import {
   type EmailAttachmentCandidate
 } from "@/lib/ticket-attachments";
 import { cleanMessageForAi } from "@/lib/message-filter";
+import { classifyHybrid } from "@/lib/classification";
 import { sql } from "@/lib/neon";
 import { allocateNextTicketNumber } from "@/lib/ticket-sequence";
 import { ensureTicketListColumns } from "@/lib/ticket-schema";
@@ -82,6 +83,9 @@ type ForcedClassification = {
   priority: number;
   summary: string;
   status: "open" | "closed";
+  aiSuggestedCategory?: string | null;
+  classificationConfidence?: number | null;
+  extraTags?: string[];
 };
 
 export type EmailIngestResult = {
@@ -326,11 +330,8 @@ export async function processInboundEmailMessage(
   }
 
   try {
-    const insertResult = await insertEmailTicket(
-      message,
-      ctx.sourceTag,
-      forcedClassificationFor(message)
-    );
+    const classification = await resolveClassificationForMessage(message);
+    const insertResult = await insertEmailTicket(message, ctx.sourceTag, classification);
 
     if (insertResult.inserted) {
       return {
@@ -399,6 +400,26 @@ function forcedClassificationFor(message: ParsedEmailMessage): ForcedClassificat
   }
 
   return null;
+}
+
+async function resolveClassificationForMessage(
+  message: ParsedEmailMessage
+): Promise<ForcedClassification> {
+  const forced = forcedClassificationFor(message);
+  if (forced) return forced;
+
+  const bodyCleaned = cleanMessageForAi(message.body);
+  const hybrid = await classifyHybrid(message.senderEmail, message.subject, bodyCleaned);
+
+  return {
+    category: hybrid.category,
+    priority: hybrid.priority,
+    summary: hybrid.summary,
+    status: hybrid.status,
+    aiSuggestedCategory: hybrid.aiSuggestedCategory,
+    classificationConfidence: hybrid.classificationConfidence,
+    extraTags: hybrid.extraTags
+  };
 }
 
 async function findImportedTicket(
@@ -492,11 +513,15 @@ async function insertEmailTicket(
     category: PENDING_TRIAGE_CATEGORY,
     priority: 3,
     summary: "פנייה חדשה ממתינה לסינון ידני.",
-    status: "open" as const
+    status: "open" as const,
+    aiSuggestedCategory: null,
+    classificationConfidence: null,
+    extraTags: [] as string[]
   };
 
   const bodyCleaned = cleanMessageForAi(message.body);
   const ticketNumber = await allocateNextTicketNumber();
+  const tags = [sourceTag, ...(classification.extraTags ?? [])];
 
   const rows = await sql()`
     INSERT INTO tickets (
@@ -509,6 +534,8 @@ async function insertEmailTicket(
       category,
       priority,
       ai_summary,
+      ai_suggested_category,
+      classification_confidence,
       status,
       source,
       message_at,
@@ -528,10 +555,12 @@ async function insertEmailTicket(
       ${classification.category},
       ${classification.priority},
       ${classification.summary},
+      ${classification.aiSuggestedCategory ?? null},
+      ${classification.classificationConfidence ?? null},
       ${classification.status},
       ${"email"},
       ${message.messageAt},
-      ${[sourceTag]},
+      ${tags},
       ${message.importKey},
       ${message.messageId},
       ${message.mailboxUid},

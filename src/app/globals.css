@@ -230,3 +230,31 @@ body {
 .crm-app-header {
   @apply crm-card mb-3 px-3 py-2.5;
 }
+
+.crm-skeleton {
+  @apply animate-pulse rounded-lg bg-slate-200/80;
+}
+
+.crm-triage-card {
+  will-change: transform;
+  user-select: none;
+}
+
+.crm-swipe-hint {
+  opacity: 0.65;
+}
+
+@keyframes crm-card-stack {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.crm-triage-card {
+  animation: crm-card-stack 0.28s var(--crm-ease);
+}

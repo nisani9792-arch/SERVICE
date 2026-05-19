@@ -14,6 +14,9 @@ export type DashboardStatsModel = {
   spamCount: number;
   pendingTriageCount?: number;
   customerFollowupCount?: number;
+  pendingWithSuggestion?: number;
+  pendingNoSuggestion?: number;
+  highPriorityOpen?: number;
 };
 
 interface DashboardStatsProps {

@@ -12,6 +12,13 @@ export async function ensureTicketListColumns(): Promise<void> {
       await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS ticket_number INTEGER`;
       await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS body_cleaned TEXT NOT NULL DEFAULT ''`;
       await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`;
+      await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS ai_suggested_category TEXT`;
+      await sql()`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS classification_confidence NUMERIC(3,2)`;
+      await sql()`
+        CREATE INDEX IF NOT EXISTS idx_tickets_pending_suggested
+        ON tickets (category, ai_suggested_category)
+        WHERE category = 'pending_triage' AND deleted_at IS NULL
+      `;
     })().catch((err) => {
       columnsReady = null;
       throw err;

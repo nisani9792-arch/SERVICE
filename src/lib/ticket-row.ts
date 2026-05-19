@@ -31,6 +31,13 @@ export function rowToTicket(r: Record<string, unknown>): Ticket {
     category: String(r.category ?? "suggestions"),
     priority: coercePriority(r.priority),
     aiSummary: String(r.ai_summary ?? ""),
+    aiSuggestedCategory: r.ai_suggested_category
+      ? String(r.ai_suggested_category)
+      : null,
+    classificationConfidence:
+      r.classification_confidence != null && r.classification_confidence !== ""
+        ? Number(r.classification_confidence)
+        : null,
     status: normalizeStatus(r.status as string),
     source: (String(r.source ?? "manual") as TicketSource) || "manual",
     tags: parseTags(r.tags),

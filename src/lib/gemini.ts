@@ -1,13 +1,16 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { bodyForAiPrompt } from "@/lib/message-filter";
-import { GeminiClassification, TicketPriority } from "@/lib/types";
+import { normalizeCategory } from "@/lib/category-normalize";
+import { TicketPriority } from "@/lib/types";
 
 const MODEL_NAME = "gemini-1.5-flash";
 
-const DEFAULT_RESULT: GeminiClassification = {
-  category: "suggestions",
-  priority: 3,
-  summary: "פנייה כללית שהתקבלה וממתינה לטיפול."
+export type GeminiClassifyResult = {
+  category: string;
+  priority: TicketPriority;
+  summary: string;
+  confidence: number;
+  unavailable: boolean;
 };
 
 const ALLOWED_CATEGORIES = [
@@ -17,6 +20,7 @@ const ALLOWED_CATEGORIES = [
   "copyright",
   "artist",
   "Customer_Support",
+  "Billing",
   "spam"
 ] as const;
 
@@ -65,26 +69,18 @@ const ARTIST_KEYWORDS = [
   "קריוקי"
 ];
 
-const SUPPORT_KEYWORDS = [
-  "איך נכנסים",
-  "איך אפשר",
-  "מתי",
-  "צור קשר",
-  "צרו קשר",
-  "חזרו אלי",
-  "חזרו אליי",
-  "שלום",
-  "בדיקה",
-  "לאיפה המייל",
-  "שירות"
-];
-
 const coercePriority = (priority: unknown): TicketPriority => {
   const asNumber = Number(priority);
   if (Number.isInteger(asNumber) && asNumber >= 1 && asNumber <= 5) {
     return asNumber as TicketPriority;
   }
   return 3;
+};
+
+const coerceConfidence = (value: unknown): number => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0.5;
+  return Math.min(1, Math.max(0, n));
 };
 
 const extractJsonBlock = (value: string): string => {
@@ -100,8 +96,58 @@ const extractJsonBlock = (value: string): string => {
   return trimmed.slice(firstBrace, lastBrace + 1);
 };
 
-const quickHeuristic = (subject: string, body: string): GeminiClassification | null => {
+const FEW_SHOT_EXAMPLES = `
+Examples (Hebrew/English Jusic CRM):
+- "האפליקציה קורסת כשאני מנסה לנגן" → bugs, priority 5
+- "איך מבטלים מנוי פרימיום?" → premium, priority 3
+- "אני זמר ורוצה להעלות שיר" → artist, priority 3
+- "יש שימוש לא מורשה בשיר שלי" → copyright, priority 4
+- "הייתי רוצה שתוסיפו פיצ'ר X" → suggestions, priority 2
+- "חיוב כפול בכרטיס" → Billing, priority 4
+- "שלום, איך נרשמים?" → Customer_Support, priority 3
+- "Earn money fast with bitcoin" → spam, priority 1
+`;
+
+function buildUnifiedPrompt(senderEmail: string, subject: string, compactBody: string): string {
+  return `
+You are an email support classifier for Jusic CRM (Hebrew music app).
+Classify into exactly one category. Return strict JSON only.
+
+Allowed categories:
+- suggestions (feature requests, improvements)
+- bugs (app crashes, login failures, playback issues)
+- premium (subscription, registration, cancel premium)
+- copyright (unauthorized use of songs)
+- artist (singer wants to upload/join Jusic)
+- Customer_Support (general help, how-to questions)
+- Billing (payments, charges, refunds)
+- spam (mass marketing, phishing, automated junk ONLY)
+
+Rules:
+- Use "spam" ONLY for obvious junk with no real user request.
+- Real Hebrew/English user messages are NOT spam.
+- priority: integer 1..5 (5 = urgent)
+- summary: ONE sentence in Hebrew, max 24 words
+- confidence: float 0.0..1.0 (how sure you are)
+
+${FEW_SHOT_EXAMPLES}
+
+Return exactly:
+{"category":"Customer_Support","priority":3,"summary":"...","confidence":0.85}
+
+senderEmail: ${senderEmail}
+subject: ${subject}
+body:
+${compactBody}
+`;
+}
+
+export const quickHeuristic = (
+  subject: string,
+  body: string
+): { category: string; priority: TicketPriority; summary: string } | null => {
   const text = `${subject} ${body}`.toLowerCase();
+
   if (SPAM_KEYWORDS.some((word) => text.includes(word))) {
     return {
       category: "spam",
@@ -126,125 +172,23 @@ const quickHeuristic = (subject: string, body: string): GeminiClassification | n
     };
   }
 
-  if (SUPPORT_KEYWORDS.some((word) => text.includes(word))) {
-    return {
-      category: "Customer_Support",
-      priority: 3,
-      summary: "פניית שירות לקוחות כללית למיון וטיפול."
-    };
-  }
-
   return null;
 };
 
-export const classifyTicketContent = async (
+export async function classifyWithGemini(
   senderEmail: string,
   subject: string,
   body: string
-): Promise<GeminiClassification> => {
-  const heuristic = quickHeuristic(subject, body);
-  if (heuristic) {
-    return heuristic;
-  }
-
+): Promise<GeminiClassifyResult> {
   const apiKey = process.env.GOOGLE_GEMINI_API_KEY ?? process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return DEFAULT_RESULT;
-  }
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: MODEL_NAME,
-    generationConfig: {
-      temperature: 0.1,
-      responseMimeType: "application/json"
-    }
-  });
-
-  const compactBody = bodyForAiPrompt(body).trim().slice(0, 8000);
-
-  const prompt = `
-You are an email support classifier for Jusic CRM.
-Classify the message into exactly one category and return strict JSON only.
-
-Allowed categories:
-- suggestions
-- bugs
-- premium
-- copyright
-- artist
-- Customer_Support
-- spam
-
-Rules:
-- priority is integer 1..5 (5 = urgent)
-- summary is ONE sentence, maximum 24 words.
-- no markdown, no explanation, no extra keys.
-
-Return exactly:
-{"category":"suggestions","priority":3,"summary":"..."}
-
-Email metadata:
-senderEmail: ${senderEmail}
-subject: ${subject}
-body:
-${compactBody}
-`;
-
-  try {
-    const response = await model.generateContent(prompt);
-    const text = response.response.text();
-    const parsed = JSON.parse(extractJsonBlock(text)) as {
-      category?: string;
-      priority?: number;
-      summary?: string;
-    };
-
-    const category = ALLOWED_CATEGORIES.includes(
-      parsed.category as (typeof ALLOWED_CATEGORIES)[number]
-    )
-      ? (parsed.category as GeminiClassification["category"])
-      : DEFAULT_RESULT.category;
-
     return {
-      category,
-      priority: coercePriority(parsed.priority),
-      summary:
-        typeof parsed.summary === "string" && parsed.summary.trim().length > 0
-          ? parsed.summary.trim()
-          : DEFAULT_RESULT.summary
+      category: "suggestions",
+      priority: 3,
+      summary: "פנייה כללית — סיווג AI לא זמין.",
+      confidence: 0,
+      unavailable: true
     };
-  } catch {
-    return DEFAULT_RESULT;
-  }
-};
-
-const RECLASSIFY_CATEGORIES = [
-  "suggestions",
-  "bugs",
-  "premium",
-  "copyright",
-  "artist",
-  "Customer_Support",
-  "Billing",
-  "spam"
-] as const;
-
-/** Conservative re-check — avoids marking real customers as spam. */
-export type ReclassifyResult = {
-  category: string;
-  priority: TicketPriority;
-  summary: string;
-};
-
-export const reclassifyTicketContent = async (
-  senderEmail: string,
-  subject: string,
-  body: string
-): Promise<ReclassifyResult> => {
-  const apiKey = process.env.GOOGLE_GEMINI_API_KEY ?? process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return classifyTicketContent(senderEmail, subject, body);
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
@@ -257,34 +201,7 @@ export const reclassifyTicketContent = async (
   });
 
   const compactBody = bodyForAiPrompt(body).trim().slice(0, 8000);
-  const prompt = `
-You are re-reviewing a Jusic CRM ticket that may have been wrongly marked as spam.
-Classify again into exactly one category. Return strict JSON only.
-
-Allowed categories:
-- suggestions
-- bugs
-- premium
-- copyright
-- artist
-- Customer_Support
-- Billing
-- spam
-
-Rules:
-- Use "spam" ONLY for obvious mass marketing, phishing, or automated junk with no real user request.
-- Real questions, support requests, artists, billing, and Hebrew/English user messages are NOT spam — use Customer_Support or a specific category.
-- priority integer 1..5 (5 = urgent)
-- summary: one sentence, max 24 words
-
-Return exactly:
-{"category":"Customer_Support","priority":3,"summary":"..."}
-
-senderEmail: ${senderEmail}
-subject: ${subject}
-body:
-${compactBody}
-`;
+  const prompt = buildUnifiedPrompt(senderEmail, subject, compactBody);
 
   try {
     const response = await model.generateContent(prompt);
@@ -293,13 +210,12 @@ ${compactBody}
       category?: string;
       priority?: number;
       summary?: string;
+      confidence?: number;
     };
 
-    const normalized = String(parsed.category ?? "")
-      .trim()
-      .replace(/\s+/g, "_");
-    const category = RECLASSIFY_CATEGORIES.includes(
-      normalized as (typeof RECLASSIFY_CATEGORIES)[number]
+    const normalized = normalizeCategory(String(parsed.category ?? "").replace(/\s+/g, "_"));
+    const category = ALLOWED_CATEGORIES.includes(
+      normalized as (typeof ALLOWED_CATEGORIES)[number]
     )
       ? normalized
       : "Customer_Support";
@@ -310,13 +226,81 @@ ${compactBody}
       summary:
         typeof parsed.summary === "string" && parsed.summary.trim().length > 0
           ? parsed.summary.trim()
-          : DEFAULT_RESULT.summary
+          : "פנייה כללית שהתקבלה וממתינה לטיפול.",
+      confidence: coerceConfidence(parsed.confidence),
+      unavailable: false
     };
   } catch {
     return {
       category: "Customer_Support",
       priority: 3,
-      summary: "פנייה שנבדקה מחדש וממתינה לטיפול."
+      summary: "פנייה כללית שהתקבלה וממתינה לטיפול.",
+      confidence: 0.3,
+      unavailable: false
     };
   }
+}
+
+/** @deprecated Use classifyDirect from classification.ts */
+export const classifyTicketContent = async (
+  senderEmail: string,
+  subject: string,
+  body: string
+) => {
+  const heuristic = quickHeuristic(subject, body);
+  if (heuristic) {
+    return {
+      category: normalizeCategory(heuristic.category) as Exclude<
+        typeof heuristic.category,
+        "Billing" | "Spam" | "handled"
+      >,
+      priority: heuristic.priority,
+      summary: heuristic.summary
+    };
+  }
+
+  const result = await classifyWithGemini(senderEmail, subject, body);
+  return {
+    category: result.category as
+      | "suggestions"
+      | "bugs"
+      | "premium"
+      | "copyright"
+      | "artist"
+      | "Customer_Support"
+      | "spam",
+    priority: result.priority,
+    summary: result.summary
+  };
+};
+
+export type ReclassifyResult = {
+  category: string;
+  priority: TicketPriority;
+  summary: string;
+  confidence: number;
+};
+
+export const reclassifyTicketContent = async (
+  senderEmail: string,
+  subject: string,
+  body: string
+): Promise<ReclassifyResult> => {
+  const heuristic = quickHeuristic(subject, body);
+  if (heuristic) {
+    return {
+      category: normalizeCategory(heuristic.category),
+      priority: heuristic.priority,
+      summary: heuristic.summary,
+      confidence: 1
+    };
+  }
+
+  const result = await classifyWithGemini(senderEmail, subject, body);
+  return {
+    category: result.category,
+    priority: result.priority,
+    summary: result.summary,
+    confidence: result.confidence
+  };
 };

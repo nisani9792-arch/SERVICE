@@ -1,4 +1,4 @@
-import { TicketCard } from "@/components/TicketCard";
+import { TicketCard } from "./TicketCard";
 import { Ticket } from "@/lib/types";
 
 interface TicketGridProps {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Download,
   MailCheck,
@@ -13,8 +14,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { MobileDock } from "@/components/MobileDock";
 import { SearchBar } from "@/components/SearchBar";
 import { BulkActionBar } from "@/components/BulkActionBar";
-import type { DashboardStatsModel } from "@/components/DashboardStats";
-import { readStatsCache, writeStatsCache } from "@/lib/dashboard-cache";
+import { useDashboardStats, useFocusMode } from "@/hooks/useDashboardStats";
 import { AiAgentPanel } from "@/components/AiAgentPanel";
 import { AiInsightsPanel } from "@/components/AiInsightsPanel";
 import { BatchProgressBar } from "@/components/BatchProgressBar";
@@ -30,7 +30,8 @@ import {
   sendBulkTicketReply,
   sendTicketReply,
   updateTicket,
-  updateTicketsBulk
+  updateTicketsBulk,
+  fetchTicketPage
 } from "@/lib/firebase";
 import { useTicketList } from "@/hooks/useTicketList";
 import { useListPageSize } from "@/hooks/useListPageSize";
@@ -57,6 +58,8 @@ type WorkbenchStatusFilter = TicketStatus | "active";
 const EMAIL_SYNC_TOAST_MS = 6000;
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const { focusMode, setFocusMode } = useFocusMode();
   const [activeCategory, setActiveCategory] = useState<string | "all">("all");
   const [activeStatus, setActiveStatus] = useState<WorkbenchStatusFilter>("active");
   const [searchValue, setSearchValue] = useState("");
@@ -131,35 +134,11 @@ export default function DashboardPage() {
     removeItem,
     upsertItem
   } = useTicketList(listQuery);
-  const statsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { stats, refreshStats, scheduleStatsRefresh } = useDashboardStats();
   const activeTicket = useMemo(
     () => items.find((ticket) => ticket.id === activeTicketId) ?? null,
     [activeTicketId, items]
   );
-  const [stats, setStats] = useState<DashboardStatsModel | null>(() => readStatsCache());
-
-  const refreshStats = useCallback(async () => {
-    try {
-      const res = await fetch("/api/stats", {
-        cache: "no-store",
-        credentials: "same-origin",
-        headers: { "x-service-live": "true" }
-      });
-      if (!res.ok) return;
-      const data = (await res.json()) as DashboardStatsModel;
-      setStats(data);
-      writeStatsCache(data);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const scheduleStatsRefresh = useCallback(() => {
-    if (statsTimerRef.current) clearTimeout(statsTimerRef.current);
-    statsTimerRef.current = setTimeout(() => {
-      void refreshStats();
-    }, 400);
-  }, [refreshStats]);
 
   const refreshAll = useCallback(async () => {
     await Promise.all([refreshStats(), refresh()]);
@@ -178,13 +157,6 @@ export default function DashboardPage() {
     },
     [refresh, refreshAll, scheduleStatsRefresh]
   );
-
-  useEffect(() => {
-    void refreshStats();
-    return () => {
-      if (statsTimerRef.current) clearTimeout(statsTimerRef.current);
-    };
-  }, [refreshStats]);
 
   useLiveRefresh(() => {
     void refresh();
@@ -431,7 +403,19 @@ export default function DashboardPage() {
 
   const onTriageAssign = async (ticketId: string, category: string) => {
     const currentIndex = items.findIndex((ticket) => ticket.id === ticketId);
-    const nextTicket = items[currentIndex + 1] ?? items[currentIndex - 1] ?? null;
+    let nextTicket: Ticket | null = items[currentIndex + 1] ?? items[currentIndex - 1] ?? null;
+
+    if (!nextTicket && currentIndex === items.length - 1 && page * pageSize < total) {
+      try {
+        const nextPage = await fetchTicketPage({
+          ...listQuery,
+          page: page + 1
+        });
+        nextTicket = nextPage.items[0] ?? null;
+      } catch {
+        nextTicket = null;
+      }
+    }
 
     removeItem(ticketId);
     if (nextTicket && nextTicket.id !== ticketId) {
@@ -441,12 +425,47 @@ export default function DashboardPage() {
     }
 
     try {
-      await updateTicket(ticketId, { category, status: "open" });
+      await updateTicket(ticketId, {
+        category,
+        status: "open",
+        aiSuggestedCategory: null,
+        classificationConfidence: null
+      });
       await afterMutation();
     } catch {
       setActiveTicketId(ticketId);
       await afterMutation({ full: true });
     }
+  };
+
+  const onBulkByFilter = async (payload: {
+    category?: string;
+    status?: string;
+    action?: "update" | "delete";
+  }) => {
+    if (!window.confirm(`להחיל פעולה על כל הפניות בסינון הנוכחי (עד 500)?`)) return;
+    const sp = new URLSearchParams();
+    if (activeCategory !== "all") sp.set("category", activeCategory);
+    sp.set("status", activeStatus);
+    if (debouncedSearch) sp.set("q", debouncedSearch);
+    if (dateFrom) sp.set("dateFrom", dateFrom);
+    if (dateTo) sp.set("dateTo", dateTo);
+    if (tagTokens.length) sp.set("tags", tagTokens.join(","));
+
+    const res = await fetch("/api/tickets/bulk-by-filter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        confirm: true,
+        filters: Object.fromEntries(sp.entries()),
+        action: payload.action ?? "update",
+        category: payload.category,
+        status: payload.status
+      })
+    });
+    if (!res.ok) throw new Error("Bulk by filter failed");
+    await afterMutation({ full: true });
   };
 
   const showBatchProgress = (label: string, processed: number, total: number) => {
@@ -701,6 +720,16 @@ export default function DashboardPage() {
           </button>
         </div>
       </details>
+      <Link href="/triage" className="lux-button rounded-xl border-fuchsia-200 bg-fuchsia-50 px-3 py-1.5 text-xs font-bold text-fuchsia-900">
+        מצב סינון מהיר
+      </Link>
+      <button
+        type="button"
+        onClick={() => setFocusMode(!focusMode)}
+        className={`lux-button rounded-xl px-3 py-1.5 text-xs ${focusMode ? "border-primary bg-primary-soft text-primary" : ""}`}
+      >
+        {focusMode ? "מצב מיקוד" : "מיקוד"}
+      </button>
       <Link href="/trash" className="lux-button rounded-xl px-3 py-1.5 text-xs">
         סל מחזור
       </Link>
@@ -834,6 +863,7 @@ export default function DashboardPage() {
                 <span className="mt-1 block text-lg font-black">פניות פעילות</span>
                 <span className="text-xs opacity-80">{activeCount.toLocaleString("he-IL")} פתוחות ובטיפול</span>
               </button>
+              <div className="flex min-w-[9.5rem] shrink-0 flex-col gap-1 lg:min-w-0">
               <button
                 type="button"
                 onClick={() => {
@@ -841,7 +871,7 @@ export default function DashboardPage() {
                   setActiveStatus("active");
                   setPage(1);
                 }}
-                className={`min-w-[9.5rem] shrink-0 rounded-2xl border p-3 text-right transition lg:min-w-0 ${
+                className={`rounded-2xl border p-3 text-right transition ${
                   activeCategory === PENDING_TRIAGE_CATEGORY
                     ? "border-fuchsia-400 bg-fuchsia-100 text-fuchsia-950 shadow-sm"
                     : "border-outline bg-white text-on-surface hover:border-fuchsia-300"
@@ -851,6 +881,13 @@ export default function DashboardPage() {
                 <span className="mt-1 block text-lg font-black">ממתין לסינון</span>
                 <span className="text-xs opacity-80">{triageCount.toLocaleString("he-IL")} לשיוך ובדיקה</span>
               </button>
+              <Link
+                href="/triage"
+                className="rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-2 py-1 text-center text-[10px] font-bold text-fuchsia-900 hover:bg-fuchsia-100"
+              >
+                מצב מהיר ({stats?.pendingWithSuggestion ?? 0} עם הצעת AI)
+              </Link>
+              </div>
               <button
                 type="button"
                 onClick={() => {
@@ -976,6 +1013,8 @@ export default function DashboardPage() {
             </button>
           </div>
 
+          {!focusMode ? (
+            <>
           <AiInsightsPanel />
 
           <details className="crm-agent-panel rounded-2xl border border-primary/15 bg-white/90">
@@ -990,9 +1029,11 @@ export default function DashboardPage() {
               />
             </div>
           </details>
+            </>
+          ) : null}
 
           {activeCategory === PENDING_TRIAGE_CATEGORY ? (
-            <div className="flex justify-end">
+            <div className="flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 disabled={aiReclassifying}
@@ -1002,6 +1043,16 @@ export default function DashboardPage() {
                 className="crm-touch-target lux-button border-violet-200 bg-violet-50 text-violet-950"
               >
                 {aiReclassifying ? "מסווג עם AI…" : "סיווג AI — כל התור"}
+              </button>
+              <button
+                type="button"
+                disabled={aiReclassifying}
+                onClick={() => {
+                  void onBulkByFilter({ category: "spam", status: "closed" });
+                }}
+                className="crm-touch-target lux-button border-amber-200 bg-amber-50 text-amber-950 text-xs"
+              >
+                סמן סינון כספאם (עד 500)
               </button>
             </div>
           ) : null}
@@ -1098,9 +1149,7 @@ export default function DashboardPage() {
         }}
         onNewTicket={() => setShowNewModal(true)}
         onTriage={() => {
-          setActiveCategory(PENDING_TRIAGE_CATEGORY);
-          setActiveStatus("active");
-          setPage(1);
+          router.push("/triage");
         }}
         emailSyncing={emailSyncing}
         triageCount={triageCount}

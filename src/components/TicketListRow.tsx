@@ -2,8 +2,10 @@
 
 import { memo } from "react";
 import { CategoryBadge } from "@/components/CategoryBadge";
+import { categoryLabel } from "@/lib/categories";
 import { displayTicketDate } from "@/lib/ticket-row";
 import { formatTicketNumber } from "@/lib/ticket-sequence";
+import { isPendingTriage } from "@/lib/triage";
 import type { Ticket, TicketStatus } from "@/lib/types";
 
 const STATUS_LABELS: Record<TicketStatus, string> = {
@@ -105,6 +107,11 @@ function RowContent({ ticket }: { ticket: Ticket }) {
         </span>
         <span className="inline-flex items-center gap-1">
           <CategoryBadge category={ticket.category} />
+          {isPendingTriage(ticket.category) && ticket.aiSuggestedCategory ? (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-800 ring-1 ring-emerald-200">
+              AI: {categoryLabel(ticket.aiSuggestedCategory)}
+            </span>
+          ) : null}
           <span
             className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${STATUS_STYLES[ticket.status]}`}
           >
@@ -129,6 +136,7 @@ export const TicketListRow = memo(TicketListRowInner, (prev, next) => {
     prev.ticket.updatedAt === next.ticket.updatedAt &&
     prev.ticket.status === next.ticket.status &&
     prev.ticket.category === next.ticket.category &&
+    prev.ticket.aiSuggestedCategory === next.ticket.aiSuggestedCategory &&
     prev.ticket.subject === next.ticket.subject
   );
 });

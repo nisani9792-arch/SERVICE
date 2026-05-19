@@ -9,6 +9,7 @@ const DEFAULT_CHUNK = 25;
 const MAX_CHUNK = 50;
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1200;
+const PARALLEL_CLASSIFY = 3;
 
 export type BatchJobStatus = "pending" | "running" | "completed" | "failed";
 
@@ -134,6 +135,19 @@ async function fetchJobTickets(
       FROM tickets
       WHERE category = ${PENDING_TRIAGE_CATEGORY}
         AND deleted_at IS NULL
+      ORDER BY COALESCE(classification_confidence, 0) DESC NULLS LAST, created_at ASC
+      OFFSET ${offset}
+      LIMIT ${limit}
+    `) as TicketRow[];
+  }
+
+  if (scope === "pending_no_suggestion") {
+    return (await sql()`
+      SELECT id, sender_email, subject, body, body_cleaned, category, status
+      FROM tickets
+      WHERE category = ${PENDING_TRIAGE_CATEGORY}
+        AND deleted_at IS NULL
+        AND (ai_suggested_category IS NULL OR trim(ai_suggested_category) = '')
       ORDER BY created_at ASC
       OFFSET ${offset}
       LIMIT ${limit}
@@ -175,6 +189,16 @@ export async function countBatchTargets(scope: string, ids: string[]): Promise<n
       SELECT count(*)::int AS c
       FROM tickets
       WHERE category = ${PENDING_TRIAGE_CATEGORY} AND deleted_at IS NULL
+    `;
+    return Number((rows[0] as { c: number }).c ?? 0);
+  }
+  if (scope === "pending_no_suggestion") {
+    const rows = await sql()`
+      SELECT count(*)::int AS c
+      FROM tickets
+      WHERE category = ${PENDING_TRIAGE_CATEGORY}
+        AND deleted_at IS NULL
+        AND (ai_suggested_category IS NULL OR trim(ai_suggested_category) = '')
     `;
     return Number((rows[0] as { c: number }).c ?? 0);
   }
@@ -248,15 +272,18 @@ export async function runBatchJobChunk(
   let tokenDelta = 0;
 
   try {
-    for (const row of rows) {
-      const result = await classifyOne(row);
-      chunkResults.push({
-        id: result.id,
-        from: result.from,
-        to: result.to,
-        summary: result.summary
-      });
-      tokenDelta += result.tokens;
+    for (let i = 0; i < rows.length; i += PARALLEL_CLASSIFY) {
+      const slice = rows.slice(i, i + PARALLEL_CLASSIFY);
+      const batch = await Promise.all(slice.map((row) => classifyOne(row)));
+      for (const result of batch) {
+        chunkResults.push({
+          id: result.id,
+          from: result.from,
+          to: result.to,
+          summary: result.summary
+        });
+        tokenDelta += result.tokens;
+      }
     }
 
     const processed = job.processed + rows.length;

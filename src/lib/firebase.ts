@@ -26,6 +26,8 @@ export type TicketListQuery = {
   tags?: string[];
   q?: string;
   email?: string;
+  queue?: "triage";
+  sort?: "triage";
 };
 
 export const fetchTicketPage = async (
@@ -42,6 +44,8 @@ export const fetchTicketPage = async (
   if (query.tags?.length) sp.set("tags", query.tags.join(","));
   if (query.q?.trim()) sp.set("q", query.q.trim());
   if (query.email) sp.set("email", query.email);
+  if (query.queue) sp.set("queue", query.queue);
+  if (query.sort) sp.set("sort", query.sort);
 
   const res = await fetch(`${API}?${sp.toString()}`, { ...FETCH_INIT, signal });
   if (!res.ok) {

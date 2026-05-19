@@ -45,6 +45,10 @@ export interface Ticket {
   category: string;
   priority: TicketPriority;
   aiSummary: string;
+  /** AI-suggested category when ticket is pending_triage */
+  aiSuggestedCategory: string | null;
+  /** 0..1 confidence from AI classifier */
+  classificationConfidence: number | null;
   status: TicketStatus;
   source: TicketSource;
   tags: string[];
@@ -73,6 +77,8 @@ export interface TicketUpdateInput {
   category?: string;
   priority?: TicketPriority;
   aiSummary?: string;
+  aiSuggestedCategory?: string | null;
+  classificationConfidence?: number | null;
   status?: TicketStatus;
   tags?: string[];
   assignedTo?: string;

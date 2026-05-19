@@ -1,9 +1,22 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { TicketListRow } from "@/components/TicketListRow";
+import { VirtualTicketList } from "@/components/VirtualTicketList";
 import { dayGroupLabel } from "@/lib/ticket-list-utils";
 import type { Ticket } from "@/lib/types";
+
+function useDesktopVirtualList() {
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1280px)");
+    const apply = () => setEnabled(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  return enabled;
+}
 
 export interface TicketListPanelProps {
   tickets: Ticket[];
@@ -21,6 +34,8 @@ function TicketListPanelInner({
   onSelect,
   onToggleSelect
 }: TicketListPanelProps) {
+  const useVirtual = useDesktopVirtualList();
+
   const groups = useMemo(() => {
     const map = new Map<string, Ticket[]>();
     for (const ticket of tickets) {
@@ -31,6 +46,18 @@ function TicketListPanelInner({
     }
     return Array.from(map.entries());
   }, [tickets]);
+
+  if (useVirtual && tickets.length > 30) {
+    return (
+      <VirtualTicketList
+        tickets={tickets}
+        activeTicketId={activeTicketId}
+        selectedIds={selectedIds}
+        onSelect={onSelect}
+        onToggleSelect={onToggleSelect}
+      />
+    );
+  }
 
   return (
     <div className="space-y-3 p-1">

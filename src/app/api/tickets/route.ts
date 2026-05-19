@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
         id, ticket_number, sender_email, sender_name, subject,
         left(body, ${LIST_BODY_PREVIEW_CHARS}) AS body,
         body_cleaned,
-        category, priority, ai_summary, status, source,
+        category, priority, ai_summary, ai_suggested_category, classification_confidence,
+        status, source,
         message_at, tags, assigned_to, closure_note,
         email_message_id, email_mailbox_uid, email_ingested_at,
         created_at, updated_at,
@@ -41,7 +42,13 @@ export async function GET(request: NextRequest) {
           (${f.trashOnly}::boolean = true AND deleted_at IS NOT NULL)
           OR (${f.trashOnly}::boolean = false AND deleted_at IS NULL)
         )
-        AND (${f.categoryFilter}::text IS NULL OR category = ${f.categoryFilter})
+        AND (
+          (${f.triageQueue}::boolean = true AND category IN ('pending_triage', 'customer_followup'))
+          OR (
+            ${f.triageQueue}::boolean = false
+            AND (${f.categoryFilter}::text IS NULL OR category = ${f.categoryFilter})
+          )
+        )
         AND (
           ${f.excludeSpamFilter}::boolean = false
           OR lower(trim(category)) NOT IN ('spam', 'spam (מובנה)')
@@ -84,7 +91,14 @@ export async function GET(request: NextRequest) {
           OR body ILIKE ${f.like}
           OR CAST(ticket_number AS text) ILIKE ${f.like}
         )
-      ORDER BY COALESCE(message_at, created_at) DESC
+      ORDER BY
+        CASE
+          WHEN ${f.sortMode} = 'triage' AND category = 'customer_followup' THEN 0
+          WHEN ${f.sortMode} = 'triage' THEN 1
+          ELSE 2
+        END ASC,
+        CASE WHEN ${f.sortMode} = 'triage' THEN COALESCE(classification_confidence, 0) ELSE 0 END DESC,
+        COALESCE(message_at, created_at) DESC
       LIMIT ${f.pageSize}
       OFFSET ${f.offset}
     `;
@@ -152,7 +166,8 @@ export async function POST(request: NextRequest) {
         ${"open"}, ${source}, ${operator.displayName}
       )
       RETURNING id, ticket_number, sender_email, sender_name, subject, body, body_cleaned,
-                category, priority, ai_summary, status, source,
+                category, priority, ai_summary, ai_suggested_category, classification_confidence,
+                status, source,
                 message_at, tags, assigned_to, closure_note, email_message_id, email_mailbox_uid, email_ingested_at,
                 created_at, updated_at
     `;

@@ -17,6 +17,8 @@ export type TicketListFilters = {
   offset: number;
   excludeSpamFilter: boolean;
   trashOnly: boolean;
+  triageQueue: boolean;
+  sortMode: "default" | "triage";
 };
 
 export function parseTicketListFilters(searchParams: URLSearchParams): TicketListFilters | { error: string } {
@@ -70,6 +72,9 @@ export function parseTicketListFilters(searchParams: URLSearchParams): TicketLis
   const ticketNumberExact = q ? parseTicketNumberQuery(q) : null;
   const like = q && !ticketNumberExact ? `%${q}%` : null;
 
+  const triageQueue = searchParams.get("queue") === "triage";
+  const sortMode = searchParams.get("sort") === "triage" ? "triage" : "default";
+
   return {
     categoryFilter,
     ticketNumberExact,
@@ -85,6 +90,8 @@ export function parseTicketListFilters(searchParams: URLSearchParams): TicketLis
     pageSize,
     offset,
     excludeSpamFilter,
-    trashOnly
+    trashOnly,
+    triageQueue,
+    sortMode
   };
 }

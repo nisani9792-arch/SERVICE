@@ -19,7 +19,8 @@ export async function GET(
     await ensureTicketListColumns();
     const rows = await sql()`
       SELECT id, ticket_number, sender_email, sender_name, subject, body, body_cleaned,
-             category, priority, ai_summary, status, source,
+             category, priority, ai_summary, ai_suggested_category, classification_confidence,
+             status, source,
              message_at, tags, assigned_to, closure_note,
              email_message_id, email_mailbox_uid, email_ingested_at,
              created_at, updated_at
@@ -53,6 +54,8 @@ export async function PATCH(
       category?: string;
       priority?: number;
       aiSummary?: string;
+      aiSuggestedCategory?: string | null;
+      classificationConfidence?: number | null;
       status?: string;
       tags?: string[];
       assignedTo?: string;
@@ -70,6 +73,8 @@ export async function PATCH(
 
     const tags = body.tags;
     const shouldSetTags = Array.isArray(tags);
+    const touchSuggested = body.aiSuggestedCategory !== undefined;
+    const touchConfidence = body.classificationConfidence !== undefined;
 
     const rows = shouldSetTags
       ? await sql()`
@@ -79,6 +84,8 @@ export async function PATCH(
         category     = COALESCE(${body.category ?? null}, category),
         priority     = COALESCE(${body.priority ?? null}, priority),
         ai_summary   = COALESCE(${body.aiSummary ?? null}, ai_summary),
+        ai_suggested_category = CASE WHEN ${touchSuggested} THEN ${body.aiSuggestedCategory ?? null} ELSE ai_suggested_category END,
+        classification_confidence = CASE WHEN ${touchConfidence} THEN ${body.classificationConfidence ?? null} ELSE classification_confidence END,
         status       = COALESCE(${effectiveStatus ?? null}, status),
         tags         = ${tags}::text[],
         assigned_to  = COALESCE(${assignedTo}, assigned_to),
@@ -94,6 +101,8 @@ export async function PATCH(
         category     = COALESCE(${body.category ?? null}, category),
         priority     = COALESCE(${body.priority ?? null}, priority),
         ai_summary   = COALESCE(${body.aiSummary ?? null}, ai_summary),
+        ai_suggested_category = CASE WHEN ${touchSuggested} THEN ${body.aiSuggestedCategory ?? null} ELSE ai_suggested_category END,
+        classification_confidence = CASE WHEN ${touchConfidence} THEN ${body.classificationConfidence ?? null} ELSE classification_confidence END,
         status       = COALESCE(${effectiveStatus ?? null}, status),
         assigned_to  = COALESCE(${assignedTo}, assigned_to),
         closure_note = COALESCE(${body.closureNote ?? null}, closure_note),

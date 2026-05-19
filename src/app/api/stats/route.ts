@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireGateAccess } from "@/lib/api-guard";
 import { sql } from "@/lib/neon";
+import { ensureTicketListColumns } from "@/lib/ticket-schema";
 import { getStatsCache, setStatsCache, STATS_CACHE_MS } from "@/lib/stats-cache";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ export async function GET(request: NextRequest) {
   if (denied) return denied;
 
   try {
+    await ensureTicketListColumns();
     const bypassCache = request.headers.get("x-service-live") === "true";
     const now = Date.now();
     const cached = getStatsCache();
@@ -40,7 +42,23 @@ export async function GET(request: NextRequest) {
         count(*) FILTER (
           WHERE category = 'customer_followup'
             AND status NOT IN ('closed', 'handled')
-        )::int AS customer_followup
+        )::int AS customer_followup,
+        count(*) FILTER (
+          WHERE category = 'pending_triage'
+            AND status NOT IN ('closed', 'handled')
+            AND ai_suggested_category IS NOT NULL
+            AND trim(ai_suggested_category) <> ''
+        )::int AS pending_with_suggestion,
+        count(*) FILTER (
+          WHERE category = 'pending_triage'
+            AND status NOT IN ('closed', 'handled')
+            AND (ai_suggested_category IS NULL OR trim(ai_suggested_category) = '')
+        )::int AS pending_no_suggestion,
+        count(*) FILTER (
+          WHERE priority >= 4
+            AND status NOT IN ('closed', 'handled')
+            AND deleted_at IS NULL
+        )::int AS high_priority_open
       FROM tickets
       WHERE deleted_at IS NULL
     `;
@@ -79,7 +97,10 @@ export async function GET(request: NextRequest) {
       spamPercent: total > 0 ? Math.round((spamLike / total) * 1000) / 10 : 0,
       spamCount: spamLike,
       pendingTriageCount: Number(agg?.pending_triage ?? 0),
-      customerFollowupCount: Number(agg?.customer_followup ?? 0)
+      customerFollowupCount: Number(agg?.customer_followup ?? 0),
+      pendingWithSuggestion: Number(agg?.pending_with_suggestion ?? 0),
+      pendingNoSuggestion: Number(agg?.pending_no_suggestion ?? 0),
+      highPriorityOpen: Number(agg?.high_priority_open ?? 0)
     };
 
     setStatsCache(payload);
