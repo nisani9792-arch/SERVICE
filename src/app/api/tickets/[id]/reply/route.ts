@@ -24,7 +24,7 @@ export async function POST(
 
     const rows = await sql()`
       SELECT id, sender_email, subject, body, body_cleaned, category,
-             email_message_id, ticket_number
+             email_message_id, ticket_number, ai_summary, message_at, created_at
       FROM tickets
       WHERE id = ${params.id} AND deleted_at IS NULL
       LIMIT 1

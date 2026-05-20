@@ -37,7 +37,7 @@ export function AiInsightsPanel() {
   }, []);
 
   useEffect(() => {
-    void load(true);
+    void load(false);
     const timer = window.setInterval(() => void load(false), 90_000);
     return () => clearInterval(timer);
   }, [load]);

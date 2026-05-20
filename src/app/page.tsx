@@ -76,7 +76,6 @@ export default function DashboardPage() {
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
   const [replyingTicket, setReplyingTicket] = useState<Ticket | null>(null);
   const [showBulkReply, setShowBulkReply] = useState(false);
-  const maintenanceStartedRef = useRef(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
 
@@ -478,7 +477,7 @@ export default function DashboardPage() {
   };
 
   const runBatchAi = async (
-    scope: "spam" | "pending_triage" | "ids" | "all",
+    scope: "spam" | "pending_triage" | "non_spam" | "ids" | "all",
     options?: { ids?: string[]; limit?: number }
   ) => {
     setAiReclassifying(true);
@@ -522,7 +521,7 @@ export default function DashboardPage() {
   };
 
   const onReclassifySpamWithAi = async () => {
-    await runBatchAi("spam", { limit: 5000 });
+    await runBatchAi("non_spam", { limit: 5000 });
   };
 
   const runCrmMaintenance = useCallback(async () => {
@@ -564,18 +563,51 @@ export default function DashboardPage() {
     }
   }, [refreshAll]);
 
-  useEffect(() => {
-    if (maintenanceStartedRef.current) return;
-    maintenanceStartedRef.current = true;
-    const key = "jusic-crm-maint-2026-05-18";
+  const onSpamSweepAll = async () => {
+    setAiReclassifying(true);
+    showBatchProgress("סריקת ספאם…", 0, 0);
+    let totalMoved = 0;
+    let totalScanned = 0;
+    let rounds = 0;
+
     try {
-      if (sessionStorage.getItem(key)) return;
-      sessionStorage.setItem(key, "1");
-    } catch {
-      return;
+      while (rounds < 60) {
+        const res = await fetch("/api/tickets/spam-sweep", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ limit: 250 })
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => null)) as { details?: string; error?: string } | null;
+          throw new Error(err?.details || err?.error || "סריקת ספאם נכשלה");
+        }
+        const chunk = (await res.json()) as {
+          movedToSpam: number;
+          scanned: number;
+          done: boolean;
+        };
+        totalMoved += chunk.movedToSpam ?? 0;
+        totalScanned += chunk.scanned ?? 0;
+        rounds += 1;
+        showBatchProgress("סריקת ספאם…", totalMoved, totalMoved + 50);
+        if (chunk.done || (chunk.scanned ?? 0) === 0) break;
+      }
+      await refreshAll();
+      setEmailSyncMessage({
+        kind: "success",
+        text: `סריקת ספאם הושלמה: ${totalMoved} פניות הועברו לתיקיית ספאם (${totalScanned} נבדקו).`
+      });
+    } catch (error) {
+      setEmailSyncMessage({
+        kind: "error",
+        text: error instanceof Error ? error.message : "סריקת ספאם נכשלה"
+      });
+    } finally {
+      setAiReclassifying(false);
+      hideBatchProgress();
     }
-    void runCrmMaintenance();
-  }, [runCrmMaintenance]);
+  };
 
   const onAgentCommand = async (text: string) => {
     setAiReclassifying(true);
@@ -716,7 +748,7 @@ export default function DashboardPage() {
             className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container disabled:opacity-50"
           >
             <MessageSquareText className="size-3.5 opacity-80" />
-            {aiReclassifying ? "מסווג מחדש…" : "סיווג מחדש (AI) — ספאם"}
+            {aiReclassifying ? "מסווג…" : "סיווג AI — זיהוי ספאם"}
           </button>
         </div>
       </details>
@@ -1005,11 +1037,21 @@ export default function DashboardPage() {
               type="button"
               disabled={aiReclassifying}
               onClick={() => {
+                void onSpamSweepAll();
+              }}
+              className="crm-touch-target lux-button border-amber-200 bg-amber-50 text-amber-950 text-xs"
+            >
+              {aiReclassifying ? "סורק ספאם…" : "סריקת ספאם לכל הפניות (לפי דרישה)"}
+            </button>
+            <button
+              type="button"
+              disabled={aiReclassifying}
+              onClick={() => {
                 void runCrmMaintenance();
               }}
               className="crm-touch-target lux-button border-violet-200 bg-violet-50 text-violet-950 text-xs"
             >
-              {aiReclassifying ? "תחזוקה רצה…" : "תיקון מיילים + סיווג AI לכל הפניות"}
+              {aiReclassifying ? "תחזוקה רצה…" : "תיקון מיילים + סיווג AI (לפי דרישה)"}
             </button>
           </div>
 

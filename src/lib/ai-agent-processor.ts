@@ -2,10 +2,12 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
   countBatchTargets,
   createBatchJob,
+  getBatchJob,
   runBatchJobChunk
 } from "@/lib/ai-batch-runner";
 import { classifyTicketContent } from "@/lib/gemini";
 import { cleanMessageForAi } from "@/lib/message-filter";
+import { sweepSpamHeuristicChunk } from "@/lib/spam-sweep";
 import { sql } from "@/lib/neon";
 import { rowToTicket } from "@/lib/ticket-row";
 import { PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
@@ -13,13 +15,14 @@ const MODEL_NAME = "gemini-1.5-flash";
 
 export type AgentTaskType =
   | "reclassify_batch"
+  | "spam_sweep"
   | "classify_text"
   | "search_tickets"
   | "summarize_selection";
 
 export type AgentTask = {
   type: AgentTaskType;
-  scope?: "spam" | "pending_triage";
+  scope?: "spam" | "pending_triage" | "non_spam";
   limit?: number;
   ids?: string[];
   query?: string;
@@ -60,11 +63,13 @@ function heuristicTasks(text: string, ctx: AgentContext): AgentTask[] {
   const lower = text.toLowerCase();
   const tasks: AgentTask[] = [];
 
-  if (
+  if (/ספאם|spam/.test(lower) && /סרוק|נקה|העבר|סנן|sweep/.test(lower)) {
+    tasks.push({ type: "spam_sweep", limit: 500 });
+  } else if (
     /ספאם|spam/.test(lower) &&
     (/סווג|סיווג|reclassif|בדוק|סרוק/.test(lower) || /מחדש/.test(lower))
   ) {
-    tasks.push({ type: "reclassify_batch", scope: "spam", limit: 100 });
+    tasks.push({ type: "reclassify_batch", scope: "non_spam", limit: 500 });
   } else if (/ממתין|triage|סינון/.test(lower) && /סווג|סיווג|ai/.test(lower)) {
     tasks.push({ type: "reclassify_batch", scope: "pending_triage", limit: 100 });
   }
@@ -190,37 +195,71 @@ async function runSummarizeAgent(ids: string[]): Promise<AgentActionResult> {
   };
 }
 
+async function runSpamSweepAgent(task: AgentTask): Promise<AgentActionResult> {
+  const limit = Math.min(500, task.limit ?? 200);
+  let totalMoved = 0;
+  let totalScanned = 0;
+  let rounds = 0;
+  const maxRounds = 40;
+
+  while (rounds < maxRounds) {
+    const chunk = await sweepSpamHeuristicChunk(limit);
+    totalMoved += chunk.movedToSpam;
+    totalScanned += chunk.scanned;
+    rounds += 1;
+    if (chunk.done || chunk.scanned === 0) break;
+  }
+
+  return {
+    agent: "spam_sweep",
+    ok: true,
+    message: `הועברו ${totalMoved} פניות לספאם (נבדקו ${totalScanned})`,
+    data: { movedToSpam: totalMoved, scanned: totalScanned, rounds }
+  };
+}
+
 async function runBatchAgent(task: AgentTask): Promise<AgentActionResult & { jobId?: string }> {
   const ids = task.ids ?? [];
-  const classifyScope = task.scope ?? "spam";
+  const classifyScope = task.scope ?? "non_spam";
   const jobScope = ids.length > 0 ? "ids" : classifyScope;
-  const limit = Math.min(200, task.limit ?? (ids.length || 100));
+  const limit = Math.min(500, task.limit ?? (ids.length || 200));
   const total = ids.length
     ? Math.min(ids.length, limit)
-    : await countBatchTargets(classifyScope, []);
+    : Math.min(limit, await countBatchTargets(classifyScope, []));
 
   if (total === 0) {
     return { agent: "batch", ok: true, message: "אין פניות לעיבוד", data: { total: 0 } };
   }
 
   const jobId = await createBatchJob(jobScope, total, 25, { ids, classifyScope });
-  const { job, chunkResults } = await runBatchJobChunk(jobId, {
-    scope: classifyScope,
-    ids,
-    chunkSize: 25
-  });
+  let job = (await getBatchJob(jobId))!;
+  let chunkResults: Array<{ id: string; from: string; to: string; summary: string }> = [];
+  let done = false;
+  let guard = 0;
+
+  while (!done && guard < 80) {
+    const chunk = await runBatchJobChunk(jobId, {
+      scope: classifyScope,
+      ids,
+      chunkSize: 25
+    });
+    job = chunk.job;
+    chunkResults = chunkResults.concat(chunk.chunkResults);
+    done = chunk.done;
+    guard += 1;
+  }
 
   return {
     agent: "batch",
     ok: job.status !== "failed",
-    message: `התחיל עיבוד באצ': ${job.processed}/${job.total} (פעימה ראשונה: ${chunkResults.length})`,
+    message: `סיווג הושלם: ${job.processed}/${job.total} פניות (${chunkResults.length} עודכנו בפעימה האחרונה)`,
     jobId,
     data: {
       jobId,
       total: job.total,
       processed: job.processed,
       status: job.status,
-      needsStream: job.processed < job.total
+      updated: chunkResults.length
     }
   };
 }
@@ -229,6 +268,8 @@ async function executeTask(task: AgentTask): Promise<AgentActionResult & { jobId
   switch (task.type) {
     case "reclassify_batch":
       return runBatchAgent(task);
+    case "spam_sweep":
+      return runSpamSweepAgent(task);
     case "classify_text":
       return runClassifierAgent(task);
     case "search_tickets":

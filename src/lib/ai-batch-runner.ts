@@ -154,6 +154,19 @@ async function fetchJobTickets(
     `) as TicketRow[];
   }
 
+  if (scope === "non_spam") {
+    return (await sql()`
+      SELECT id, sender_email, subject, body, body_cleaned, category, status
+      FROM tickets
+      WHERE category <> ${"customer_followup"}
+        AND lower(trim(category)) NOT IN ('spam', 'spam (מובנה)')
+        AND deleted_at IS NULL
+      ORDER BY created_at ASC
+      OFFSET ${offset}
+      LIMIT ${limit}
+    `) as TicketRow[];
+  }
+
   if (scope === "all") {
     return (await sql()`
       SELECT id, sender_email, subject, body, body_cleaned, category, status
@@ -207,6 +220,16 @@ export async function countBatchTargets(scope: string, ids: string[]): Promise<n
       SELECT count(*)::int AS c
       FROM tickets
       WHERE category <> ${"customer_followup"} AND deleted_at IS NULL
+    `;
+    return Number((rows[0] as { c: number }).c ?? 0);
+  }
+  if (scope === "non_spam") {
+    const rows = await sql()`
+      SELECT count(*)::int AS c
+      FROM tickets
+      WHERE category <> ${"customer_followup"}
+        AND lower(trim(category)) NOT IN ('spam', 'spam (מובנה)')
+        AND deleted_at IS NULL
     `;
     return Number((rows[0] as { c: number }).c ?? 0);
   }

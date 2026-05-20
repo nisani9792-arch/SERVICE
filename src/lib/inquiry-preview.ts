@@ -1,0 +1,19 @@
+import type { Ticket } from "@/lib/types";
+
+function collapse(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+/** Short list-row preview: real inquiry text first, not AI classification labels. */
+export function listInquiryPreview(ticket: Ticket, maxLen = 160): string {
+  const body = collapse(ticket.bodyCleaned || ticket.body || "");
+  const subject = collapse(ticket.subject || "");
+  const summary = collapse(ticket.aiSummary || "");
+
+  if (body.length >= 8) return body.slice(0, maxLen);
+  if (subject.length >= 4) return subject.slice(0, maxLen);
+  if (summary.length >= 8 && !/^פנייה (חדשה|כללית)/i.test(summary)) {
+    return summary.slice(0, maxLen);
+  }
+  return subject || summary || "פנייה ללא תוכן";
+}

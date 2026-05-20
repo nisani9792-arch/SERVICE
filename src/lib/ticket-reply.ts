@@ -1,7 +1,12 @@
 import { replyFromAddress, sendCustomerReply } from "@/lib/email-send";
 import { enqueueOutboundEmail } from "@/lib/outbound-email";
 import { createOutboundMessageId, recordOutboundMessageId } from "@/lib/outbound-message-ids";
-import { composeReplyMessage, getReplySignature } from "@/lib/reply-signature";
+import { getReplySignature } from "@/lib/reply-signature";
+import {
+  buildInquiryContextBlock,
+  defaultReplyEmailSubject,
+  type TicketReplyContextInput
+} from "@/lib/ticket-reply-context";
 import { recordReplyKnowledge } from "@/lib/reply-knowledge";
 import { formatTicketNumber } from "@/lib/ticket-sequence";
 import { sql } from "@/lib/neon";
@@ -92,9 +97,24 @@ type TicketRow = {
   body?: string;
   body_cleaned?: string;
   category?: string;
+  ai_summary?: string | null;
+  message_at?: string | null;
+  created_at?: string | null;
   email_message_id: string | null;
   ticket_number: number | null;
 };
+
+function ticketContextFromRow(ticket: TicketRow): TicketReplyContextInput {
+  return {
+    ticketNumber: ticket.ticket_number,
+    subject: ticket.subject,
+    body: ticket.body,
+    bodyCleaned: ticket.body_cleaned,
+    aiSummary: ticket.ai_summary,
+    messageAt: ticket.message_at,
+    createdAt: ticket.created_at
+  };
+}
 
 async function maybeRecordReplyKnowledge(
   ticket: TicketRow,
@@ -116,11 +136,32 @@ async function maybeRecordReplyKnowledge(
 }
 
 function replySubjectForTicket(subject: string, ticketNumber: number | null): string {
-  const base = subject.trim() || "פנייה ל-Jusic";
-  if (ticketNumber == null || !Number.isInteger(ticketNumber)) return base;
+  const followUp = defaultReplyEmailSubject();
+  const original = subject.trim();
+  if (ticketNumber == null || !Number.isInteger(ticketNumber)) {
+    return original ? `${followUp}: ${original.slice(0, 60)}` : followUp;
+  }
   const tag = formatTicketNumber(ticketNumber);
-  if (new RegExp(`#?\\s*tk\\s*[-\\s]*${ticketNumber}\\b`, "i").test(base)) return base;
-  return `${base} [${tag}]`;
+  return `${followUp} [${tag}]`;
+}
+
+function composeCustomerReply(
+  message: string,
+  ticket: TicketRow,
+  signature: Awaited<ReturnType<typeof getReplySignature>>
+): string {
+  const contextBlock = buildInquiryContextBlock(ticketContextFromRow(ticket));
+  const core = message.trim();
+  const opening = signature.opening.trim();
+  const closing = signature.closing.trim();
+  const parts: string[] = [];
+  if (opening) parts.push(opening);
+  parts.push(contextBlock, core);
+  let text = parts.join("\n\n");
+  if (closing && !text.endsWith(closing)) {
+    text = `${text}\n\n${closing}`;
+  }
+  return text;
 }
 
 export async function sendReplyForTicket(
@@ -136,7 +177,7 @@ export async function sendReplyForTicket(
 
   const outboundMessageId = createOutboundMessageId(replyFromAddress());
   const signature = await getReplySignature();
-  const composedMessage = composeReplyMessage(message, signature);
+  const composedMessage = composeCustomerReply(message, ticket, signature);
 
   try {
     const sent = await sendCustomerReply({

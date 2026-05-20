@@ -5,6 +5,7 @@ import {
 } from "@/lib/gemini";
 import { normalizeCategory } from "@/lib/category-normalize";
 import { bodyForAiPrompt } from "@/lib/message-filter";
+import { isEmptyOrNoiseInquiry } from "@/lib/inquiry-spam-heuristic";
 import { isSpamCategory } from "@/lib/spam-category";
 import { PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
 import type { TicketPriority } from "@/lib/types";
@@ -85,6 +86,16 @@ export async function classifyHybrid(
   }
 
   const aiBody = bodyForAiPrompt(body);
+
+  if (isEmptyOrNoiseInquiry(subject, aiBody)) {
+    return buildAutoApplied(
+      "spam",
+      1,
+      "פנייה ריקה או ללא תוכן משמעותי — סווגה כספאם.",
+      "closed",
+      1
+    );
+  }
 
   const heuristic = quickHeuristic(subject, aiBody);
   if (heuristic?.category === "spam") {

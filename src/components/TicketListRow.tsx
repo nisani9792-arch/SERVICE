@@ -2,10 +2,9 @@
 
 import { memo } from "react";
 import { CategoryBadge } from "@/components/CategoryBadge";
-import { categoryLabel } from "@/lib/categories";
+import { listInquiryPreview } from "@/lib/inquiry-preview";
 import { displayTicketDate } from "@/lib/ticket-row";
 import { formatTicketNumber } from "@/lib/ticket-sequence";
-import { isPendingTriage } from "@/lib/triage";
 import type { Ticket, TicketStatus } from "@/lib/types";
 
 const STATUS_LABELS: Record<TicketStatus, string> = {
@@ -31,13 +30,6 @@ function formatWhen(ticket: Ticket): string {
     dateStyle: "short",
     timeStyle: "short"
   });
-}
-
-function preview(ticket: Ticket): string {
-  return (ticket.aiSummary || ticket.body || ticket.subject || "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 160);
 }
 
 export interface TicketListRowProps {
@@ -107,11 +99,6 @@ function RowContent({ ticket }: { ticket: Ticket }) {
         </span>
         <span className="inline-flex items-center gap-1">
           <CategoryBadge category={ticket.category} />
-          {isPendingTriage(ticket.category) && ticket.aiSuggestedCategory ? (
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-800 ring-1 ring-emerald-200">
-              AI: {categoryLabel(ticket.aiSuggestedCategory)}
-            </span>
-          ) : null}
           <span
             className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${STATUS_STYLES[ticket.status]}`}
           >
@@ -123,7 +110,9 @@ function RowContent({ ticket }: { ticket: Ticket }) {
       <p className="mt-0.5 line-clamp-1 text-[11px] text-on-surface-variant">
         {ticket.senderName || "ללא שם"} · {ticket.senderEmail || "ללא אימייל"}
       </p>
-      <p className="mt-1 line-clamp-2 text-xs leading-snug text-on-surface-variant">{preview(ticket)}</p>
+      <p className="mt-1 line-clamp-2 text-xs leading-snug text-on-surface-variant">
+        {listInquiryPreview(ticket)}
+      </p>
     </div>
   );
 }
@@ -136,8 +125,8 @@ export const TicketListRow = memo(TicketListRowInner, (prev, next) => {
     prev.ticket.updatedAt === next.ticket.updatedAt &&
     prev.ticket.status === next.ticket.status &&
     prev.ticket.category === next.ticket.category &&
-    prev.ticket.aiSuggestedCategory === next.ticket.aiSuggestedCategory &&
-    prev.ticket.subject === next.ticket.subject
+    prev.ticket.subject === next.ticket.subject &&
+    prev.ticket.body === next.ticket.body
   );
 });
 

@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeCategory } from "../category-normalize";
+import { isEmptyOrNoiseInquiry } from "../inquiry-spam-heuristic";
 import { quickHeuristic } from "../gemini";
 import { isSpamCategory } from "../spam-category";
 
@@ -17,6 +18,16 @@ describe("normalizeCategory", () => {
 
   it("maps billing case-insensitively", () => {
     assert.equal(normalizeCategory("billing"), "Billing");
+  });
+});
+
+describe("isEmptyOrNoiseInquiry", () => {
+  it("flags empty body with only contact fields", () => {
+    assert.equal(isEmptyOrNoiseInquiry("שלום", "שם: יוסי\nמייל: a@b.com"), true);
+  });
+
+  it("keeps real support subjects", () => {
+    assert.equal(isEmptyOrNoiseInquiry("האפליקציה לא נפתחת", ""), false);
   });
 });
 

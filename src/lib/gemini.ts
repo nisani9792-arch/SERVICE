@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { bodyForAiPrompt } from "@/lib/message-filter";
+import { isEmptyOrNoiseInquiry } from "@/lib/inquiry-spam-heuristic";
 import { normalizeCategory } from "@/lib/category-normalize";
 import { TicketPriority } from "@/lib/types";
 
@@ -146,6 +147,14 @@ export const quickHeuristic = (
   subject: string,
   body: string
 ): { category: string; priority: TicketPriority; summary: string } | null => {
+  if (isEmptyOrNoiseInquiry(subject, body)) {
+    return {
+      category: "spam",
+      priority: 1,
+      summary: "פנייה ריקה או ללא תוכן משמעותי — סווגה כספאם."
+    };
+  }
+
   const text = `${subject} ${body}`.toLowerCase();
 
   if (SPAM_KEYWORDS.some((word) => text.includes(word))) {
