@@ -8,9 +8,9 @@
   padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
     max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   background:
-    radial-gradient(circle at 50% 18%, rgba(90, 90, 201, 0.22), transparent 55%),
-    radial-gradient(circle at 80% 90%, rgba(13, 148, 136, 0.14), transparent 50%),
-    linear-gradient(160deg, #1a1830 0%, #252347 45%, #1c1b32 100%);
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(139, 124, 248, 0.35), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 100% 100%, rgba(43, 184, 168, 0.25), transparent 50%),
+    linear-gradient(165deg, #1e1a2e 0%, #2a2548 42%, #1a1830 100%);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -19,30 +19,33 @@
   flex-direction: column;
   align-items: center;
   gap: 14px;
-  width: min(380px, 100%);
-  padding: 28px 22px 24px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  width: min(400px, 100%);
+  padding: 32px 24px 28px;
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow:
-    0 24px 80px rgba(0, 0, 0, 0.42),
-    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 0 48px -8px rgba(139, 124, 248, 0.45),
+    0 0 80px -16px rgba(43, 184, 168, 0.25);
 }
 
 @supports (backdrop-filter: blur(12px)) {
   .lock-card {
-    backdrop-filter: blur(12px);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
   }
 }
 
-.lock-logo {
-  width: 80px;
-  height: 80px;
-  border-radius: 18px;
-  object-fit: contain;
-  padding: 8px;
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+.lock-logo-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  border-radius: 1.125rem;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 0 32px -6px rgba(139, 124, 248, 0.5);
 }
 
 .lock-icon-wrap {
@@ -50,19 +53,20 @@
   place-items: center;
   width: 52px;
   height: 52px;
-  margin-top: -4px;
   border-radius: 50%;
-  color: #a5b4fc;
-  background: rgba(90, 90, 201, 0.18);
-  border: 1px solid rgba(90, 90, 201, 0.35);
+  color: #c4b5fd;
+  background: rgba(109, 92, 232, 0.2);
+  border: 1px solid rgba(139, 124, 248, 0.4);
+  box-shadow: 0 0 24px -4px rgba(109, 92, 232, 0.5);
 }
 
 .lock-prompt {
   margin: 0;
-  font-size: 17px;
+  font-size: 1.125rem;
   font-weight: 700;
-  color: #f8f7fc;
+  color: #faf8ff;
   text-align: center;
+  letter-spacing: -0.02em;
 }
 
 .lock-form {
@@ -76,37 +80,45 @@
   width: 100%;
   min-height: 48px;
   padding: 0 14px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.22);
-  color: #f8f7fc;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.875rem;
+  background: rgba(0, 0, 0, 0.18);
+  color: #faf8ff;
   font-size: 16px;
   letter-spacing: 0.12em;
   text-align: center;
   outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .lock-input::placeholder {
-  color: rgba(248, 247, 252, 0.35);
+  color: rgba(250, 248, 255, 0.38);
   letter-spacing: normal;
 }
 
 .lock-input:focus {
-  border-color: rgba(90, 90, 201, 0.6);
-  box-shadow: 0 0 0 3px rgba(90, 90, 201, 0.2);
+  border-color: rgba(139, 124, 248, 0.65);
+  box-shadow: 0 0 0 3px rgba(109, 92, 232, 0.25);
 }
 
 .lock-submit-btn {
   width: 100%;
   min-height: 48px;
-  border: none;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #5a5ac9, #4f46e5);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.875rem;
+  background: linear-gradient(135deg, #8b7cf8, #6d5ce8 50%, #5b4ad4);
   color: #fff;
   font-size: 16px;
   font-weight: 700;
   cursor: pointer;
   touch-action: manipulation;
+  box-shadow: 0 0 28px -6px rgba(109, 92, 232, 0.55);
+  transition: filter 0.2s ease, box-shadow 0.2s ease;
+}
+
+.lock-submit-btn:hover:not(:disabled) {
+  filter: brightness(1.06);
+  box-shadow: 0 0 36px -4px rgba(109, 92, 232, 0.65);
 }
 
 .lock-submit-btn:disabled {
@@ -122,20 +134,21 @@
   width: 100%;
   min-height: 48px;
   margin-top: 2px;
-  border: 1px solid rgba(13, 148, 136, 0.45);
-  border-radius: 12px;
-  background: rgba(13, 148, 136, 0.12);
+  border: 1px solid rgba(43, 184, 168, 0.45);
+  border-radius: 0.875rem;
+  background: rgba(43, 184, 168, 0.12);
   color: #ccfbf1;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   touch-action: manipulation;
-  transition: background 140ms ease, border-color 140ms ease;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 0 20px -8px rgba(43, 184, 168, 0.4);
 }
 
 .lock-biometric:hover:not(:disabled) {
-  background: rgba(13, 148, 136, 0.2);
-  border-color: rgba(13, 148, 136, 0.6);
+  background: rgba(43, 184, 168, 0.22);
+  box-shadow: 0 0 28px -6px rgba(43, 184, 168, 0.5);
 }
 
 .lock-biometric:disabled {
@@ -143,15 +156,11 @@
   cursor: wait;
 }
 
-.lock-biometric-label {
-  line-height: 1.2;
-}
-
 .lock-subprompt {
   margin: -6px 0 0;
   font-size: 13px;
-  line-height: 1.45;
-  color: rgba(248, 247, 252, 0.65);
+  line-height: 1.5;
+  color: rgba(250, 248, 255, 0.68);
   text-align: center;
 }
 
@@ -163,12 +172,8 @@
 .lock-error {
   margin: 0;
   font-size: 13px;
-  color: #fca5a5;
+  color: #fda4af;
   text-align: center;
-}
-
-.lock-submit {
-  margin-top: 4px;
 }
 
 .loading-card {
@@ -186,8 +191,9 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #a5b4fc;
+  background: #a78bfa;
   animation: lock-loading-bounce 1s ease-in-out infinite;
+  box-shadow: 0 0 12px rgba(167, 139, 250, 0.8);
 }
 
 .loading-dots span:nth-child(2) {
@@ -213,16 +219,8 @@
 
 @media (max-width: 480px) {
   .lock-card {
-    padding: 24px 18px 20px;
+    padding: 26px 18px 22px;
     gap: 12px;
-  }
-
-  .lock-prompt {
-    font-size: 16px;
-  }
-
-  .lock-biometric-label {
-    font-size: 14px;
   }
 }
 

@@ -58,12 +58,12 @@ function TicketListRowInner({
           onSelect(ticket);
         }
       }}
-      className={`relative cursor-pointer rounded-xl border p-2.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+      className={`relative cursor-pointer rounded-xl2 border p-2.5 transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
         active
-          ? "border-primary bg-primary-soft/40 shadow-sm ring-1 ring-primary/25"
+          ? "border-primary/40 bg-primary-soft/50 shadow-glow-sm ring-1 ring-primary/20"
           : selected
-            ? "border-primary/35 bg-primary-soft/25"
-            : "border-outline/70 bg-white hover:border-primary/40 hover:bg-primary-soft/15"
+            ? "border-primary/30 bg-primary-soft/30 shadow-glow-sm"
+            : "border-outline/80 bg-white/60 backdrop-blur-md hover:border-primary/35 hover:bg-white/85 hover:shadow-glow-sm"
       }`}
     >
       <span

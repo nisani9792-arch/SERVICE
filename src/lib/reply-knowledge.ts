@@ -258,7 +258,7 @@ export async function findSimilarReplySuggestions(
     const jaccard = jaccardSimilarity(queryKeywords, rowKeywords);
     const sameQuestion = rowKey === questionKey;
 
-    let score =
+    const score =
       overlap * 3 +
       Math.round(overlapRatio * 20) +
       Math.round(jaccard * 25) +

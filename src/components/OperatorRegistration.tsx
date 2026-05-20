@@ -1,9 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import Image from "next/image";
+import { motion } from "framer-motion";
 import { UserRound } from "lucide-react";
-import { APP_LOGO_SRC } from "@/lib/brand";
+import { JusicLogo } from "@/components/ui/JusicLogo";
 import "./LockScreen.css";
 
 interface OperatorRegistrationProps {
@@ -45,16 +45,15 @@ export function OperatorRegistration({ busy, initialName, onSubmit }: OperatorRe
 
   return (
     <div className="lock-screen" role="dialog" aria-modal="true" aria-label="רישום גורם מטפל">
-      <div className="lock-card">
-        <Image
-          src={APP_LOGO_SRC}
-          alt="SERVICE"
-          width={88}
-          height={88}
-          className="lock-logo"
-          priority
-          unoptimized
-        />
+      <motion.div
+        className="lock-card"
+        initial={{ opacity: 0, scale: 0.94, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 320, damping: 28 }}
+      >
+        <div className="lock-logo-wrap">
+          <JusicLogo size={72} variant="mark" />
+        </div>
 
         <div className="lock-icon-wrap" aria-hidden>
           <UserRound size={28} strokeWidth={2} />
@@ -78,11 +77,16 @@ export function OperatorRegistration({ busy, initialName, onSubmit }: OperatorRe
             disabled={busy}
           />
           {error ? <p className="lock-error">{error}</p> : null}
-          <button type="submit" className="lock-biometric lock-submit" disabled={busy}>
+          <motion.button
+            type="submit"
+            className="lock-biometric lock-submit"
+            disabled={busy}
+            whileTap={{ scale: 0.98 }}
+          >
             {busy ? "שומר..." : "המשך לעבודה"}
-          </button>
+          </motion.button>
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 }

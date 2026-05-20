@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { Loader2, Mail, Send, X } from "lucide-react";
 import type { ReplyTemplate, Ticket } from "@/lib/types";
 
@@ -158,7 +159,12 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="relative z-10 flex max-h-[min(94dvh,94vh)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-outline/80 bg-white shadow-2xl">
+      <motion.div
+        className="glass-panel-strong relative z-10 flex max-h-[min(94dvh,94vh)] w-full max-w-2xl flex-col overflow-hidden"
+        initial={{ opacity: 0, scale: 0.96, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 360, damping: 30 }}
+      >
         <div className="flex items-start justify-between gap-3 border-b border-outline/60 px-4 py-3">
           <ModalTitle
             title="מענה ללקוח"
@@ -282,7 +288,7 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
             </div>
           </div>
         </form>
-      </div>
+      </motion.div>
     </ModalOverlay>
   );
 }

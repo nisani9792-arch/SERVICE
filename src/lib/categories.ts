@@ -30,18 +30,20 @@ export const CATEGORY_LABELS_HE: Record<string, string> = {
 };
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  [PENDING_TRIAGE_CATEGORY]: "bg-fuchsia-100 text-fuchsia-950 ring-1 ring-fuchsia-300",
-  [CUSTOMER_FOLLOWUP_CATEGORY]: "bg-amber-100 text-amber-950 ring-1 ring-amber-300",
-  suggestions: "bg-blue-100 text-blue-800",
-  bugs: "bg-rose-100 text-rose-800",
-  premium: "bg-violet-100 text-violet-800",
-  copyright: "bg-amber-100 text-amber-800",
-  artist: "bg-emerald-100 text-emerald-800",
-  spam: "bg-zinc-200 text-zinc-800",
-  handled: "bg-green-100 text-green-800",
-  Customer_Support: "bg-sky-100 text-sky-900",
-  Billing: "bg-orange-100 text-orange-900",
-  Spam: "bg-stone-200 text-stone-800"
+  [PENDING_TRIAGE_CATEGORY]:
+    "bg-fuchsia-500/12 text-fuchsia-900 ring-1 ring-fuchsia-400/30 backdrop-blur-sm",
+  [CUSTOMER_FOLLOWUP_CATEGORY]:
+    "bg-amber-500/12 text-amber-950 ring-1 ring-amber-400/30 backdrop-blur-sm",
+  suggestions: "bg-blue-500/12 text-blue-900 ring-1 ring-blue-400/25 backdrop-blur-sm",
+  bugs: "bg-rose-500/12 text-rose-900 ring-1 ring-rose-400/25 backdrop-blur-sm",
+  premium: "bg-violet-500/12 text-violet-900 ring-1 ring-violet-400/25 backdrop-blur-sm",
+  copyright: "bg-amber-500/12 text-amber-900 ring-1 ring-amber-400/25 backdrop-blur-sm",
+  artist: "bg-emerald-500/12 text-emerald-900 ring-1 ring-emerald-400/25 backdrop-blur-sm",
+  spam: "bg-slate-500/10 text-slate-700 ring-1 ring-slate-400/20 backdrop-blur-sm",
+  handled: "bg-emerald-500/12 text-emerald-900 ring-1 ring-emerald-400/25 backdrop-blur-sm",
+  Customer_Support: "bg-sky-500/12 text-sky-900 ring-1 ring-sky-400/25 backdrop-blur-sm",
+  Billing: "bg-orange-500/12 text-orange-900 ring-1 ring-orange-400/25 backdrop-blur-sm",
+  Spam: "bg-slate-500/10 text-slate-700 ring-1 ring-slate-400/20 backdrop-blur-sm"
 };
 
 export const CATEGORY_ICONS: Record<string, typeof BadgeHelp> = {

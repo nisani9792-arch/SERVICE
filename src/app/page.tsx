@@ -11,6 +11,7 @@ import {
   Upload
 } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
+import { MotionPage } from "@/components/ui/Motion";
 import { MobileDock } from "@/components/MobileDock";
 import { SearchBar } from "@/components/SearchBar";
 import { BulkActionBar } from "@/components/BulkActionBar";
@@ -714,7 +715,7 @@ export default function DashboardPage() {
         <summary className="lux-button cursor-pointer list-none rounded-xl px-3 py-1.5 text-xs">
           כלים
         </summary>
-        <div className="absolute left-0 z-50 mt-2 w-36 rounded-xl border border-outline bg-white p-1 shadow-card">
+        <div className="glass-panel-strong absolute left-0 z-50 mt-2 w-36 p-1">
           <button
             type="button"
             onClick={() => setShowReplyTemplates(true)}
@@ -780,7 +781,7 @@ export default function DashboardPage() {
       <button
         type="button"
         onClick={() => setShowNewModal(true)}
-        className="lux-button-primary rounded-xl px-3 py-1.5 text-xs shadow-md"
+        className="lux-button-primary rounded-xl px-3 py-1.5 text-xs"
       >
         <Plus className="size-4" />
         פנייה חדשה
@@ -791,7 +792,7 @@ export default function DashboardPage() {
         <summary className="lux-button cursor-pointer list-none rounded-xl px-3 py-2 text-xs font-semibold">
           תפריט
         </summary>
-        <div className="absolute left-0 z-50 mt-2 w-44 rounded-xl border border-outline bg-white p-1 shadow-card">
+        <div className="glass-panel-strong absolute left-0 z-50 mt-2 w-44 p-1">
           <button
             type="button"
             onClick={() => setShowReplyTemplates(true)}
@@ -835,7 +836,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <main className="crm-workspace crm-mobile-bottom-bar min-h-screen px-2 pb-24 pt-2 text-[13px] sm:px-3 md:px-4 md:pb-8">
+    <MotionPage className="crm-workspace crm-mobile-bottom-bar min-h-screen px-2 pb-24 pt-2 text-[13px] sm:px-3 md:px-4 md:pb-8">
       <div className="mx-auto max-w-[1380px] space-y-2">
         <AppHeader
           actions={headerActions}
@@ -876,7 +877,7 @@ export default function DashboardPage() {
         ) : null}
 
         <section className="space-y-2">
-          <div className="rounded-3xl border border-outline/70 bg-white/95 p-3 shadow-sm">
+          <div className="glass-panel rounded-xl3 p-3">
             <div className="crm-kpi-scroll flex gap-2 overflow-x-auto pb-1 lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0">
               <button
                 type="button"
@@ -905,7 +906,7 @@ export default function DashboardPage() {
                 }}
                 className={`rounded-2xl border p-3 text-right transition ${
                   activeCategory === PENDING_TRIAGE_CATEGORY
-                    ? "border-fuchsia-400 bg-fuchsia-100 text-fuchsia-950 shadow-sm"
+                    ? "border-fuchsia-400/50 bg-fuchsia-500/15 text-fuchsia-950 shadow-glow-sm"
                     : "border-outline bg-white text-on-surface hover:border-fuchsia-300"
                 }`}
               >
@@ -929,7 +930,7 @@ export default function DashboardPage() {
                 }}
                 className={`min-w-[9.5rem] shrink-0 rounded-2xl border p-3 text-right transition lg:min-w-0 ${
                   activeCategory === CUSTOMER_FOLLOWUP_CATEGORY
-                    ? "border-amber-400 bg-amber-100 text-amber-950 shadow-sm"
+                    ? "border-amber-400/50 bg-amber-500/15 text-amber-950 shadow-glow-sm"
                     : "border-outline bg-white text-on-surface hover:border-amber-300"
                 }`}
               >
@@ -946,7 +947,7 @@ export default function DashboardPage() {
                 }}
                 className={`min-w-[9.5rem] shrink-0 rounded-2xl border p-3 text-right transition lg:min-w-0 ${
                   activeStatus === "in_progress" && activeCategory === "all"
-                    ? "border-sky-300 bg-sky-100 text-sky-950 shadow-sm"
+                    ? "border-sky-400/50 bg-sky-500/15 text-sky-950 shadow-glow-sm"
                     : "border-outline bg-white text-on-surface hover:border-sky-300"
                 }`}
               >
@@ -963,7 +964,7 @@ export default function DashboardPage() {
                 }}
                 className={`min-w-[9.5rem] shrink-0 rounded-2xl border p-3 text-right transition lg:min-w-0 ${
                   activeStatus === "closed"
-                    ? "border-emerald-300 bg-emerald-100 text-emerald-950 shadow-sm"
+                    ? "border-emerald-400/50 bg-emerald-500/15 text-emerald-950 shadow-glow-sm"
                     : "border-outline bg-white text-on-surface hover:border-emerald-300"
                 }`}
               >
@@ -1204,6 +1205,6 @@ export default function DashboardPage() {
         total={batchProgress.total}
         progress={batchProgress.progress}
       />
-    </main>
+    </MotionPage>
   );
 }

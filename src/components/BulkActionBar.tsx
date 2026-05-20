@@ -62,7 +62,7 @@ export function BulkActionBar({
   };
 
   return (
-    <div className="lux-card sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex flex-col gap-3 rounded-2xl border border-primary/25 bg-white p-3 shadow-lg md:bottom-4 md:z-40 md:flex-row md:flex-wrap md:items-center md:justify-between">
+    <div className="glass-panel-strong sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex flex-col gap-3 p-3 md:bottom-4 md:z-40 md:flex-row md:flex-wrap md:items-center md:justify-between">
       <span className="text-sm font-semibold text-primary">
         נבחרו {count.toLocaleString("he-IL")} פניות
       </span>
@@ -100,7 +100,7 @@ export function BulkActionBar({
           </button>
 
           {showCategoryPicker ? (
-            <div className="absolute bottom-full left-0 z-50 mb-2 max-h-56 w-52 overflow-y-auto rounded-2xl border border-outline bg-white p-1 shadow-card">
+            <div className="glass-panel-strong absolute bottom-full left-0 z-50 mb-2 max-h-56 w-52 overflow-y-auto p-1">
               {ACTIVE_CATEGORIES.map((cat) => (
                 <button
                   type="button"
@@ -129,7 +129,7 @@ export function BulkActionBar({
             סטטוס
           </button>
           {showStatusPicker ? (
-            <div className="absolute bottom-full left-0 z-50 mb-2 w-44 rounded-2xl border border-outline bg-white p-1 shadow-card">
+            <div className="glass-panel-strong absolute bottom-full left-0 z-50 mb-2 w-44 p-1">
               {(
                 [
                   ["open", "פתוח"],

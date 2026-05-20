@@ -10,6 +10,7 @@ import {
 } from "@/lib/firebase";
 import type { Ticket } from "@/lib/types";
 import { CategoryBadge } from "@/components/CategoryBadge";
+import { MotionPage } from "@/components/ui/Motion";
 
 export default function TrashPage() {
   const [items, setItems] = useState<Ticket[]>([]);
@@ -66,7 +67,7 @@ export default function TrashPage() {
   };
 
   return (
-    <main className="min-h-screen px-3 py-3 text-[13px]" dir="rtl">
+    <MotionPage className="crm-shell min-h-screen text-[13px]">
       <div className="mx-auto max-w-4xl space-y-3">
         <header className="lux-card flex flex-wrap items-center justify-between gap-3 rounded-2xl p-3">
           <div>
@@ -127,6 +128,6 @@ export default function TrashPage() {
           </ul>
         )}
       </div>
-    </main>
+    </MotionPage>
   );
 }

@@ -4,19 +4,47 @@
 
 :root {
   color-scheme: light;
-  --crm-primary: #4f46e5;
-  --crm-primary-dark: #4338ca;
-  --crm-accent: #0d9488;
-  --crm-surface: #f4f6fb;
-  --crm-card: #ffffff;
-  --crm-border: #e2e8f0;
-  --crm-text: #0f172a;
-  --crm-muted: #64748b;
-  --crm-success: #15803d;
-  --crm-danger: #dc2626;
-  --crm-radius: 1rem;
-  --crm-shadow: 0 4px 24px -8px rgba(15, 23, 42, 0.12);
-  --crm-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Material 3–inspired premium palette */
+  --j-surface: #f6f4fc;
+  --j-surface-container: #ede9f8;
+  --j-surface-high: rgba(255, 255, 255, 0.72);
+  --j-on-surface: #1a1625;
+  --j-on-surface-variant: #5c5670;
+
+  --j-primary: #6d5ce8;
+  --j-primary-soft: rgba(109, 92, 232, 0.12);
+  --j-accent: #2bb8a8;
+  --j-accent-soft: rgba(43, 184, 168, 0.14);
+
+  --j-outline: rgba(109, 92, 232, 0.14);
+  --j-success: #0d9668;
+  --j-danger: #e0455c;
+  --j-warning: #d97706;
+
+  --j-radius: 1.125rem;
+  --j-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Colored glows only — no gray drop shadows */
+  --j-glow-primary: 0 0 0 1px rgba(109, 92, 232, 0.08), 0 8px 32px -4px rgba(109, 92, 232, 0.22);
+  --j-glow-sm: 0 0 24px -6px rgba(139, 124, 248, 0.35);
+  --j-glow-accent: 0 0 28px -6px rgba(43, 184, 168, 0.35);
+  --j-glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+
+  /* Legacy aliases */
+  --crm-primary: var(--j-primary);
+  --crm-primary-dark: #5b4ad4;
+  --crm-accent: var(--j-accent);
+  --crm-surface: var(--j-surface);
+  --crm-card: var(--j-surface-high);
+  --crm-border: var(--j-outline);
+  --crm-text: var(--j-on-surface);
+  --crm-muted: var(--j-on-surface-variant);
+  --crm-success: var(--j-success);
+  --crm-danger: var(--j-danger);
+  --crm-radius: var(--j-radius);
+  --crm-shadow: var(--j-glow-primary);
+  --crm-ease: var(--j-ease);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -29,86 +57,182 @@
   }
 }
 
-body {
-  background:
-    radial-gradient(ellipse 120% 70% at 100% -20%, rgba(79, 70, 229, 0.1), transparent 55%),
-    radial-gradient(ellipse 90% 50% at 0% 100%, rgba(13, 148, 136, 0.08), transparent 50%),
-    var(--crm-surface);
-  color: var(--crm-text);
-  @apply antialiased;
-  text-rendering: optimizeLegibility;
+@layer base {
+  body {
+    @apply antialiased;
+    color: var(--j-on-surface);
+    text-rendering: optimizeLegibility;
+    background: var(--j-surface);
+  }
+
+  html,
+  body {
+    overflow-x: hidden;
+  }
 }
 
-html,
-body {
-  overflow-x: hidden;
+/* Ambient mesh */
+.app-mesh-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(72px);
+  opacity: 0.55;
+  animation: mesh-drift 18s var(--j-ease) infinite alternate;
 }
 
-.crm-shell {
+.app-mesh-blob-a {
+  width: min(55vw, 520px);
+  height: min(55vw, 520px);
+  top: -12%;
+  right: -8%;
+  background: radial-gradient(circle, rgba(139, 124, 248, 0.45) 0%, transparent 70%);
+}
+
+.app-mesh-blob-b {
+  width: min(45vw, 420px);
+  height: min(45vw, 420px);
+  bottom: -10%;
+  left: -12%;
+  background: radial-gradient(circle, rgba(43, 184, 168, 0.35) 0%, transparent 70%);
+  animation-delay: -6s;
+}
+
+.app-mesh-blob-c {
+  width: min(35vw, 320px);
+  height: min(35vw, 320px);
+  top: 40%;
+  left: 35%;
+  background: radial-gradient(circle, rgba(196, 181, 253, 0.3) 0%, transparent 70%);
+  animation-delay: -12s;
+}
+
+@keyframes mesh-drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(2%, 3%) scale(1.06);
+  }
+}
+
+@keyframes jusic-logo-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+.jusic-logo-float {
+  animation: jusic-logo-float 4s var(--j-ease) infinite;
+}
+
+/* Glass surfaces */
+.glass-panel {
+  border-radius: var(--j-radius);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: var(--j-surface-high);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--j-glass-edge), var(--j-glow-sm);
+}
+
+.glass-panel-strong {
+  border-radius: var(--j-radius);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: var(--j-glass-edge), var(--j-glow-primary);
+}
+
+/* Layout */
+.crm-shell,
+.crm-workspace {
   @apply mx-auto min-h-screen w-full max-w-[1440px] px-3 pb-28 pt-3 sm:px-4 md:pb-8 md:pt-4;
 }
 
-.crm-card {
-  border-radius: var(--crm-radius);
-  border: 1px solid var(--crm-border);
-  background: var(--crm-card);
-  box-shadow: var(--crm-shadow);
+.crm-card,
+.lux-card {
+  @apply glass-panel;
 }
 
 .crm-card-flat {
-  border-radius: var(--crm-radius);
-  border: 1px solid var(--crm-border);
-  background: var(--crm-card);
+  border-radius: var(--j-radius);
+  border: 1px solid var(--j-outline);
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(12px);
 }
 
-.crm-btn {
-  @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-semibold transition;
-  border-color: var(--crm-border);
-  background: white;
-  color: var(--crm-text);
+/* Buttons */
+.crm-btn,
+.lux-button {
+  @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl2 border px-3.5 text-xs font-semibold transition-all duration-200;
+  border-color: var(--j-outline);
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--j-on-surface);
   touch-action: manipulation;
+  backdrop-filter: blur(8px);
 }
 
-.crm-btn:hover {
-  border-color: rgba(79, 70, 229, 0.35);
-  background: #f8fafc;
+.crm-btn:hover,
+.lux-button:hover {
+  border-color: rgba(109, 92, 232, 0.35);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--j-glow-sm);
 }
 
-.crm-btn-primary {
-  @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-xs font-bold text-white shadow-md transition;
-  background: linear-gradient(135deg, var(--crm-primary) 0%, var(--crm-primary-dark) 100%);
+.crm-btn-primary,
+.lux-button-primary {
+  @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl2 px-4 text-xs font-bold text-white transition-all duration-200;
+  background: linear-gradient(135deg, #8b7cf8 0%, #6d5ce8 45%, #5b4ad4 100%);
   touch-action: manipulation;
+  box-shadow: var(--j-glow-sm);
+  border: 1px solid rgba(255, 255, 255, 0.25);
 }
 
-.crm-btn-primary:hover {
-  filter: brightness(1.05);
+.crm-btn-primary:hover,
+.lux-button-primary:hover {
+  filter: brightness(1.06);
+  box-shadow: var(--j-glow-primary);
 }
 
 .crm-btn-ghost {
-  @apply inline-flex min-h-9 items-center justify-center gap-1 rounded-lg px-2.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100;
+  @apply inline-flex min-h-9 items-center justify-center gap-1 rounded-lg px-2.5 text-xs font-medium transition;
+  color: var(--j-on-surface-variant);
   touch-action: manipulation;
 }
 
+.crm-btn-ghost:hover {
+  background: var(--j-primary-soft);
+  color: var(--j-primary);
+}
+
+/* KPI chips */
 .crm-kpi {
-  @apply min-w-[8.5rem] shrink-0 rounded-2xl border p-3 text-right transition;
+  @apply min-w-[8.5rem] shrink-0 rounded-xl3 border p-3 text-right transition-all duration-300;
   scroll-snap-align: start;
 }
 
 .crm-kpi-active {
-  border-color: var(--crm-primary);
-  background: var(--crm-primary);
+  border-color: rgba(109, 92, 232, 0.35);
+  background: linear-gradient(145deg, rgba(109, 92, 232, 0.95), rgba(91, 74, 212, 0.92));
   color: white;
-  box-shadow: 0 8px 24px -8px rgba(79, 70, 229, 0.5);
+  box-shadow: var(--j-glow-primary);
 }
 
 .crm-kpi-idle {
-  border-color: var(--crm-border);
-  background: white;
-  color: var(--crm-text);
+  border-color: var(--j-outline);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  color: var(--j-on-surface);
 }
 
 .crm-kpi-idle:hover {
-  border-color: rgba(79, 70, 229, 0.3);
+  border-color: rgba(109, 92, 232, 0.28);
+  box-shadow: var(--j-glow-sm);
 }
 
 .crm-kpi-scroll {
@@ -116,49 +240,70 @@ body {
   scroll-snap-type: x proximity;
 }
 
-.crm-input {
-  @apply w-full rounded-xl border bg-white px-3 py-2.5 text-sm outline-none transition;
-  border-color: var(--crm-border);
+/* Inputs */
+.crm-input,
+.crm-touch-input {
+  @apply w-full rounded-xl2 border px-3 py-2.5 text-sm outline-none transition-all duration-200;
+  border-color: var(--j-outline);
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(8px);
 }
 
-.crm-input:focus {
-  border-color: rgba(79, 70, 229, 0.5);
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+.crm-input:focus,
+.crm-touch-input:focus {
+  border-color: rgba(109, 92, 232, 0.45);
+  box-shadow: 0 0 0 3px rgba(109, 92, 232, 0.12);
 }
 
+.crm-search {
+  @apply glass-panel flex w-full items-center gap-3;
+}
+
+/* Badges */
 .crm-badge-sync {
   @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold;
-  background: #ecfdf5;
-  color: #047857;
+  background: rgba(43, 184, 168, 0.14);
+  color: #0d7a5f;
 }
 
 .crm-badge-sync-pending {
-  background: #fef3c7;
+  background: rgba(217, 119, 6, 0.12);
   color: #b45309;
 }
 
+/* Mobile dock */
 .crm-mobile-dock {
-  @apply fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 px-3 py-2 backdrop-blur-md md:hidden;
+  @apply fixed inset-x-0 bottom-0 z-40 border-t px-3 py-2 md:hidden;
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
-  border-color: var(--crm-border);
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 -8px 40px -12px rgba(109, 92, 232, 0.2);
 }
 
+/* Workbench */
 .crm-workbench {
   @apply grid min-h-[min(72vh,820px)] gap-3 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)];
 }
 
-.crm-list-panel {
-  @apply flex min-h-0 flex-col overflow-hidden rounded-2xl border bg-white;
-  border-color: var(--crm-border);
+.crm-list-panel,
+.crm-detail-panel {
+  @apply flex min-h-0 flex-col overflow-hidden rounded-xl3 border;
+  border-color: var(--j-outline);
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--j-glow-sm);
 }
 
 .crm-detail-panel {
-  @apply hidden min-h-0 flex-col overflow-hidden rounded-2xl border bg-white lg:flex;
-  border-color: var(--crm-border);
+  @apply hidden lg:flex;
 }
 
 .crm-detail-sheet {
-  @apply fixed inset-0 z-50 flex flex-col bg-white lg:hidden;
+  @apply fixed inset-0 z-50 flex flex-col lg:hidden;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
 }
 
 .crm-touch-target {
@@ -166,13 +311,15 @@ body {
   min-width: 44px;
 }
 
+/* Toasts */
 .crm-toast {
-  @apply rounded-2xl px-4 py-3 text-sm font-medium shadow-lg;
+  @apply rounded-xl3 px-4 py-3 text-sm font-medium;
+  box-shadow: var(--j-glow-accent);
 }
 
 .crm-toast-popup {
   @apply fixed bottom-20 left-1/2 z-[120] w-[min(92vw,28rem)] -translate-x-1/2 text-center;
-  animation: crm-toast-in 0.28s ease-out;
+  animation: crm-toast-in 0.32s var(--j-ease);
 }
 
 .crm-toast-popup.crm-toast-leaving {
@@ -202,46 +349,43 @@ body {
 }
 
 .crm-toast-success {
-  @apply border border-emerald-200 bg-emerald-50 text-emerald-900;
+  @apply border border-emerald-200/80 bg-emerald-50/90 text-emerald-900 backdrop-blur-md;
 }
 
 .crm-toast-error {
-  @apply border border-red-200 bg-red-50 text-red-900;
+  @apply border border-rose-200/80 bg-rose-50/90 text-rose-900 backdrop-blur-md;
 }
 
-/* Legacy aliases */
-.lux-card {
-  border-radius: var(--crm-radius);
-  border: 1px solid var(--crm-border);
-  background: var(--crm-card);
-  box-shadow: var(--crm-shadow);
-}
-.lux-button {
-  @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-semibold;
-  border-color: var(--crm-border);
-  background: white;
-}
-.lux-button-primary {
-  @apply crm-btn-primary;
-}
-.crm-workspace {
-  @apply crm-shell;
-}
 .crm-app-header {
-  @apply crm-card mb-3 px-3 py-2.5;
+  @apply glass-panel-strong sticky z-30 mb-3 px-3 py-2.5;
+  top: max(0.35rem, env(safe-area-inset-top));
 }
 
 .crm-skeleton {
-  @apply animate-pulse rounded-lg bg-slate-200/80;
+  @apply animate-pulse rounded-lg;
+  background: linear-gradient(
+    90deg,
+    rgba(109, 92, 232, 0.08) 0%,
+    rgba(139, 124, 248, 0.16) 50%,
+    rgba(109, 92, 232, 0.08) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
 }
 
 .crm-triage-card {
   will-change: transform;
   user-select: none;
-}
-
-.crm-swipe-hint {
-  opacity: 0.65;
+  animation: crm-card-stack 0.36s var(--j-ease);
 }
 
 @keyframes crm-card-stack {
@@ -255,6 +399,15 @@ body {
   }
 }
 
-.crm-triage-card {
-  animation: crm-card-stack 0.28s var(--crm-ease);
+.crm-swipe-hint {
+  opacity: 0.7;
+}
+
+.crm-agent-panel {
+  @apply glass-panel;
+}
+
+.crm-list-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(109, 92, 232, 0.25) transparent;
 }

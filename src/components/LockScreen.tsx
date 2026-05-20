@@ -1,10 +1,10 @@
 ﻿"use client";
 
 import { Fingerprint, Lock } from "lucide-react";
-import Image from "next/image";
+import { motion } from "framer-motion";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useBiometricUnlock } from "@/hooks/useBiometricUnlock";
-import { APP_LOGO_SRC } from "@/lib/brand";
+import { JusicLogo } from "@/components/ui/JusicLogo";
 import "./LockScreen.css";
 
 interface LockScreenProps {
@@ -49,11 +49,6 @@ export function LockScreen({ onBiometricUnlock, onGateCode, unlockError }: LockS
     void attemptUnlock(password);
   };
 
-  const handlePasswordChange = (value: string) => {
-    setPassword(value);
-    if (localError) setLocalError(null);
-  };
-
   const displayError = unlockError ?? localError;
 
   useEffect(() => {
@@ -64,16 +59,15 @@ export function LockScreen({ onBiometricUnlock, onGateCode, unlockError }: LockS
 
   return (
     <div className="lock-screen" role="dialog" aria-modal="true" aria-label="מסך כניסה">
-      <div className="lock-card">
-        <Image
-          src={APP_LOGO_SRC}
-          alt="SERVICE"
-          width={80}
-          height={80}
-          className="lock-logo"
-          priority
-          unoptimized
-        />
+      <motion.div
+        className="lock-card"
+        initial={{ opacity: 0, scale: 0.94, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 320, damping: 28 }}
+      >
+        <div className="lock-logo-wrap">
+          <JusicLogo size={72} variant="mark" />
+        </div>
 
         <div className="lock-icon-wrap" aria-hidden>
           <Lock size={28} strokeWidth={2} />
@@ -92,20 +86,28 @@ export function LockScreen({ onBiometricUnlock, onGateCode, unlockError }: LockS
             enterKeyHint="go"
             maxLength={24}
             value={password}
-            onChange={(event) => handlePasswordChange(event.target.value)}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              if (localError) setLocalError(null);
+            }}
             placeholder="קוד כניסה"
             aria-label="קוד כניסה"
             disabled={submitting}
           />
-          <button type="submit" className="lock-submit-btn" disabled={submitting}>
+          <motion.button
+            type="submit"
+            className="lock-submit-btn"
+            disabled={submitting}
+            whileTap={{ scale: 0.98 }}
+          >
             {submitting ? "נכנס..." : "כניסה"}
-          </button>
+          </motion.button>
         </form>
 
         {displayError ? <p className="lock-error">{displayError}</p> : null}
 
         {biometricAvailable ? (
-          <button
+          <motion.button
             type="button"
             className="lock-biometric"
             onClick={() => {
@@ -113,14 +115,15 @@ export function LockScreen({ onBiometricUnlock, onGateCode, unlockError }: LockS
               void unlockWithBiometric();
             }}
             disabled={biometricBusy || submitting}
+            whileTap={{ scale: 0.98 }}
           >
             <Fingerprint size={22} strokeWidth={2} />
             <span className="lock-biometric-label">
               {biometricBusy || submitting ? "מאמת..." : "כניסה ביומטרית"}
             </span>
-          </button>
+          </motion.button>
         ) : null}
-      </div>
+      </motion.div>
     </div>
   );
 }

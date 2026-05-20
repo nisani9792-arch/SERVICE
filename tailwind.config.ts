@@ -8,26 +8,35 @@ const config: Config = {
         sans: ["var(--font-heebo)", "system-ui", "sans-serif"]
       },
       colors: {
-        surface: "#F8F7FB",
-        "surface-container": "#EFECF4",
-        "surface-high": "#FFFFFF",
-        "on-surface": "#1E1B24",
-        "on-surface-variant": "#5E596B",
-        primary: "#5A5AC9",
-        "primary-soft": "#ECECFF",
-        accent: "#0D9488",
-        "accent-soft": "#CCFBF1",
-        outline: "#D7D2E2",
-        success: "#2E7D32",
-        danger: "#C62828",
-        warning: "#EF6C00"
+        surface: "var(--j-surface)",
+        "surface-container": "var(--j-surface-container)",
+        "surface-high": "var(--j-surface-high)",
+        "on-surface": "var(--j-on-surface)",
+        "on-surface-variant": "var(--j-on-surface-variant)",
+        primary: "var(--j-primary)",
+        "primary-soft": "var(--j-primary-soft)",
+        accent: "var(--j-accent)",
+        "accent-soft": "var(--j-accent-soft)",
+        outline: "var(--j-outline)",
+        success: "var(--j-success)",
+        danger: "var(--j-danger)",
+        warning: "var(--j-warning)"
       },
       boxShadow: {
-        card: "0 2px 10px rgba(20, 16, 34, 0.08)",
-        soft: "0 1px 3px rgba(20, 16, 34, 0.08)"
+        glow: "var(--j-glow-primary)",
+        "glow-sm": "var(--j-glow-sm)",
+        "glow-accent": "var(--j-glow-accent)",
+        glass: "var(--j-glass-edge)"
       },
       borderRadius: {
-        xl2: "1.125rem"
+        xl2: "1.25rem",
+        xl3: "1.5rem"
+      },
+      backdropBlur: {
+        glass: "20px"
+      },
+      transitionTimingFunction: {
+        fluid: "cubic-bezier(0.22, 1, 0.36, 1)"
       }
     }
   },

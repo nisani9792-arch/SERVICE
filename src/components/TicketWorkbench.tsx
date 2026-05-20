@@ -304,7 +304,7 @@ export function TicketWorkbench({
 
   return (
     <section className="grid min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr),minmax(22rem,0.58fr)]">
-      <div className="min-w-0 rounded-2xl border border-outline/70 bg-white/95 shadow-sm">
+      <div className="glass-panel min-w-0 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-outline/70 px-3 py-2.5">
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-on-surface">{title}</h2>
@@ -373,7 +373,7 @@ export function TicketWorkbench({
         </div>
       </div>
 
-      <aside className="hidden min-w-0 rounded-2xl border border-outline/70 bg-white/95 shadow-sm xl:block">
+      <aside className="glass-panel hidden min-w-0 overflow-hidden xl:block">
         {detailProps ? (
           <TicketDetailPanel {...detailProps} />
         ) : (
@@ -392,7 +392,7 @@ export function TicketWorkbench({
             aria-label="סגור כרטיס פנייה"
             onClick={() => setMobileDetailOpen(false)}
           />
-          <aside className="absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,92vh)] flex-col overflow-hidden rounded-t-2xl border border-outline/70 bg-white shadow-2xl">
+          <aside className="glass-panel-strong absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,92vh)] flex-col overflow-hidden rounded-t-xl3">
             <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-outline/60" aria-hidden />
             <TicketDetailPanel {...detailProps} compactHeader />
           </aside>

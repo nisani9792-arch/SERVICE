@@ -105,7 +105,7 @@ export function TriageCard({
       </div>
 
       <article
-        className={`crm-triage-card relative z-10 touch-pan-y rounded-2xl border border-outline/80 bg-white p-4 shadow-lg transition-shadow ${approveTint} ${spamTint} ${busy ? "opacity-60" : ""}`}
+        className={`crm-triage-card glass-panel-strong relative z-10 touch-pan-y p-4 transition-all duration-300 ${approveTint} ${spamTint} ${busy ? "opacity-60" : ""}`}
         style={{
           transform: dragging
             ? `translate(${offsetX}px, ${offsetY}px) rotate(${offsetX * 0.02}deg)`

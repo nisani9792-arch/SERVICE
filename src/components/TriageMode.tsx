@@ -122,7 +122,7 @@ export function TriageMode() {
         />
       </div>
 
-      <div className="hidden flex-wrap items-center gap-2 rounded-xl border border-outline/70 bg-white px-3 py-2 text-[10px] text-on-surface-variant md:flex">
+      <div className="glass-panel hidden flex-wrap items-center gap-2 px-3 py-2 text-[10px] text-on-surface-variant md:flex">
         <Keyboard className="size-3.5" />
         <span>1–8 קטגוריה · Enter אישור AI · S ספאם · J/K הבא/קודם · R תשובה · רווח דילוג</span>
       </div>
