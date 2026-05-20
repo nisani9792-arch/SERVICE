@@ -29,7 +29,15 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
   const [signatureOpening, setSignatureOpening] = useState("");
   const [signatureClosing, setSignatureClosing] = useState("");
   const [similarReplies, setSimilarReplies] = useState<
-    Array<{ id: string; subject: string; replyText: string; score: number }>
+    Array<{
+      id: string;
+      subject: string;
+      inquirySnippet: string;
+      replyText: string;
+      score: number;
+      matchReason: string;
+      recurring: boolean;
+    }>
   >([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -86,7 +94,15 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
           return;
         }
         const data = (await res.json()) as {
-          suggestions: Array<{ id: string; subject: string; replyText: string; score: number }>;
+          suggestions: Array<{
+            id: string;
+            subject: string;
+            inquirySnippet: string;
+            replyText: string;
+            score: number;
+            matchReason: string;
+            recurring: boolean;
+          }>;
         };
         setSimilarReplies(data.suggestions ?? []);
       } catch {
@@ -184,7 +200,7 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
             {similarReplies.length > 0 ? (
               <div className="rounded-xl border border-violet-200/80 bg-violet-50/50 p-2.5">
                 <p className="mb-1.5 text-[11px] font-bold text-violet-950">
-                  תשובות דומות מפניות קודמות (AI)
+                  מענה רלוונטי לפנייה זו
                 </p>
                 <div className="flex flex-col gap-1.5">
                   {similarReplies.map((item) => (
@@ -194,9 +210,19 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
                       className="rounded-lg border border-violet-200/60 bg-white px-2 py-1.5 text-right text-[11px] hover:border-primary/30"
                       onClick={() => insertTemplate(item.replyText)}
                     >
-                      <span className="font-semibold">{item.subject}</span>
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-semibold text-on-surface">
+                          {item.recurring ? "שאלה חוזרת" : item.subject}
+                        </span>
+                        <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-900">
+                          {item.matchReason}
+                        </span>
+                      </span>
+                      <span className="mt-0.5 line-clamp-1 block text-[10px] text-on-surface-variant">
+                        פנייה: {item.inquirySnippet}
+                      </span>
                       <span className="mt-0.5 line-clamp-2 block text-on-surface-variant">
-                        {item.replyText}
+                        מענה: {item.replyText}
                       </span>
                     </button>
                   ))}

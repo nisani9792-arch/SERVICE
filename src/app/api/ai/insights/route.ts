@@ -4,8 +4,10 @@ import { sql } from "@/lib/neon";
 import {
   backfillReplyKnowledgeFromTickets,
   ensureReplyKnowledgeSchema,
-  findSimilarReplySuggestions
+  findSimilarReplySuggestions,
+  normalizeReplyKnowledgeRows
 } from "@/lib/reply-knowledge";
+import { extractFreeInquiryText } from "@/lib/reply-text-extract";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,7 @@ export async function GET(request: NextRequest) {
     let backfilled = 0;
     if (backfill) {
       backfilled = await backfillReplyKnowledgeFromTickets(800);
+      await normalizeReplyKnowledgeRows(800);
     }
 
     const counts = await sql()`
@@ -70,16 +73,33 @@ export async function GET(request: NextRequest) {
 
     for (const row of recentAnswered.slice(0, 8)) {
       const subject = String((row as { subject: string }).subject ?? "");
-      const inquiry = String(
-        (row as { body_cleaned: string }).body_cleaned ||
-          (row as { body: string }).body ||
-          ""
+      const inquiry = extractFreeInquiryText(
+        String(
+          (row as { body_cleaned: string }).body_cleaned ||
+            (row as { body: string }).body ||
+            ""
+        )
       );
       const similar = await findSimilarReplySuggestions(subject, inquiry, 1);
       frequentTopics.push({
-        subject: subject.slice(0, 80),
-        count: similar.length > 0 ? similar[0]!.score + 1 : 1,
-        sampleReply: similar[0]?.replyText.slice(0, 280) ?? String((row as { closure_note: string }).closure_note).slice(0, 280)
+        subject: (similar[0]?.inquirySnippet || subject).slice(0, 80),
+        count: similar[0]?.hitCount ?? similar[0]?.score ?? 1,
+        sampleReply: similar[0]?.replyText.slice(0, 280) ?? ""
+      });
+    }
+
+    const recurringRows = await sql()`
+      SELECT sample_inquiry, reply_text, hit_count
+      FROM reply_topic_patterns
+      WHERE hit_count >= 2
+      ORDER BY hit_count DESC, updated_at DESC
+      LIMIT 6
+    `;
+    for (const row of recurringRows) {
+      frequentTopics.push({
+        subject: String((row as { sample_inquiry: string }).sample_inquiry).slice(0, 80),
+        count: Number((row as { hit_count: number }).hit_count ?? 2),
+        sampleReply: String((row as { reply_text: string }).reply_text).slice(0, 280)
       });
     }
 

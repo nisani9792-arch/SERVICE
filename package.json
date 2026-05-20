@@ -19,7 +19,8 @@
     "email-ingest:trigger": "node scripts/trigger-email-ingest.cjs",
     "email-outbound:trigger": "node scripts/trigger-outbound-email.cjs",
     "db-backup:trigger": "node scripts/trigger-db-backup.cjs",
-    "test:classify": "npx tsx --test src/lib/__tests__/classification.test.ts"
+    "test:classify": "npx tsx --test src/lib/__tests__/classification.test.ts",
+    "test:reply": "npx tsx --test src/lib/__tests__/reply-text-extract.test.ts src/lib/__tests__/reply-knowledge.test.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

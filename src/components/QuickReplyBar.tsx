@@ -11,6 +11,15 @@ interface QuickReplyBarProps {
   onCancel: () => void;
 }
 
+type Suggestion = {
+  id: string;
+  subject: string;
+  inquirySnippet: string;
+  replyText: string;
+  matchReason: string;
+  recurring: boolean;
+};
+
 export function QuickReplyBar({ ticket, onSent, onCancel }: QuickReplyBarProps) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -18,21 +27,39 @@ export function QuickReplyBar({ ticket, onSent, onCancel }: QuickReplyBarProps) 
   const [templates, setTemplates] = useState<Array<{ id: string; title: string; body: string }>>(
     []
   );
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
 
   useEffect(() => {
     if (!ticket) {
       setMessage("");
       setError(null);
+      setSuggestions([]);
       return;
     }
     void (async () => {
       try {
-        const res = await fetch("/api/reply-templates", { cache: "no-store" });
-        if (!res.ok) return;
-        const data = (await res.json()) as { items: Array<{ id: string; title: string; body: string }> };
-        setTemplates(data.items ?? []);
+        const [tplRes, sugRes] = await Promise.all([
+          fetch("/api/reply-templates", { cache: "no-store" }),
+          fetch(`/api/tickets/${ticket.id}/reply-suggestions`, {
+            cache: "no-store",
+            credentials: "same-origin"
+          })
+        ]);
+        if (tplRes.ok) {
+          const data = (await tplRes.json()) as {
+            items: Array<{ id: string; title: string; body: string }>;
+          };
+          setTemplates(data.items ?? []);
+        }
+        if (sugRes.ok) {
+          const data = (await sugRes.json()) as { suggestions: Suggestion[] };
+          setSuggestions(data.suggestions ?? []);
+        } else {
+          setSuggestions([]);
+        }
       } catch {
         setTemplates([]);
+        setSuggestions([]);
       }
     })();
   }, [ticket]);
@@ -62,7 +89,19 @@ export function QuickReplyBar({ ticket, onSent, onCancel }: QuickReplyBarProps) 
     <form onSubmit={submit} className="crm-triage-reply border-t border-outline/70 bg-white p-3">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <span className="text-xs font-bold text-on-surface">תשובה מהירה</span>
-        {templates.slice(0, 4).map((tpl) => (
+        {suggestions.slice(0, 3).map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setMessage(item.replyText)}
+            title={`${item.matchReason}\nפנייה: ${item.inquirySnippet}`}
+            className="rounded-lg border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-semibold text-violet-950 hover:bg-violet-100"
+          >
+            {item.recurring ? "חוזר" : "רלוונטי"}: {item.replyText.slice(0, 36)}
+            {item.replyText.length > 36 ? "…" : ""}
+          </button>
+        ))}
+        {templates.slice(0, 3).map((tpl) => (
           <button
             key={tpl.id}
             type="button"
@@ -81,7 +120,7 @@ export function QuickReplyBar({ ticket, onSent, onCancel }: QuickReplyBarProps) 
         onChange={(e) => setMessage(e.target.value)}
         rows={3}
         dir="rtl"
-        placeholder="כתוב תשובה..."
+        placeholder="כתוב תשובה (רק הטקסט החופשי — פתיחה וסיום יתווספו אוטומטית)..."
         className="crm-input mb-2 resize-none text-sm"
       />
       {error ? <p className="mb-2 text-xs text-red-600">{error}</p> : null}
