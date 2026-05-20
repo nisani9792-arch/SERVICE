@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { APP_NAME } from "@/lib/brand";
 
 const CREDENTIAL_KEY = "service-crm-biometric-id";
 
@@ -72,11 +73,11 @@ export function useBiometricUnlock(onSuccess: () => void, onError?: (message: st
     const credential = (await navigator.credentials.create({
       publicKey: {
         challenge: crypto.getRandomValues(new Uint8Array(32)),
-        rp: { name: "SERVICE", id: window.location.hostname },
+        rp: { name: APP_NAME, id: window.location.hostname },
         user: {
           id: crypto.getRandomValues(new Uint8Array(16)),
-          name: "service",
-          displayName: "SERVICE"
+          name: "jusic-service",
+          displayName: APP_NAME
         },
         pubKeyCredParams: [{ alg: -7, type: "public-key" }],
         authenticatorSelection: {

@@ -1,7 +1,7 @@
 {
-  "name": "SERVICE",
-  "short_name": "SERVICE",
-  "description": "מערכת SERVICE לניהול פניות, סיווג ותפעול",
+  "name": "JUSIC SERVICE",
+  "short_name": "JUSIC SERVICE",
+  "description": "JUSIC SERVICE — מערכת לניהול פניות, סיווג ותפעול",
   "lang": "he",
   "dir": "rtl",
   "start_url": "/",
@@ -12,7 +12,7 @@
   "theme_color": "#5a5ac9",
   "icons": [
     {
-      "src": "/jusic-logo.png",
+      "src": "/jusic-service-logo.png",
       "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any maskable"

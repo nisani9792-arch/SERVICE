@@ -4,6 +4,7 @@ import { Mail, RefreshCw, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { useOperatorName } from "@/components/AccessGate";
 import { JusicLogo } from "@/components/ui/JusicLogo";
+import { APP_NAME } from "@/lib/brand";
 import { cn } from "@/lib/cn";
 import type { ReactNode } from "react";
 
@@ -52,7 +53,7 @@ export function AppHeader({
           <div className="min-w-0">
             <h1 className="flex items-center gap-1.5 text-base font-extrabold tracking-tight text-on-surface md:text-lg">
               <span className="bg-gradient-to-l from-primary via-[#8b7cf8] to-accent bg-clip-text text-transparent">
-                JUSIC
+                {APP_NAME}
               </span>
               <Sparkles className="size-3.5 text-primary/60" aria-hidden />
             </h1>

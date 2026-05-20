@@ -51,7 +51,7 @@ services:
       - key: EMAIL_FROM
         value: "EDITOR@JUSIC.CO"
       - key: EMAIL_FROM_NAME
-        value: "Jusic"
+        value: "JUSIC SERVICE"
       - key: EMAIL_REPLY_PROVIDER
         value: "gmail_api"
       - key: EMAIL_INGEST_PROVIDER

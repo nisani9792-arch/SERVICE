@@ -125,6 +125,10 @@
   }
 }
 
+.jusic-logo {
+  flex-shrink: 0;
+}
+
 .jusic-logo-float {
   animation: jusic-logo-float 4s var(--j-ease) infinite;
 }

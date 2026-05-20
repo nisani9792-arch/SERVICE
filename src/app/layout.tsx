@@ -3,6 +3,7 @@ import { Heebo } from "next/font/google";
 import { AccessGate } from "@/components/AccessGate";
 import { PwaInstallPrompt } from "@/components/PwaInstallPrompt";
 import { AppBackground } from "@/components/ui/AppBackground";
+import { APP_DESCRIPTION, APP_LOGO_SRC, APP_NAME } from "@/lib/brand";
 import "@/app/globals.css";
 
 const heebo = Heebo({
@@ -12,21 +13,21 @@ const heebo = Heebo({
 });
 
 export const metadata: Metadata = {
-  title: "JUSIC — מרכז פניות",
-  description: "מערכת JUSIC לניהול פניות, סיווג ותפעול",
+  title: `${APP_NAME} — מרכז פניות`,
+  description: APP_DESCRIPTION,
   manifest: "/manifest.webmanifest",
   other: {
     "mobile-web-app-capable": "yes"
   },
   appleWebApp: {
     capable: true,
-    title: "JUSIC",
+    title: APP_NAME,
     statusBarStyle: "default"
   },
   icons: {
-    icon: [{ url: "/jusic-logo.png", type: "image/png", sizes: "1024x1024" }],
-    shortcut: "/jusic-logo.png",
-    apple: "/jusic-logo.png"
+    icon: [{ url: APP_LOGO_SRC, type: "image/png", sizes: "1024x1024" }],
+    shortcut: APP_LOGO_SRC,
+    apple: APP_LOGO_SRC
   }
 };
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Smartphone, X } from "lucide-react";
+import { APP_NAME } from "@/lib/brand";
 
 type InstallChoice = {
   outcome: "accepted" | "dismissed";
@@ -118,7 +119,7 @@ export function PwaInstallPrompt() {
           <Smartphone className="size-5" aria-hidden />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-bold text-on-surface">להתקין את SERVICE?</p>
+          <p className="text-sm font-bold text-on-surface">להתקין את {APP_NAME}?</p>
           <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">
             גישה מהירה מהמסך הראשי, תצוגה נוחה בסמארטפון וחווייה כמו אפליקציה.
           </p>

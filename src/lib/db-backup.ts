@@ -167,7 +167,7 @@ export async function runDatabaseBackup(): Promise<BackupRunResult> {
   const payload = {
     version: 1,
     exportedAt,
-    app: "SERVICE",
+    app: "JUSIC SERVICE",
     tables
   };
 

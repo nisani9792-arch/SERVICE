@@ -51,7 +51,7 @@ async function ensureQueueTable(): Promise<void> {
 export async function enqueueOutboundEmail(input: OutboundEmailInput): Promise<string> {
   await ensureQueueTable();
   const to = input.to.trim();
-  const subject = input.subject.trim() || "הודעה מ-SERVICE";
+  const subject = input.subject.trim() || "הודעה מ-JUSIC SERVICE";
   const body = input.message.trim();
   if (!to || !body) throw new Error("to and message are required");
 
