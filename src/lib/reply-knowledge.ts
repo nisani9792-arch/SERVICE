@@ -1,7 +1,7 @@
 import { sql } from "@/lib/neon";
 import { extractKeywords } from "@/lib/reply-knowledge-keywords";
 import { extractFreeInquiryText, extractFreeReplyText } from "@/lib/reply-text-extract";
-import { getReplySignature } from "@/lib/reply-signature";
+import { getReplySignature, type ReplySignature } from "@/lib/reply-signature";
 import { isSpamCategory } from "@/lib/spam-category";
 
 export { extractKeywords } from "@/lib/reply-knowledge-keywords";
@@ -78,6 +78,15 @@ function keywordOverlapRatio(query: string[], rowKeywords: string[]): number {
   const rowSet = new Set(rowKeywords);
   const overlap = query.filter((k) => rowSet.has(k)).length;
   return overlap / query.length;
+}
+
+/** Strip stored/full composed replies down to operator free text for UI suggestions. */
+function freeReplyForSuggestion(
+  raw: string,
+  signature: Pick<ReplySignature, "opening" | "closing">
+): string {
+  const free = extractFreeReplyText(raw, signature);
+  return free || String(raw ?? "").trim();
 }
 
 function jaccardSimilarity(a: string[], b: string[]): number {
@@ -176,7 +185,8 @@ export type SimilarReplySuggestion = {
 async function findRecurringSuggestions(
   questionKey: string,
   subject: string,
-  limit: number
+  limit: number,
+  signature: Pick<ReplySignature, "opening" | "closing">
 ): Promise<SimilarReplySuggestion[]> {
   const rows = await sql()`
     SELECT question_key, sample_subject, sample_inquiry, reply_text, hit_count, updated_at
@@ -192,7 +202,10 @@ async function findRecurringSuggestions(
       id: `topic:${String((row as { question_key: string }).question_key)}`,
       subject: String((row as { sample_subject: string }).sample_subject ?? ""),
       inquirySnippet: String((row as { sample_inquiry: string }).sample_inquiry ?? ""),
-      replyText: String((row as { reply_text: string }).reply_text ?? ""),
+      replyText: freeReplyForSuggestion(
+        String((row as { reply_text: string }).reply_text ?? ""),
+        signature
+      ),
       category: "",
       score: 40 + hitCount * 5,
       createdAt: String((row as { updated_at: string }).updated_at ?? ""),
@@ -212,6 +225,7 @@ export async function findSimilarReplySuggestions(
   limit = 5
 ): Promise<SimilarReplySuggestion[]> {
   await ensureReplyKnowledgeSchema();
+  const signature = await getReplySignature();
 
   const freeInquiry = extractFreeInquiryText(inquiryText);
   if (freeInquiry.length < 6) return [];
@@ -219,7 +233,7 @@ export async function findSimilarReplySuggestions(
   const questionKey = buildQuestionKey(subject, freeInquiry);
   const queryKeywords = extractKeywords(freeInquiry, 24);
 
-  const recurring = await findRecurringSuggestions(questionKey, subject, limit);
+  const recurring = await findRecurringSuggestions(questionKey, subject, limit, signature);
   const seenReply = new Set<string>();
   const out: SimilarReplySuggestion[] = [];
 
@@ -276,7 +290,10 @@ export async function findSimilarReplySuggestions(
       id: String((row as { id: string }).id),
       subject: String((row as { subject: string }).subject ?? ""),
       inquirySnippet: rowInquiry,
-      replyText: String((row as { reply_text: string }).reply_text ?? ""),
+      replyText: freeReplyForSuggestion(
+        String((row as { reply_text: string }).reply_text ?? ""),
+        signature
+      ),
       category: String((row as { category: string }).category ?? ""),
       score,
       createdAt: String((row as { created_at: string }).created_at),
@@ -336,6 +353,27 @@ export async function normalizeReplyKnowledgeRows(limit = 400): Promise<number> 
     `;
     updated += 1;
   }
+
+  const topicRows = await sql()`
+    SELECT question_key, reply_text
+    FROM reply_topic_patterns
+    ORDER BY updated_at DESC
+    LIMIT ${limit}
+  `;
+  for (const row of topicRows) {
+    const questionKey = String((row as { question_key: string }).question_key ?? "");
+    const freeReply = extractFreeReplyText(
+      String((row as { reply_text: string }).reply_text ?? ""),
+      signature
+    );
+    if (!questionKey || freeReply.length < 12) continue;
+    await sql()`
+      UPDATE reply_topic_patterns
+      SET reply_text = ${freeReply.slice(0, 4000)}
+      WHERE question_key = ${questionKey}
+    `;
+  }
+
   return updated;
 }
 

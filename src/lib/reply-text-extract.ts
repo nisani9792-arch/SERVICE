@@ -10,6 +10,7 @@ const INQUIRY_CONTEXT_BLOCK =
 
 const GENERIC_OPENINGS = [
   /^היי[.\s,!:]*$/im,
+  /^היי\.\s*בהמשך לפנייתך[^\n]*$/im,
   /^שלום[.\s,!:]*$/im,
   /^בהמשך לפנייתך[^\n]*$/im,
   /^בברכה[^\n]*$/im
@@ -17,6 +18,15 @@ const GENERIC_OPENINGS = [
 
 function collapse(text: string): string {
   return text.replace(/\s+/g, " ").trim();
+}
+
+function normalizeReplyParagraphs(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trimEnd())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /** Customer inquiry only — no signatures or reply boilerplate. */
@@ -62,5 +72,5 @@ export function extractFreeReplyText(
     kept.push(line);
   }
 
-  return collapse(kept.join("\n"));
+  return normalizeReplyParagraphs(kept.join("\n"));
 }

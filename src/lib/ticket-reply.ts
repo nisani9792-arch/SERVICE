@@ -1,6 +1,7 @@
 import { replyFromAddress, sendCustomerReply } from "@/lib/email-send";
 import { enqueueOutboundEmail } from "@/lib/outbound-email";
 import { createOutboundMessageId, recordOutboundMessageId } from "@/lib/outbound-message-ids";
+import { extractFreeReplyText } from "@/lib/reply-text-extract";
 import { getReplySignature } from "@/lib/reply-signature";
 import {
   buildInquiryContextBlock,
@@ -151,7 +152,8 @@ function composeCustomerReply(
   signature: Awaited<ReturnType<typeof getReplySignature>>
 ): string {
   const contextBlock = buildInquiryContextBlock(ticketContextFromRow(ticket));
-  const core = message.trim();
+  const core =
+    extractFreeReplyText(message.trim(), signature) || message.trim();
   const opening = signature.opening.trim();
   const closing = signature.closing.trim();
   const parts: string[] = [];
