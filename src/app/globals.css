@@ -5,35 +5,41 @@
 :root {
   color-scheme: light;
 
-  /* Material 3–inspired premium palette */
-  --j-surface: #f6f4fc;
-  --j-surface-container: #ede9f8;
-  --j-surface-high: rgba(255, 255, 255, 0.72);
-  --j-on-surface: #1a1625;
-  --j-on-surface-variant: #5c5670;
+  /* JUSIC SERVICE brand — cyan + slate from logo */
+  --j-brand-cyan: #2fb4d8;
+  --j-brand-cyan-dark: #1f9fbf;
+  --j-brand-grey: #7a858f;
+  --j-brand-grey-dark: #4a5560;
 
-  --j-primary: #6d5ce8;
-  --j-primary-soft: rgba(109, 92, 232, 0.12);
-  --j-accent: #2bb8a8;
-  --j-accent-soft: rgba(43, 184, 168, 0.14);
+  --j-surface: #e8edf1;
+  --j-surface-container: #dde4ea;
+  --j-surface-high: rgba(255, 255, 255, 0.9);
+  --j-on-surface: #1a2329;
+  --j-on-surface-variant: #4e5962;
 
-  --j-outline: rgba(109, 92, 232, 0.14);
+  --j-primary: var(--j-brand-cyan);
+  --j-primary-soft: rgba(47, 180, 216, 0.14);
+  --j-accent: var(--j-brand-grey-dark);
+  --j-accent-soft: rgba(74, 85, 96, 0.1);
+
+  --j-outline: rgba(74, 85, 96, 0.16);
   --j-success: #0d9668;
-  --j-danger: #e0455c;
-  --j-warning: #d97706;
+  --j-danger: #d64555;
+  --j-warning: #c27803;
 
   --j-radius: 1.125rem;
   --j-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
-  /* Colored glows only — no gray drop shadows */
-  --j-glow-primary: 0 0 0 1px rgba(109, 92, 232, 0.08), 0 8px 32px -4px rgba(109, 92, 232, 0.22);
-  --j-glow-sm: 0 0 24px -6px rgba(139, 124, 248, 0.35);
-  --j-glow-accent: 0 0 28px -6px rgba(43, 184, 168, 0.35);
-  --j-glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  --j-shadow-soft: 0 2px 8px rgba(26, 35, 41, 0.07), 0 10px 28px rgba(26, 35, 41, 0.1);
+  --j-shadow-md: 0 4px 14px rgba(26, 35, 41, 0.1), 0 12px 32px rgba(26, 35, 41, 0.12);
+  --j-glow-primary: var(--j-shadow-md), 0 0 0 1px rgba(47, 180, 216, 0.12);
+  --j-glow-sm: 0 2px 10px rgba(26, 35, 41, 0.08), 0 6px 20px rgba(47, 180, 216, 0.16);
+  --j-glow-accent: 0 4px 18px rgba(74, 85, 96, 0.14);
+  --j-glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.75);
 
   /* Legacy aliases */
   --crm-primary: var(--j-primary);
-  --crm-primary-dark: #5b4ad4;
+  --crm-primary-dark: var(--j-brand-cyan-dark);
   --crm-accent: var(--j-accent);
   --crm-surface: var(--j-surface);
   --crm-card: var(--j-surface-high);
@@ -85,7 +91,7 @@
   height: min(55vw, 520px);
   top: -12%;
   right: -8%;
-  background: radial-gradient(circle, rgba(139, 124, 248, 0.45) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(47, 180, 216, 0.28) 0%, transparent 70%);
 }
 
 .app-mesh-blob-b {
@@ -93,7 +99,7 @@
   height: min(45vw, 420px);
   bottom: -10%;
   left: -12%;
-  background: radial-gradient(circle, rgba(43, 184, 168, 0.35) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(122, 133, 143, 0.22) 0%, transparent 70%);
   animation-delay: -6s;
 }
 
@@ -102,7 +108,7 @@
   height: min(35vw, 320px);
   top: 40%;
   left: 35%;
-  background: radial-gradient(circle, rgba(196, 181, 253, 0.3) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(47, 180, 216, 0.14) 0%, transparent 70%);
   animation-delay: -12s;
 }
 
@@ -127,6 +133,42 @@
 
 .jusic-logo {
   flex-shrink: 0;
+  object-fit: contain;
+  display: block;
+}
+
+.crm-brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.75rem;
+  height: 4.75rem;
+  padding: 0.625rem;
+  border-radius: 1.35rem;
+  background: linear-gradient(155deg, #ffffff 0%, #f2f6f9 100%);
+  border: 1px solid rgba(47, 180, 216, 0.22);
+  box-shadow: var(--j-shadow-soft), 0 0 0 1px rgba(255, 255, 255, 0.85) inset;
+}
+
+.crm-brand-title {
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--j-on-surface);
+}
+
+@media (min-width: 768px) {
+  .crm-brand-mark {
+    width: 5.25rem;
+    height: 5.25rem;
+    padding: 0.75rem;
+    border-radius: 1.5rem;
+  }
+
+  .crm-brand-title {
+    font-size: 1.25rem;
+  }
 }
 
 .jusic-logo-float {
@@ -145,11 +187,11 @@
 
 .glass-panel-strong {
   border-radius: var(--j-radius);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  box-shadow: var(--j-glass-edge), var(--j-glow-primary);
+  box-shadow: var(--j-glass-edge), var(--j-shadow-soft);
 }
 
 /* Layout */
@@ -166,8 +208,9 @@
 .crm-card-flat {
   border-radius: var(--j-radius);
   border: 1px solid var(--j-outline);
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.84);
   backdrop-filter: blur(12px);
+  box-shadow: var(--j-shadow-soft);
 }
 
 /* Buttons */
@@ -183,18 +226,18 @@
 
 .crm-btn:hover,
 .lux-button:hover {
-  border-color: rgba(109, 92, 232, 0.35);
-  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(47, 180, 216, 0.35);
+  background: rgba(255, 255, 255, 0.96);
   box-shadow: var(--j-glow-sm);
 }
 
 .crm-btn-primary,
 .lux-button-primary {
   @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl2 px-4 text-xs font-bold text-white transition-all duration-200;
-  background: linear-gradient(135deg, #8b7cf8 0%, #6d5ce8 45%, #5b4ad4 100%);
+  background: linear-gradient(135deg, #45c4e4 0%, var(--j-brand-cyan) 48%, var(--j-brand-cyan-dark) 100%);
   touch-action: manipulation;
   box-shadow: var(--j-glow-sm);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.28);
 }
 
 .crm-btn-primary:hover,
@@ -221,21 +264,21 @@
 }
 
 .crm-kpi-active {
-  border-color: rgba(109, 92, 232, 0.35);
-  background: linear-gradient(145deg, rgba(109, 92, 232, 0.95), rgba(91, 74, 212, 0.92));
+  border-color: rgba(47, 180, 216, 0.35);
+  background: linear-gradient(145deg, #45c4e4, var(--j-brand-cyan-dark));
   color: white;
   box-shadow: var(--j-glow-primary);
 }
 
 .crm-kpi-idle {
   border-color: var(--j-outline);
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(12px);
   color: var(--j-on-surface);
 }
 
 .crm-kpi-idle:hover {
-  border-color: rgba(109, 92, 232, 0.28);
+  border-color: rgba(47, 180, 216, 0.28);
   box-shadow: var(--j-glow-sm);
 }
 
@@ -249,14 +292,15 @@
 .crm-touch-input {
   @apply w-full rounded-xl2 border px-3 py-2.5 text-sm outline-none transition-all duration-200;
   border-color: var(--j-outline);
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--j-on-surface);
   backdrop-filter: blur(8px);
 }
 
 .crm-input:focus,
 .crm-touch-input:focus {
-  border-color: rgba(109, 92, 232, 0.45);
-  box-shadow: 0 0 0 3px rgba(109, 92, 232, 0.12);
+  border-color: rgba(47, 180, 216, 0.5);
+  box-shadow: 0 0 0 3px rgba(47, 180, 216, 0.14);
 }
 
 .crm-search {
@@ -266,8 +310,8 @@
 /* Badges */
 .crm-badge-sync {
   @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold;
-  background: rgba(43, 184, 168, 0.14);
-  color: #0d7a5f;
+  background: rgba(47, 180, 216, 0.14);
+  color: #156b82;
 }
 
 .crm-badge-sync-pending {
@@ -283,7 +327,7 @@
   background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  box-shadow: 0 -8px 40px -12px rgba(109, 92, 232, 0.2);
+  box-shadow: 0 -8px 32px -10px rgba(26, 35, 41, 0.14);
 }
 
 /* Workbench */
@@ -295,9 +339,9 @@
 .crm-detail-panel {
   @apply flex min-h-0 flex-col overflow-hidden rounded-xl3 border;
   border-color: var(--j-outline);
-  background: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(16px);
-  box-shadow: var(--j-glow-sm);
+  box-shadow: var(--j-shadow-soft);
 }
 
 .crm-detail-panel {
@@ -361,7 +405,7 @@
 }
 
 .crm-app-header {
-  @apply glass-panel-strong sticky z-30 mb-3 px-3 py-2.5;
+  @apply glass-panel-strong sticky z-30 mb-3 px-4 py-3.5 md:py-4;
   top: max(0.35rem, env(safe-area-inset-top));
 }
 
@@ -369,9 +413,9 @@
   @apply animate-pulse rounded-lg;
   background: linear-gradient(
     90deg,
-    rgba(109, 92, 232, 0.08) 0%,
-    rgba(139, 124, 248, 0.16) 50%,
-    rgba(109, 92, 232, 0.08) 100%
+    rgba(47, 180, 216, 0.06) 0%,
+    rgba(47, 180, 216, 0.12) 50%,
+    rgba(47, 180, 216, 0.06) 100%
   );
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.4s ease-in-out infinite;
@@ -413,5 +457,5 @@
 
 .crm-list-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(109, 92, 232, 0.25) transparent;
+  scrollbar-color: rgba(47, 180, 216, 0.28) transparent;
 }

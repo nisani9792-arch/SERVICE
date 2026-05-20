@@ -41,7 +41,7 @@ export function MobileDock({
           <Inbox className="size-5" />
           ממתין
           {triageCount > 0 ? (
-            <span className="absolute -top-1 left-1/2 min-w-[1.1rem] -translate-x-1/2 rounded-full bg-gradient-to-r from-primary to-[#8b7cf8] px-1 text-[9px] font-bold text-white shadow-glow-sm">
+            <span className="absolute -top-1 left-1/2 min-w-[1.1rem] -translate-x-1/2 rounded-full bg-gradient-to-r from-primary to-[#1f9fbf] px-1 text-[9px] font-bold text-white shadow-glow-sm">
               {triageCount > 99 ? "99+" : triageCount}
             </span>
           ) : null}

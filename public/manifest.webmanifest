@@ -8,8 +8,8 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#f8f7fb",
-  "theme_color": "#5a5ac9",
+  "background_color": "#e8edf1",
+  "theme_color": "#2fb4d8",
   "icons": [
     {
       "src": "/jusic-service-logo.png",

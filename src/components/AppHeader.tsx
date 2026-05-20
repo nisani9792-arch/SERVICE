@@ -1,6 +1,6 @@
 "use client";
 
-import { Mail, RefreshCw, Sparkles } from "lucide-react";
+import { Mail, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import { useOperatorName } from "@/components/AccessGate";
 import { JusicLogo } from "@/components/ui/JusicLogo";
@@ -41,23 +41,18 @@ export function AppHeader({
     <header className="crm-app-header">
       <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
         <motion.div
-          className="flex min-w-0 items-center gap-3"
+          className="flex min-w-0 items-center gap-3.5 md:gap-4"
           initial={{ opacity: 0, x: 8 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ type: "spring", stiffness: 400, damping: 30 }}
         >
-          <div className="flex size-12 shrink-0 items-center justify-center rounded-xl2 border border-white/60 bg-white/50 p-1.5 shadow-glow-sm">
-            <JusicLogo size={36} variant="mark" />
+          <div className="crm-brand-mark">
+            <JusicLogo size={64} variant="mark" animated={false} />
           </div>
 
           <div className="min-w-0">
-            <h1 className="flex items-center gap-1.5 text-base font-extrabold tracking-tight text-on-surface md:text-lg">
-              <span className="bg-gradient-to-l from-primary via-[#8b7cf8] to-accent bg-clip-text text-transparent">
-                {APP_NAME}
-              </span>
-              <Sparkles className="size-3.5 text-primary/60" aria-hidden />
-            </h1>
-            <p className="truncate text-[11px] leading-relaxed text-on-surface-variant">
+            <h1 className="crm-brand-title">{APP_NAME}</h1>
+            <p className="truncate text-xs leading-relaxed text-on-surface-variant md:text-[13px]">
               {operatorName ? (
                 <span className="font-medium text-on-surface">מטפל: {operatorName}</span>
               ) : null}

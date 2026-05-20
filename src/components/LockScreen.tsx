@@ -66,7 +66,7 @@ export function LockScreen({ onBiometricUnlock, onGateCode, unlockError }: LockS
         transition={{ type: "spring", stiffness: 320, damping: 28 }}
       >
         <div className="lock-logo-wrap">
-          <JusicLogo size={72} variant="mark" />
+          <JusicLogo size={88} variant="mark" animated={false} />
         </div>
 
         <div className="lock-icon-wrap" aria-hidden>
