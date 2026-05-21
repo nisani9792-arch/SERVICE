@@ -1,6 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { bodyForAiPrompt } from "@/lib/message-filter";
-import { isEmptyOrNoiseInquiry } from "@/lib/inquiry-spam-heuristic";
 import { isLikelySpamInquiry } from "@/lib/spam-inquiry";
 import { normalizeCategory } from "@/lib/category-normalize";
 import { TicketPriority } from "@/lib/types";
