@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useMemo, useState } from "react";
-import { TicketListRow } from "@/components/TicketListRow";
+import { TicketListRow, type TicketListMode } from "@/components/TicketListRow";
 import { VirtualTicketList } from "@/components/VirtualTicketList";
 import { dayGroupLabel } from "@/lib/ticket-list-utils";
 import type { Ticket } from "@/lib/types";
@@ -22,6 +22,7 @@ export interface TicketListPanelProps {
   tickets: Ticket[];
   activeTicketId: string | null;
   selectedIds: Set<string>;
+  listMode?: TicketListMode;
   onSelect: (ticket: Ticket) => void;
   onToggleSelect: (id: string) => void;
 }
@@ -31,6 +32,7 @@ function TicketListPanelInner({
   tickets,
   activeTicketId,
   selectedIds,
+  listMode = "default",
   onSelect,
   onToggleSelect
 }: TicketListPanelProps) {
@@ -71,6 +73,7 @@ function TicketListPanelInner({
               <TicketListRow
                 key={ticket.id}
                 ticket={ticket}
+                listMode={listMode}
                 active={activeTicketId === ticket.id}
                 selected={selectedIds.has(ticket.id)}
                 onSelect={onSelect}

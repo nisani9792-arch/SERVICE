@@ -5,6 +5,8 @@ export type TicketListFilters = {
   ticketNumberExact: number | null;
   activeStatusFilter: boolean;
   closedStatusFilter: boolean;
+  /** Answered & closed tickets (REPLIED tag or closure note) — outbox tracking */
+  outboxStatusFilter: boolean;
   exactStatusFilter: string | null;
   dateFromTs: string | null;
   /** Exclusive upper bound (start of day after selected "עד תאריך"). */
@@ -39,9 +41,16 @@ export function parseTicketListFilters(searchParams: URLSearchParams): TicketLis
 
   const status = searchParams.get("status");
   const activeStatusFilter = status === "active";
+  const outboxStatusFilter = status === "outbox";
   const closedStatusFilter = status === "closed";
   const exactStatusFilter =
-    status && status !== "all" && status !== "active" && status !== "closed" ? status : null;
+    status &&
+    status !== "all" &&
+    status !== "active" &&
+    status !== "closed" &&
+    status !== "outbox"
+      ? status
+      : null;
 
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
@@ -80,6 +89,7 @@ export function parseTicketListFilters(searchParams: URLSearchParams): TicketLis
     ticketNumberExact,
     activeStatusFilter,
     closedStatusFilter,
+    outboxStatusFilter,
     exactStatusFilter,
     dateFromTs,
     dateToExclusiveTs,

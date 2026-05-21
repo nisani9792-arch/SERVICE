@@ -59,7 +59,20 @@ export async function GET(request: NextRequest) {
         )
         AND (
           ${f.closedStatusFilter}::boolean = false
-          OR (status IN ('closed', 'handled'))
+          OR (
+            status IN ('closed', 'handled')
+            AND ${f.outboxStatusFilter}::boolean = false
+          )
+        )
+        AND (
+          ${f.outboxStatusFilter}::boolean = false
+          OR (
+            status IN ('closed', 'handled')
+            AND (
+              COALESCE(tags, '{}'::text[]) && ${["REPLIED"]}::text[]
+              OR (closure_note IS NOT NULL AND length(trim(closure_note)) > 10)
+            )
+          )
         )
         AND (
           ${f.exactStatusFilter}::text IS NULL
@@ -98,6 +111,7 @@ export async function GET(request: NextRequest) {
           ELSE 2
         END ASC,
         CASE WHEN ${f.sortMode} = 'triage' THEN COALESCE(classification_confidence, 0) ELSE 0 END DESC,
+        CASE WHEN ${f.outboxStatusFilter}::boolean = true THEN updated_at END DESC NULLS LAST,
         COALESCE(message_at, created_at) DESC
       LIMIT ${f.pageSize}
       OFFSET ${f.offset}

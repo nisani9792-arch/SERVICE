@@ -44,12 +44,14 @@ export function RapidReplyMode() {
     [message, sendAndClose, sending]
   );
 
-  const onKeyDown = useCallback(
+  const trySubmitFromKeyboard = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        void submit();
-      }
+      if (event.key !== "Enter" || event.shiftKey) return;
+      if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+      const mod = event.ctrlKey || event.metaKey;
+      if (!mod) return;
+      event.preventDefault();
+      void submit();
     },
     [submit]
   );
@@ -67,7 +69,7 @@ export function RapidReplyMode() {
         <div className="min-w-0 flex-1">
           <h1 className="text-sm font-bold text-on-surface">מענה מהיר</h1>
           <p className="text-[11px] text-on-surface-variant">
-            Enter = שליחה וסגירה · Shift+Enter = שורה חדשה · S = דילוג · D = ספאם
+            Ctrl+Enter = שליחה וסגירה · Enter = שורה חדשה · S = דילוג · D = ספאם
           </p>
         </div>
         <span className="rounded-full bg-primary-soft px-2.5 py-1 text-[11px] font-bold text-primary">
@@ -96,7 +98,12 @@ export function RapidReplyMode() {
           </Link>
         </div>
       ) : (
-        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+          }}
+          className="flex min-h-0 flex-1 flex-col"
+        >
           <div className="border-b border-outline/50 bg-violet-50/40 px-4 py-2 text-[11px] text-on-surface-variant">
             <span className="font-semibold text-on-surface">
               {ticket.senderName || "לקוח"}
@@ -123,16 +130,18 @@ export function RapidReplyMode() {
               ref={textareaRef}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={onKeyDown}
+              onKeyDown={trySubmitFromKeyboard}
               disabled={sending}
               rows={4}
-              placeholder="כתוב מענה… Enter לשליחה וסגירה"
+              enterKeyHint="enter"
+              placeholder="כתוב מענה… Ctrl+Enter לשליחה וסגירה"
               className="w-full resize-y rounded-2xl border border-outline bg-surface-container/30 px-3 py-2.5 text-sm outline-none focus:border-primary"
             />
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <button
-                type="submit"
+                type="button"
                 disabled={sending || !message.trim()}
+                onClick={() => void submit()}
                 className="crm-btn-primary inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold disabled:opacity-50"
               >
                 {sending ? (
@@ -140,7 +149,7 @@ export function RapidReplyMode() {
                 ) : (
                   <Send className="size-4" />
                 )}
-                Enter — שליחה וסגירה
+                שליחה וסגירה
               </button>
               <button
                 type="button"

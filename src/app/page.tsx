@@ -13,7 +13,8 @@ import {
 import { AppHeader } from "@/components/AppHeader";
 import { MotionPage } from "@/components/ui/Motion";
 import { MobileDock } from "@/components/MobileDock";
-import { SearchBar } from "@/components/SearchBar";
+import { DashboardInboxTabs, type InboxTabId } from "@/components/DashboardInboxTabs";
+import { DashboardToolbar } from "@/components/DashboardToolbar";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { useDashboardStats, useFocusMode } from "@/hooks/useDashboardStats";
 import { AiAgentPanel } from "@/components/AiAgentPanel";
@@ -51,10 +52,9 @@ import { EditTicketModal } from "@/components/EditTicketModal";
 import { ExportContactsModal } from "@/components/ExportContactsModal";
 import { ReplyTemplatesModal } from "@/components/ReplyTemplatesModal";
 import { BulkReplyModal } from "@/components/BulkReplyModal";
-import { categoryLabel } from "@/lib/categories";
 import type { Ticket, TicketStatus } from "@/lib/types";
 
-type WorkbenchStatusFilter = TicketStatus | "active";
+type WorkbenchStatusFilter = TicketStatus | "active" | "outbox";
 
 const EMAIL_SYNC_TOAST_MS = 6000;
 
@@ -686,27 +686,75 @@ export default function DashboardPage() {
   const openCount = stats?.statusCounts.open ?? 0;
   const inProgressCount = stats?.statusCounts.in_progress ?? 0;
   const closedCount = stats?.statusCounts.closed ?? 0;
+  const outboxCount = stats?.outboxCount ?? 0;
   const activeCount = openCount + inProgressCount;
   const triageCount = stats?.pendingTriageCount ?? 0;
   const followupCount = stats?.customerFollowupCount ?? 0;
+
+  const activeInboxTab = useMemo((): InboxTabId => {
+    if (activeCategory === PENDING_TRIAGE_CATEGORY) return "triage";
+    if (activeCategory === CUSTOMER_FOLLOWUP_CATEGORY) return "followup";
+    if (activeStatus === "outbox") return "outbox";
+    if (activeStatus === "closed") return "closed";
+    if (activeStatus === "in_progress") return "in_progress";
+    return "active";
+  }, [activeCategory, activeStatus]);
+
+  const applyInboxTab = useCallback((tab: InboxTabId) => {
+    setPage(1);
+    switch (tab) {
+      case "active":
+        setActiveCategory("all");
+        setActiveStatus("active");
+        break;
+      case "triage":
+        setActiveCategory(PENDING_TRIAGE_CATEGORY);
+        setActiveStatus("active");
+        break;
+      case "followup":
+        setActiveCategory(CUSTOMER_FOLLOWUP_CATEGORY);
+        setActiveStatus("active");
+        break;
+      case "in_progress":
+        setActiveCategory("all");
+        setActiveStatus("in_progress");
+        break;
+      case "outbox":
+        setActiveCategory("all");
+        setActiveStatus("outbox");
+        break;
+      case "closed":
+        setActiveCategory("all");
+        setActiveStatus("closed");
+        break;
+      default:
+        break;
+    }
+  }, []);
+
   const workbenchTitle =
     activeCategory === CUSTOMER_FOLLOWUP_CATEGORY
       ? "תשובות חוזרות"
       : activeCategory === PENDING_TRIAGE_CATEGORY
       ? "ממתין לסינון"
-      : activeStatus === "closed"
-        ? "פניות שנסגרו"
-        : activeStatus === "in_progress"
-          ? "פניות בטיפול"
-          : "פניות פעילות";
+      : activeStatus === "outbox"
+        ? "דואר יוצא — פניות שנענו"
+        : activeStatus === "closed"
+          ? "ארכיון — כל הפניות הסגורות"
+          : activeStatus === "in_progress"
+            ? "פניות בטיפול"
+            : "פניות פעילות";
   const workbenchSubtitle =
     activeCategory === CUSTOMER_FOLLOWUP_CATEGORY
       ? "תשובות לקוח על פניות שכבר טופלו או נענו — באותה פנייה"
       : activeCategory === PENDING_TRIAGE_CATEGORY
-      ? "פניות חדשות ממייל — בחר קטגוריה בלחיצה אחת"
-      : activeStatus === "closed"
-        ? `מציג ${total.toLocaleString("he-IL")} פניות סגורות (כולל טופלו בעבר)`
-        : undefined;
+        ? "פניות חדשות ממייל — בחר קטגוריה בלחיצה אחת"
+        : activeStatus === "outbox"
+          ? `מעקב אחרי ${total.toLocaleString("he-IL")} פניות שנענו ונסגרו · ממוין לפי תאריך טיפול`
+          : activeStatus === "closed"
+            ? `מציג ${total.toLocaleString("he-IL")} פניות סגורות (כולל ללא מענה)`
+            : undefined;
+  const workbenchListMode = activeStatus === "outbox" ? "outbox" as const : "default" as const;
 
   const headerActions = (
     <>
@@ -881,182 +929,45 @@ export default function DashboardPage() {
 
         <section className="space-y-2">
           <div className="glass-panel rounded-xl3 p-3">
-            <div className="crm-kpi-scroll flex gap-2 overflow-x-auto pb-1 lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveCategory("all");
-                  setActiveStatus("active");
-                  setPage(1);
-                }}
-                className={`crm-kpi-card min-w-[9.5rem] shrink-0 rounded-2xl border p-3 text-right transition lg:min-w-0 ${
-                  activeStatus === "active" && activeCategory === "all"
-                    ? "border-primary bg-primary text-white shadow-soft"
-                    : "border-outline bg-white text-on-surface hover:border-primary/35"
-                }`}
-              >
-                <span className="block text-xs font-semibold opacity-80">עבודה יומית</span>
-                <span className="mt-1 block text-lg font-black">פניות פעילות</span>
-                <span className="text-xs opacity-80">{activeCount.toLocaleString("he-IL")} פתוחות ובטיפול</span>
-              </button>
-              <div className="flex min-w-[9.5rem] shrink-0 flex-col gap-1 lg:min-w-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveCategory(PENDING_TRIAGE_CATEGORY);
-                  setActiveStatus("active");
-                  setPage(1);
-                }}
-                className={`rounded-2xl border p-3 text-right transition ${
-                  activeCategory === PENDING_TRIAGE_CATEGORY
-                    ? "border-fuchsia-400/50 bg-fuchsia-500/15 text-fuchsia-950 shadow-glow-sm"
-                    : "border-outline bg-white text-on-surface hover:border-fuchsia-300"
-                }`}
-              >
-                <span className="block text-xs font-semibold opacity-80">כניסה חדשה</span>
-                <span className="mt-1 block text-lg font-black">ממתין לסינון</span>
-                <span className="text-xs opacity-80">{triageCount.toLocaleString("he-IL")} לשיוך ובדיקה</span>
-              </button>
-              <Link
-                href="/triage"
-                className="rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-2 py-1 text-center text-[10px] font-bold text-fuchsia-900 hover:bg-fuchsia-100"
-              >
-                מצב מהיר ({stats?.pendingWithSuggestion ?? 0} עם הצעת AI)
-              </Link>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveCategory(CUSTOMER_FOLLOWUP_CATEGORY);
-                  setActiveStatus("active");
-                  setPage(1);
-                }}
-                className={`min-w-[9.5rem] shrink-0 rounded-2xl border p-3 text-right transition lg:min-w-0 ${
-                  activeCategory === CUSTOMER_FOLLOWUP_CATEGORY
-                    ? "border-amber-400/50 bg-amber-500/15 text-amber-950 shadow-glow-sm"
-                    : "border-outline bg-white text-on-surface hover:border-amber-300"
-                }`}
-              >
-                <span className="block text-xs font-semibold opacity-80">שרשור מייל</span>
-                <span className="mt-1 block text-lg font-black">תשובות חוזרות</span>
-                <span className="text-xs opacity-80">{followupCount.toLocaleString("he-IL")} ממתינות לטיפול</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveCategory("all");
-                  setActiveStatus("in_progress");
-                  setPage(1);
-                }}
-                className={`min-w-[9.5rem] shrink-0 rounded-2xl border p-3 text-right transition lg:min-w-0 ${
-                  activeStatus === "in_progress" && activeCategory === "all"
-                    ? "border-sky-400/50 bg-sky-500/15 text-sky-950 shadow-glow-sm"
-                    : "border-outline bg-white text-on-surface hover:border-sky-300"
-                }`}
-              >
-                <span className="block text-xs font-semibold opacity-80">במעקב</span>
-                <span className="mt-1 block text-lg font-black">בטיפול</span>
-                <span className="text-xs opacity-80">{inProgressCount.toLocaleString("he-IL")} פניות פעילות</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveCategory("all");
-                  setActiveStatus("closed");
-                  setPage(1);
-                }}
-                className={`min-w-[9.5rem] shrink-0 rounded-2xl border p-3 text-right transition lg:min-w-0 ${
-                  activeStatus === "closed"
-                    ? "border-emerald-400/50 bg-emerald-500/15 text-emerald-950 shadow-glow-sm"
-                    : "border-outline bg-white text-on-surface hover:border-emerald-300"
-                }`}
-              >
-                <span className="block text-xs font-semibold opacity-80">ארכיון</span>
-                <span className="mt-1 block text-lg font-black">פניות שנסגרו</span>
-                <span className="text-xs opacity-80">{closedCount.toLocaleString("he-IL")} טופלו ונשמרו</span>
-              </button>
-            </div>
-
-            <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr),auto] lg:items-start">
-              <SearchBar value={searchValue} onChange={setSearchValue} />
-              <details className="rounded-2xl border border-outline bg-surface-high px-3 py-2 lg:w-72">
-                <summary className="cursor-pointer select-none text-xs font-bold text-on-surface">
-                  סינון מתקדם וקטגוריות
-              </summary>
-              <div className="mt-3 space-y-3">
-                <label className="block text-[11px] font-medium text-on-surface-variant">
-                  קטגוריה
-                  <select
-                    className="mt-1 w-full rounded-lg border border-outline/80 bg-white px-2 py-2 text-xs outline-none focus:border-primary/50"
-                    value={activeCategory}
-                    onChange={(event) => {
-                      setActiveCategory(event.target.value);
-                      setPage(1);
-                    }}
-                  >
-                    <option value="all">כל הקטגוריות</option>
-                    {dynamicCategories.map((item) => (
-                      <option key={item.category} value={item.category}>
-                        {categoryLabel(item.category)} ({item.count.toLocaleString("he-IL")})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
-                <label className="block text-[11px] font-medium text-on-surface-variant">
-                  מתאריך
-                  <input
-                    type="date"
-                    className="mt-1 w-full rounded-lg border border-outline/80 bg-white px-2 py-2 text-xs outline-none focus:border-primary/50"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                  />
-                </label>
-                <label className="block text-[11px] font-medium text-on-surface-variant">
-                  עד תאריך
-                  <input
-                    type="date"
-                    className="mt-1 w-full rounded-lg border border-outline/80 bg-white px-2 py-2 text-xs outline-none focus:border-primary/50"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                  />
-                </label>
-                <label className="block text-[11px] font-medium text-on-surface-variant">
-                  תגיות
-                  <input
-                    className="mt-1 w-full rounded-lg border border-outline/80 bg-white px-2 py-2 text-xs outline-none focus:border-primary/50"
-                    placeholder="vip, billing"
-                    value={tagsFilter}
-                    onChange={(e) => setTagsFilter(e.target.value)}
-                  />
-                </label>
-                </div>
-              </div>
-            </details>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap justify-end gap-2">
-            <button
-              type="button"
-              disabled={aiReclassifying}
-              onClick={() => {
-                void onSpamSweepAll();
+            <DashboardInboxTabs
+              activeTab={activeInboxTab}
+              counts={{
+                active: activeCount,
+                triage: triageCount,
+                followup: followupCount,
+                inProgress: inProgressCount,
+                outbox: outboxCount,
+                closed: closedCount,
+                triageAiHint: stats?.pendingWithSuggestion
               }}
-              className="crm-touch-target lux-button border-amber-200 bg-amber-50 text-amber-950 text-xs"
-            >
-              {aiReclassifying ? "סורק ספאם…" : "סריקת ספאם לכל הפניות (לפי דרישה)"}
-            </button>
-            <button
-              type="button"
-              disabled={aiReclassifying}
-              onClick={() => {
-                void runCrmMaintenance();
-              }}
-              className="crm-touch-target lux-button border-violet-200 bg-violet-50 text-violet-950 text-xs"
-            >
-              {aiReclassifying ? "תחזוקה רצה…" : "תיקון מיילים + סיווג AI (לפי דרישה)"}
-            </button>
+              onTabChange={applyInboxTab}
+            />
+            <div className="mt-3">
+              <DashboardToolbar
+                searchValue={searchValue}
+                onSearchChange={setSearchValue}
+                activeCategory={activeCategory}
+                categories={dynamicCategories}
+                onCategoryChange={(category) => {
+                  setActiveCategory(category);
+                  setPage(1);
+                }}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                onDateFromChange={setDateFrom}
+                onDateToChange={setDateTo}
+                tagsFilter={tagsFilter}
+                onTagsFilterChange={setTagsFilter}
+                showAdvancedTools={!focusMode}
+                toolsBusy={aiReclassifying}
+                onSpamSweep={() => {
+                  void onSpamSweepAll();
+                }}
+                onMaintenance={() => {
+                  void runCrmMaintenance();
+                }}
+              />
+            </div>
           </div>
 
           {!focusMode ? (
@@ -1106,6 +1017,7 @@ export default function DashboardPage() {
           <TicketWorkbench
             title={workbenchTitle}
             subtitle={workbenchSubtitle}
+            listMode={workbenchListMode}
             tickets={items}
             total={total}
             page={page}

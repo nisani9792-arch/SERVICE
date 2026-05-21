@@ -17,3 +17,13 @@ export function listInquiryPreview(ticket: Ticket, maxLen = 160): string {
   }
   return subject || summary || "פנייה ללא תוכן";
 }
+
+/** Outbox row: show operator resolution note when available. */
+export function listOutboxPreview(ticket: Ticket, maxLen = 180): string {
+  const note = (ticket.closureNote || "").replace(/\s+/g, " ").trim();
+  if (note.length >= 12) {
+    const prefix = ticket.tags.includes("REPLIED") ? "נענה: " : "נסגר: ";
+    return (prefix + note).slice(0, maxLen);
+  }
+  return listInquiryPreview(ticket, maxLen);
+}

@@ -85,8 +85,21 @@ export function QuickReplyBar({ ticket, onSent, onCancel }: QuickReplyBarProps) 
 
   if (!ticket) return null;
 
+  const onTextareaKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey) return;
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    if (!(event.ctrlKey || event.metaKey)) return;
+    event.preventDefault();
+    void submit();
+  };
+
   return (
-    <form onSubmit={submit} className="crm-triage-reply border-t border-outline/70 bg-white p-3">
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+      }}
+      className="crm-triage-reply border-t border-outline/70 bg-white p-3"
+    >
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <span className="text-xs font-bold text-on-surface">תשובה מהירה</span>
         {suggestions.slice(0, 3).map((item) => (
@@ -118,15 +131,18 @@ export function QuickReplyBar({ ticket, onSent, onCancel }: QuickReplyBarProps) 
       <textarea
         value={message}
         onChange={(e) => setMessage(e.target.value)}
+        onKeyDown={onTextareaKeyDown}
         rows={3}
         dir="rtl"
-        placeholder="כתוב תשובה (רק הטקסט החופשי — פתיחה וסיום יתווספו אוטומטית)..."
+        enterKeyHint="enter"
+        placeholder="כתוב תשובה… Ctrl+Enter לשליחה (פתיחה וסיום אוטומטיים)"
         className="crm-input mb-2 resize-none text-sm"
       />
       {error ? <p className="mb-2 text-xs text-red-600">{error}</p> : null}
       <button
-        type="submit"
+        type="button"
         disabled={sending || !message.trim()}
+        onClick={() => void submit()}
         className="crm-btn-primary w-full gap-2"
       >
         {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}

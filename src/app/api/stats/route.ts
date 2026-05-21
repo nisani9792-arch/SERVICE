@@ -33,6 +33,13 @@ export async function GET(request: NextRequest) {
         count(*) FILTER (WHERE status = 'in_progress')::int AS in_progress_count,
         count(*) FILTER (WHERE status IN ('closed', 'handled'))::int AS closed_count,
         count(*) FILTER (
+          WHERE status IN ('closed', 'handled')
+            AND (
+              COALESCE(tags, '{}'::text[]) && ${["REPLIED"]}::text[]
+              OR (closure_note IS NOT NULL AND length(trim(closure_note)) > 10)
+            )
+        )::int AS outbox_count,
+        count(*) FILTER (
           WHERE status NOT IN ('closed', 'handled', 'in_progress', 'open')
         )::int AS other_openish,
         count(*) FILTER (
@@ -100,7 +107,8 @@ export async function GET(request: NextRequest) {
       customerFollowupCount: Number(agg?.customer_followup ?? 0),
       pendingWithSuggestion: Number(agg?.pending_with_suggestion ?? 0),
       pendingNoSuggestion: Number(agg?.pending_no_suggestion ?? 0),
-      highPriorityOpen: Number(agg?.high_priority_open ?? 0)
+      highPriorityOpen: Number(agg?.high_priority_open ?? 0),
+      outboxCount: Number(agg?.outbox_count ?? 0)
     };
 
     setStatsCache(payload);

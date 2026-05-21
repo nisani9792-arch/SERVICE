@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import { CategoryBadge } from "@/components/CategoryBadge";
-import { listInquiryPreview } from "@/lib/inquiry-preview";
+import { listInquiryPreview, listOutboxPreview } from "@/lib/inquiry-preview";
 import { displayTicketDate } from "@/lib/ticket-row";
 import { formatTicketNumber } from "@/lib/ticket-sequence";
 import type { Ticket, TicketStatus } from "@/lib/types";
@@ -32,10 +32,13 @@ function formatWhen(ticket: Ticket): string {
   });
 }
 
+export type TicketListMode = "default" | "outbox";
+
 export interface TicketListRowProps {
   ticket: Ticket;
   active: boolean;
   selected: boolean;
+  listMode?: TicketListMode;
   onSelect: (ticket: Ticket) => void;
   onToggleSelect: (id: string) => void;
 }
@@ -44,6 +47,7 @@ function TicketListRowInner({
   ticket,
   active,
   selected,
+  listMode = "default",
   onSelect,
   onToggleSelect
 }: TicketListRowProps) {
@@ -79,13 +83,15 @@ function TicketListRowInner({
           className="mt-1 size-4 shrink-0 accent-primary"
           aria-label="בחר פנייה"
         />
-        <RowContent ticket={ticket} />
+        <RowContent ticket={ticket} listMode={listMode} />
       </div>
     </article>
   );
 }
 
-function RowContent({ ticket }: { ticket: Ticket }) {
+function RowContent({ ticket, listMode }: { ticket: Ticket; listMode: TicketListMode }) {
+  const preview =
+    listMode === "outbox" ? listOutboxPreview(ticket) : listInquiryPreview(ticket);
   return (
     <div className="min-w-0 flex-1 text-right">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
@@ -110,8 +116,12 @@ function RowContent({ ticket }: { ticket: Ticket }) {
       <p className="mt-0.5 line-clamp-1 text-[11px] text-on-surface-variant">
         {ticket.senderName || "ללא שם"} · {ticket.senderEmail || "ללא אימייל"}
       </p>
-      <p className="mt-1 line-clamp-2 text-xs leading-snug text-on-surface-variant">
-        {listInquiryPreview(ticket)}
+      <p
+        className={`mt-1 line-clamp-2 text-xs leading-snug ${
+          listMode === "outbox" ? "text-emerald-900/90" : "text-on-surface-variant"
+        }`}
+      >
+        {preview}
       </p>
     </div>
   );

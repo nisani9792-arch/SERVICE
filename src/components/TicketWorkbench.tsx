@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CircleDot, ExternalLink, Pencil, Save, Send, Tag, Trash2, X } from "lucide-react";
 import { CategoryBadge } from "@/components/CategoryBadge";
 import { TicketListPanel } from "@/components/TicketListPanel";
+import type { TicketListMode } from "@/components/TicketListRow";
 import { formatTicketNumber } from "@/lib/ticket-sequence";
 import { TicketAttachments } from "@/components/TicketAttachments";
 import { TriageAssignBar } from "@/components/TriageAssignBar";
@@ -242,6 +243,7 @@ interface TicketWorkbenchProps {
   onReply: (ticket: Ticket) => void;
   onSaveInquiry: (ticket: Ticket) => void;
   onTriageAssign?: (id: string, category: string) => void;
+  listMode?: TicketListMode;
 }
 
 export function TicketWorkbench({
@@ -265,7 +267,8 @@ export function TicketWorkbench({
   onChangeCategory,
   onReply,
   onSaveInquiry,
-  onTriageAssign
+  onTriageAssign,
+  listMode = "default"
 }: TicketWorkbenchProps) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const allSelected = tickets.length > 0 && tickets.every((ticket) => selectedIds.has(ticket.id));
@@ -338,6 +341,7 @@ export function TicketWorkbench({
           ) : (
             <TicketListPanel
               tickets={tickets}
+              listMode={listMode}
               activeTicketId={activeTicket?.id ?? null}
               selectedIds={selectedIds}
               onSelect={selectTicket}

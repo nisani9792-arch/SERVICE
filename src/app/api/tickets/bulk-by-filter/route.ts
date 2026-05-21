@@ -64,7 +64,20 @@ export async function POST(request: NextRequest) {
         )
         AND (
           ${f.closedStatusFilter}::boolean = false
-          OR (status IN ('closed', 'handled'))
+          OR (
+            status IN ('closed', 'handled')
+            AND ${f.outboxStatusFilter}::boolean = false
+          )
+        )
+        AND (
+          ${f.outboxStatusFilter}::boolean = false
+          OR (
+            status IN ('closed', 'handled')
+            AND (
+              COALESCE(tags, '{}'::text[]) && ${["REPLIED"]}::text[]
+              OR (closure_note IS NOT NULL AND length(trim(closure_note)) > 10)
+            )
+          )
         )
         AND (
           ${f.exactStatusFilter}::text IS NULL

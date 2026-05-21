@@ -1,4 +1,5 @@
 import { sql } from "@/lib/neon";
+import { extractInquiryTopicProfile, rankReplySuggestionsWithGemini } from "@/lib/reply-knowledge-ai";
 import { extractKeywords } from "@/lib/reply-knowledge-keywords";
 import { extractFreeInquiryText, extractFreeReplyText } from "@/lib/reply-text-extract";
 import { getReplySignature, type ReplySignature } from "@/lib/reply-signature";
@@ -143,8 +144,17 @@ export async function recordReplyKnowledge(input: {
   if (freeReply.length < 12 || freeInquiry.length < 6) return;
 
   await ensureReplyKnowledgeSchema();
-  const questionKey = buildQuestionKey(input.subject, freeInquiry);
-  const keywords = extractKeywords(freeInquiry, 20);
+  const topicProfile = await extractInquiryTopicProfile(input.subject, freeInquiry);
+  const baseKeywords = extractKeywords(freeInquiry, 20);
+  const aiKeywords = topicProfile?.keywords ?? [];
+  const topicTokens = (topicProfile?.topics ?? []).map((t) =>
+    t.toLowerCase().replace(/\s+/g, "_").slice(0, 40)
+  );
+  const keywords = Array.from(new Set([...baseKeywords, ...aiKeywords, ...topicTokens])).slice(0, 28);
+  const questionKey =
+    topicTokens.length >= 2
+      ? topicTokens.slice(0, 6).sort().join("|")
+      : buildQuestionKey(input.subject, freeInquiry);
 
   await sql()`
     INSERT INTO ticket_reply_knowledge (
@@ -312,7 +322,10 @@ export async function findSimilarReplySuggestions(
     if (out.length >= limit) break;
   }
 
-  return out;
+  if (out.length === 0) return out;
+
+  const aiRanked = await rankReplySuggestionsWithGemini(subject, freeInquiry, out, limit);
+  return aiRanked ?? out;
 }
 
 /** Re-normalize stored snippets (strip templates from legacy rows). */
