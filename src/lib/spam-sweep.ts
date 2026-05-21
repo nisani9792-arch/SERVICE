@@ -1,4 +1,4 @@
-import { isEmptyOrNoiseInquiry } from "@/lib/inquiry-spam-heuristic";
+import { isLikelySpamInquiry } from "@/lib/spam-inquiry";
 import { quickHeuristic } from "@/lib/gemini";
 import { bodyForAiPrompt } from "@/lib/message-filter";
 import { sql } from "@/lib/neon";
@@ -33,7 +33,7 @@ export async function sweepSpamHeuristicChunk(limit = 200): Promise<SpamSweepRes
   for (const row of rows) {
     const subject = String(row.subject ?? "");
     const body = bodyForAiPrompt(String(row.body ?? ""), row.body_cleaned);
-    if (isEmptyOrNoiseInquiry(subject, body)) {
+    if (isLikelySpamInquiry(subject, body)) {
       toSpam.push(String(row.id));
       continue;
     }

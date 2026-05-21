@@ -1,3 +1,4 @@
+import { extractContactFormMessage } from "@/lib/contact-form-inquiry";
 import { cleanMessageForAi } from "@/lib/message-filter";
 
 const MIN_INQUIRY_CHARS = 12;
@@ -53,7 +54,8 @@ function looksLikeSupportSubject(subject: string): boolean {
 
 /** Empty body, contact-only, or unrelated one-liners → spam (not real support requests). */
 export function isEmptyOrNoiseInquiry(subject: string, body: string): boolean {
-  const cleaned = cleanMessageForAi(body);
+  const fromForm = extractContactFormMessage(body);
+  const cleaned = fromForm.length > 0 ? fromForm : cleanMessageForAi(body);
   const subj = subject.trim();
   const combined = `${subj} ${cleaned}`.trim();
 

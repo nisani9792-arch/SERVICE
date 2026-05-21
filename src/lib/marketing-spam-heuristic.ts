@@ -25,7 +25,15 @@ const MARKETING_SPAM_PATTERNS = [
   /gulf.based investors/i,
   /ebooks up to \d+ pages/i,
   /write us at:\s*info@/i,
-  /give us a call on:\s*\+/i
+  /give us a call on:\s*\+/i,
+  /unsubscribe/i,
+  /mailing\s+list/i,
+  /you\s+are\s+receiving\s+this/i,
+  /seo\s+(service|expert|agency)/i,
+  /guest\s+post/i,
+  /link\s+building/i,
+  /we\s+can\s+help\s+your\s+(business|website)/i,
+  /dear\s+(sir|owner|webmaster)/i
 ];
 
 export function isMarketingSpamInquiry(subject: string, body: string): boolean {

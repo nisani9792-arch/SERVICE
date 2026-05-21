@@ -756,6 +756,9 @@ export default function DashboardPage() {
       <Link href="/triage" className="lux-button rounded-xl border-fuchsia-200 bg-fuchsia-50 px-3 py-1.5 text-xs font-bold text-fuchsia-900">
         מצב סינון מהיר
       </Link>
+      <Link href="/rapid-reply" className="lux-button rounded-xl border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-900">
+        מענה מהיר
+      </Link>
       <button
         type="button"
         onClick={() => setFocusMode(!focusMode)}

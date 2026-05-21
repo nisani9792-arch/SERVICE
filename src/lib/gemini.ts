@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { bodyForAiPrompt } from "@/lib/message-filter";
 import { isEmptyOrNoiseInquiry } from "@/lib/inquiry-spam-heuristic";
-import { isMarketingSpamInquiry } from "@/lib/marketing-spam-heuristic";
+import { isLikelySpamInquiry } from "@/lib/spam-inquiry";
 import { normalizeCategory } from "@/lib/category-normalize";
 import { TicketPriority } from "@/lib/types";
 
@@ -154,19 +154,11 @@ export const quickHeuristic = (
   subject: string,
   body: string
 ): { category: string; priority: TicketPriority; summary: string } | null => {
-  if (isEmptyOrNoiseInquiry(subject, body)) {
+  if (isLikelySpamInquiry(subject, body)) {
     return {
       category: "spam",
       priority: 1,
-      summary: "פנייה ריקה או ללא תוכן משמעותי — סווגה כספאם."
-    };
-  }
-
-  if (isMarketingSpamInquiry(subject, body)) {
-    return {
-      category: "spam",
-      priority: 1,
-      summary: "ספאם שיווקי באנגלית — הצעת מימון/פרסום (זיהוי אוטומטי)."
+      summary: "ספאם — פנייה ריקה, שיווק, רשימת תפוצה או בדיקת אתר (זיהוי אוטומטי)."
     };
   }
 

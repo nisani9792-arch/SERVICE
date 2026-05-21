@@ -22,7 +22,9 @@
     "test:classify": "npx tsx --test src/lib/__tests__/classification.test.ts",
     "test:reply": "npx tsx --test src/lib/__tests__/reply-text-extract.test.ts src/lib/__tests__/reply-knowledge.test.ts",
     "sweep:funding-spam": "node scripts/sweep-funding-spam.cjs",
-    "audit:english-spam": "node scripts/audit-english-spam.cjs"
+    "audit:english-spam": "node scripts/audit-english-spam.cjs",
+    "audit:deep-spam": "npx tsx scripts/deep-spam-audit.ts",
+    "sweep:deep-spam": "npx tsx scripts/deep-spam-audit.ts --apply"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

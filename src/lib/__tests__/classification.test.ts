@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeCategory } from "../category-normalize";
 import { isEmptyOrNoiseInquiry } from "../inquiry-spam-heuristic";
+import { isLikelySpamInquiry } from "../spam-inquiry";
 import { quickHeuristic } from "../gemini";
 import { isSpamCategory } from "../spam-category";
 
@@ -29,6 +30,16 @@ describe("isEmptyOrNoiseInquiry", () => {
   it("keeps real support subjects", () => {
     assert.equal(isEmptyOrNoiseInquiry("האפליקציה לא נפתחת", ""), false);
   });
+
+  it("flags contact-form with empty message", () => {
+    const body = `שם מלא: יוסי כהן
+טלפון: 0501234567
+אימייל: y@test.com
+הודעה:
+
+קישור לעמוד: https://jusic.co/`;
+    assert.equal(isLikelySpamInquiry("פנייה מהאתר", body), true);
+  });
 });
 
 describe("quickHeuristic", () => {
@@ -50,9 +61,19 @@ describe("quickHeuristic", () => {
     assert.equal(result?.priority, 5);
   });
 
-  it("does not over-match generic hello as support", () => {
+  it("flags site test as spam", () => {
     const result = quickHeuristic("שלום", "רק בדיקה");
-    assert.equal(result, null);
+    assert.equal(result?.category, "spam");
+  });
+
+  it("keeps real app support message", () => {
+    const body = `שם מלא: דני
+טלפון: 0501111111
+אימייל: d@test.com
+הודעה:
+האפליקציה לא נפתחת לי בכלל`;
+    const result = quickHeuristic("בעיה", body);
+    assert.notEqual(result?.category, "spam");
   });
 });
 
