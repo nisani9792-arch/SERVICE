@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { bodyForAiPrompt } from "@/lib/message-filter";
 import { isEmptyOrNoiseInquiry } from "@/lib/inquiry-spam-heuristic";
+import { isMarketingSpamInquiry } from "@/lib/marketing-spam-heuristic";
 import { normalizeCategory } from "@/lib/category-normalize";
 import { TicketPriority } from "@/lib/types";
 
@@ -43,7 +44,13 @@ const SPAM_KEYWORDS = [
   "visa or mastercard",
   "reputation video",
   "millions of websites",
-  "blast your message"
+  "blast your message",
+  "funding opportunity",
+  "fund your busines",
+  "capitalfund",
+  "without much funds",
+  "are you okay running your business",
+  "just visited jusic"
 ];
 
 const URGENT_KEYWORDS = [
@@ -152,6 +159,14 @@ export const quickHeuristic = (
       category: "spam",
       priority: 1,
       summary: "פנייה ריקה או ללא תוכן משמעותי — סווגה כספאם."
+    };
+  }
+
+  if (isMarketingSpamInquiry(subject, body)) {
+    return {
+      category: "spam",
+      priority: 1,
+      summary: "ספאם שיווקי באנגלית — הצעת מימון/פרסום (זיהוי אוטומטי)."
     };
   }
 

@@ -31,7 +31,7 @@ async function main() {
       SELECT
         id,
         CASE
-          WHEN t ~ '(contact form marketing|automate your income|money-making|expensive ads|ai-driven|ai system|earn 35%|visa or mastercard|reputation video|millions of websites|blast your message|impactful video|engaging video|investment opportunities|gulf.based investors|ebooks up to 180 pages|casino|bitcoin|viagra|adult|free trial|click here)'
+          WHEN t ~ '(are you okay running your business|without much funds|fund your busines|funding opportunity|get funded|capitalfund|loan term period|burden of repayment|just visited jusic|just visited jusi|contact form marketing|automate your income|money-making|expensive ads|ai-driven|ai system|earn 35%|visa or mastercard|reputation video|millions of websites|blast your message|impactful video|engaging video|investment opportunities|gulf.based investors|ebooks up to 180 pages|casino|bitcoin|viagra|adult|free trial|click here)'
             THEN 'spam'
           WHEN t ~ '(זכויות|יוצרים|יצירות|בעלות על יצירות|מאסטר|copyright|הפרת|הסרה|תוכן שלי|שיר שלי|זכויות יוצרים)'
             THEN 'copyright'

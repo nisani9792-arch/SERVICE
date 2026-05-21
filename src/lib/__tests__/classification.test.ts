@@ -37,6 +37,13 @@ describe("quickHeuristic", () => {
     assert.equal(result?.category, "spam");
   });
 
+  it("detects English funding contact-form spam", () => {
+    const body =
+      "Are you okay running your business without much funds? Take advantage of our Funding opportunity. info@capitalfund-hk.com";
+    const result = quickHeuristic("Contact", body);
+    assert.equal(result?.category, "spam");
+  });
+
   it("detects urgent bugs", () => {
     const result = quickHeuristic("בעיה", "האפליקציה לא עובד");
     assert.equal(result?.category, "bugs");
