@@ -16,6 +16,7 @@ export type DashboardToolbarProps = {
   tagsFilter: string;
   onTagsFilterChange: (value: string) => void;
   showAdvancedTools?: boolean;
+  onSortAllOpen?: () => void;
   onSpamSweep?: () => void;
   onMaintenance?: () => void;
   toolsBusy?: boolean;
@@ -34,12 +35,23 @@ export function DashboardToolbar({
   tagsFilter,
   onTagsFilterChange,
   showAdvancedTools = false,
+  onSortAllOpen,
   onSpamSweep,
   onMaintenance,
   toolsBusy = false
 }: DashboardToolbarProps) {
   return (
     <div className="space-y-2">
+      {onSortAllOpen ? (
+        <button
+          type="button"
+          disabled={toolsBusy}
+          onClick={onSortAllOpen}
+          className="crm-touch-target w-full rounded-xl border border-violet-300 bg-violet-50 px-3 py-2.5 text-xs font-bold text-violet-950 disabled:opacity-50"
+        >
+          {toolsBusy ? "ממיין את התור הפתוח…" : "מיין את כל התור הפתוח (AI + חבילות)"}
+        </button>
+      ) : null}
       <SearchBar value={searchValue} onChange={onSearchChange} />
 
       <details className="rounded-xl border border-outline/80 bg-surface-high/80 px-3 py-2">

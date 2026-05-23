@@ -3,6 +3,7 @@ import { requireGateAccess } from "@/lib/api-guard";
 import { getRegisteredDisplayName } from "@/lib/access-state";
 import { sql } from "@/lib/neon";
 import { invalidateStatsCache } from "@/lib/stats-cache";
+import { blockSendersAndCascade } from "@/lib/spam-sender";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -122,6 +123,7 @@ export async function PATCH(request: NextRequest) {
       replaceTags?: boolean;
       assignedTo?: string;
       closureNote?: string;
+      blockSender?: boolean;
     };
 
     const ids = body.ids;
@@ -131,11 +133,12 @@ export async function PATCH(request: NextRequest) {
 
     const category = body.category ?? null;
     let status = body.status ?? null;
-    if (category === "handled") {
+    if (category === "handled" || category === "spam") {
       status = "closed";
     }
 
     const operatorName = await getRegisteredDisplayName(request);
+    const blockSender = body.blockSender !== false && category === "spam";
     const assignedTo =
       body.assignedTo !== undefined ? (body.assignedTo ?? null) : (operatorName ?? null);
     const closureNote = body.closureNote ?? null;
@@ -184,8 +187,23 @@ export async function PATCH(request: NextRequest) {
       `;
     }
 
+    let cascadeTickets = 0;
+    if (blockSender && category === "spam") {
+      const emailRows = await sql()`
+        SELECT DISTINCT lower(trim(sender_email)) AS email
+        FROM tickets
+        WHERE id = ANY(${ids})
+          AND sender_email <> ''
+      `;
+      const emails = emailRows
+        .map((r) => String((r as { email: string }).email ?? ""))
+        .filter(Boolean);
+      const cascade = await blockSendersAndCascade(emails, operatorName ?? "");
+      cascadeTickets = cascade.ticketsUpdated;
+    }
+
     invalidateStatsCache();
-    return NextResponse.json({ ok: true, updated: ids.length });
+    return NextResponse.json({ ok: true, updated: ids.length, cascadeTickets });
   } catch (error) {
     return NextResponse.json(
       {

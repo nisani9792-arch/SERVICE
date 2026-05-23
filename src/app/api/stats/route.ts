@@ -28,46 +28,71 @@ export async function GET(request: NextRequest) {
 
     const aggRows = await sql()`
       SELECT
-        count(*)::int AS total,
-        count(*) FILTER (WHERE status = 'open')::int AS open_count,
-        count(*) FILTER (WHERE status = 'in_progress')::int AS in_progress_count,
-        count(*) FILTER (WHERE status IN ('closed', 'handled'))::int AS closed_count,
+        count(*) FILTER (WHERE deleted_at IS NULL)::int AS total,
+        count(*) FILTER (WHERE deleted_at IS NULL AND status = 'open')::int AS open_count,
+        count(*) FILTER (WHERE deleted_at IS NULL AND status = 'in_progress')::int AS in_progress_count,
         count(*) FILTER (
-          WHERE status IN ('closed', 'handled')
+          WHERE deleted_at IS NULL AND status IN ('closed', 'handled')
+        )::int AS closed_count,
+        count(*) FILTER (
+          WHERE deleted_at IS NULL
+            AND status IN ('closed', 'handled')
             AND (
               COALESCE(tags, '{}'::text[]) && ${["REPLIED"]}::text[]
               OR (closure_note IS NOT NULL AND length(trim(closure_note)) > 10)
             )
         )::int AS outbox_count,
         count(*) FILTER (
-          WHERE status NOT IN ('closed', 'handled', 'in_progress', 'open')
+          WHERE deleted_at IS NULL
+            AND status NOT IN ('closed', 'handled', 'in_progress', 'open')
         )::int AS other_openish,
         count(*) FILTER (
-          WHERE category = 'pending_triage'
+          WHERE deleted_at IS NULL
+            AND category = 'pending_triage'
             AND status NOT IN ('closed', 'handled')
         )::int AS pending_triage,
         count(*) FILTER (
-          WHERE category = 'customer_followup'
+          WHERE deleted_at IS NULL
+            AND category = 'customer_followup'
             AND status NOT IN ('closed', 'handled')
         )::int AS customer_followup,
         count(*) FILTER (
-          WHERE category = 'pending_triage'
+          WHERE deleted_at IS NULL
+            AND category = 'pending_triage'
             AND status NOT IN ('closed', 'handled')
             AND ai_suggested_category IS NOT NULL
             AND trim(ai_suggested_category) <> ''
         )::int AS pending_with_suggestion,
         count(*) FILTER (
-          WHERE category = 'pending_triage'
+          WHERE deleted_at IS NULL
+            AND category = 'pending_triage'
             AND status NOT IN ('closed', 'handled')
             AND (ai_suggested_category IS NULL OR trim(ai_suggested_category) = '')
         )::int AS pending_no_suggestion,
         count(*) FILTER (
-          WHERE priority >= 4
+          WHERE deleted_at IS NULL
+            AND priority >= 4
             AND status NOT IN ('closed', 'handled')
-            AND deleted_at IS NULL
-        )::int AS high_priority_open
+        )::int AS high_priority_open,
+        count(*) FILTER (
+          WHERE deleted_at IS NULL
+            AND status IN ('open', 'in_progress')
+            AND lower(trim(category)) NOT IN ('spam', 'spam (מובנה)')
+        )::int AS active_count,
+        count(*) FILTER (
+          WHERE deleted_at IS NULL
+            AND status IN ('closed', 'handled')
+            AND lower(trim(category)) NOT IN ('spam', 'spam (מובנה)')
+        )::int AS handled_count,
+        count(*) FILTER (
+          WHERE deleted_at IS NULL
+            AND lower(trim(category)) IN ('spam', 'spam (מובנה)')
+        )::int AS spam_only_count
       FROM tickets
-      WHERE deleted_at IS NULL
+    `;
+
+    const deletedRows = await sql()`
+      SELECT count(*)::int AS deleted_count FROM tickets WHERE deleted_at IS NOT NULL
     `;
 
     const catRows = await sql()`
@@ -102,13 +127,16 @@ export async function GET(request: NextRequest) {
       statusCounts: { open, in_progress, closed },
       openClosedRatio: { open: open + in_progress, closed },
       spamPercent: total > 0 ? Math.round((spamLike / total) * 1000) / 10 : 0,
-      spamCount: spamLike,
+      spamCount: Number(agg?.spam_only_count ?? 0) || spamLike,
       pendingTriageCount: Number(agg?.pending_triage ?? 0),
       customerFollowupCount: Number(agg?.customer_followup ?? 0),
       pendingWithSuggestion: Number(agg?.pending_with_suggestion ?? 0),
       pendingNoSuggestion: Number(agg?.pending_no_suggestion ?? 0),
       highPriorityOpen: Number(agg?.high_priority_open ?? 0),
-      outboxCount: Number(agg?.outbox_count ?? 0)
+      outboxCount: Number(agg?.outbox_count ?? 0),
+      activeCount: Number(agg?.active_count ?? 0),
+      handledCount: Number(agg?.handled_count ?? 0),
+      deletedCount: Number((deletedRows[0] as { deleted_count: number })?.deleted_count ?? 0)
     };
 
     setStatsCache(payload);

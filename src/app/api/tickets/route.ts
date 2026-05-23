@@ -50,6 +50,19 @@ export async function GET(request: NextRequest) {
           )
         )
         AND (
+          ${f.bucketFilter}::text IS NULL
+          OR ${f.bucketFilter} <> 'spam'
+          OR lower(trim(category)) IN ('spam', 'spam (מובנה)')
+        )
+        AND (
+          ${f.bucketFilter}::text IS NULL
+          OR ${f.bucketFilter} <> 'handled'
+          OR (
+            status IN ('closed', 'handled')
+            AND lower(trim(category)) NOT IN ('spam', 'spam (מובנה)')
+          )
+        )
+        AND (
           ${f.excludeSpamFilter}::boolean = false
           OR lower(trim(category)) NOT IN ('spam', 'spam (מובנה)')
         )

@@ -1,27 +1,33 @@
 "use client";
 
-import { Inbox, Mail, Plus } from "lucide-react";
+import { Inbox, Layers, LayoutGrid, Mail, MessageSquareReply } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/cn";
 
 interface MobileDockProps {
   onSyncMail: () => void;
-  onNewTicket: () => void;
   onTriage: () => void;
+  onAnswerBundles: () => void;
+  onReview?: () => void;
   emailSyncing: boolean;
   triageCount: number;
+  bundleCount: number;
+  activeReview?: boolean;
 }
 
 export function MobileDock({
   onSyncMail,
-  onNewTicket,
   onTriage,
+  onAnswerBundles,
+  onReview,
   emailSyncing,
-  triageCount
+  triageCount,
+  bundleCount,
+  activeReview = false
 }: MobileDockProps) {
   return (
     <nav className="crm-mobile-dock" aria-label="פעולות מהירות">
-      <div className="mx-auto flex max-w-lg items-center justify-around gap-1">
+      <div className="mx-auto flex max-w-lg items-center justify-around gap-0.5">
         <motion.button
           type="button"
           onClick={onSyncMail}
@@ -35,27 +41,53 @@ export function MobileDock({
         <motion.button
           type="button"
           onClick={onTriage}
-          className="crm-touch-target relative flex flex-col items-center gap-0.5 text-[10px] font-semibold text-primary"
+          className="crm-touch-target relative flex flex-col items-center gap-0.5 text-[10px] font-semibold text-fuchsia-800"
           whileTap={{ scale: 0.92 }}
         >
           <Inbox className="size-5" />
-          ממתין
+          מיון
           {triageCount > 0 ? (
-            <span className="absolute -top-1 left-1/2 min-w-[1.1rem] -translate-x-1/2 rounded-full bg-gradient-to-r from-primary to-[#1f9fbf] px-1 text-[9px] font-bold text-white shadow-glow-sm">
+            <span className="absolute -top-1 left-1/2 min-w-[1.1rem] -translate-x-1/2 rounded-full bg-fuchsia-600 px-1 text-[9px] font-bold text-white">
               {triageCount > 99 ? "99+" : triageCount}
             </span>
           ) : null}
         </motion.button>
+        {onReview ? (
+          <motion.button
+            type="button"
+            onClick={onReview}
+            className={cn(
+              "crm-touch-target flex flex-col items-center gap-0.5 text-[10px] font-semibold",
+              activeReview ? "text-primary" : "text-sky-800"
+            )}
+            whileTap={{ scale: 0.92 }}
+          >
+            <LayoutGrid className="size-5" />
+            סריקה
+          </motion.button>
+        ) : null}
         <motion.button
           type="button"
-          onClick={onNewTicket}
-          className="crm-btn-primary flex size-14 items-center justify-center rounded-full p-0"
-          aria-label="פנייה חדשה"
-          whileTap={{ scale: 0.9 }}
-          whileHover={{ scale: 1.05 }}
+          onClick={onAnswerBundles}
+          className="crm-touch-target relative flex flex-col items-center gap-0.5 text-[10px] font-semibold text-emerald-800"
+          whileTap={{ scale: 0.92 }}
         >
-          <Plus className="size-6" />
+          <MessageSquareReply className="size-5" />
+          מענה
+          {bundleCount > 0 ? (
+            <span className="absolute -top-1 left-1/2 min-w-[1.1rem] -translate-x-1/2 rounded-full bg-emerald-600 px-1 text-[9px] font-bold text-white">
+              {bundleCount > 99 ? "99+" : bundleCount}
+            </span>
+          ) : null}
         </motion.button>
+        <motion.a
+          href="/inbox"
+          className="crm-touch-target flex flex-col items-center gap-0.5 text-[10px] font-semibold text-on-surface-variant"
+          whileTap={{ scale: 0.92 }}
+        >
+          <Layers className="size-5" />
+          לוח
+        </motion.a>
       </div>
     </nav>
   );

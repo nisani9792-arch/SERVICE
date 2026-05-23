@@ -18,6 +18,9 @@ export type DashboardStatsModel = {
   pendingNoSuggestion?: number;
   highPriorityOpen?: number;
   outboxCount?: number;
+  activeCount?: number;
+  handledCount?: number;
+  deletedCount?: number;
 };
 
 interface DashboardStatsProps {

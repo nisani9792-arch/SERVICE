@@ -5,6 +5,7 @@ import { sql } from "@/lib/neon";
 import { ensureTicketListColumns } from "@/lib/ticket-schema";
 import { parseTicketListFilters } from "@/lib/ticket-filters";
 import { invalidateStatsCache } from "@/lib/stats-cache";
+import { blockSendersAndCascade } from "@/lib/spam-sender";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ export async function POST(request: NextRequest) {
       tags?: string[];
       replaceTags?: boolean;
       confirm?: boolean;
+      blockSender?: boolean;
     };
 
     if (!body.confirm) {
@@ -46,12 +48,28 @@ export async function POST(request: NextRequest) {
     const idRows = await sql()`
       SELECT id
       FROM tickets
-      WHERE deleted_at IS NULL
+      WHERE (
+          (${f.trashOnly}::boolean = true AND deleted_at IS NOT NULL)
+          OR (${f.trashOnly}::boolean = false AND deleted_at IS NULL)
+        )
         AND (
           (${f.triageQueue}::boolean = true AND category IN ('pending_triage', 'customer_followup'))
           OR (
             ${f.triageQueue}::boolean = false
             AND (${f.categoryFilter}::text IS NULL OR category = ${f.categoryFilter})
+          )
+        )
+        AND (
+          ${f.bucketFilter}::text IS NULL
+          OR ${f.bucketFilter} <> 'spam'
+          OR lower(trim(category)) IN ('spam', 'spam (מובנה)')
+        )
+        AND (
+          ${f.bucketFilter}::text IS NULL
+          OR ${f.bucketFilter} <> 'handled'
+          OR (
+            status IN ('closed', 'handled')
+            AND lower(trim(category)) NOT IN ('spam', 'spam (מובנה)')
           )
         )
         AND (
@@ -130,6 +148,17 @@ export async function POST(request: NextRequest) {
           updated_at = now()
         WHERE id = ANY(${ids})
       `;
+    }
+
+    if (category === "spam" && body.blockSender !== false) {
+      const emails = await sql()`
+        SELECT DISTINCT lower(trim(sender_email)) AS email
+        FROM tickets WHERE id = ANY(${ids}) AND sender_email <> ''
+      `;
+      await blockSendersAndCascade(
+        emails.map((r) => String((r as { email: string }).email)),
+        operatorName ?? ""
+      );
     }
 
     invalidateStatsCache();

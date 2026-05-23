@@ -1,0 +1,1214 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  Download,
+  MailCheck,
+  MessageSquareText,
+  Plus,
+  Upload
+} from "lucide-react";
+import { AppHeader } from "@/components/AppHeader";
+import { MotionPage } from "@/components/ui/Motion";
+import { MobileDock } from "@/components/MobileDock";
+import { DashboardInboxTabs, type InboxTabId } from "@/components/DashboardInboxTabs";
+import { DashboardToolbar } from "@/components/DashboardToolbar";
+import { BulkActionBar } from "@/components/BulkActionBar";
+import { useDashboardStats } from "@/hooks/useDashboardStats";
+import { AiAgentPanel } from "@/components/AiAgentPanel";
+import { AiInsightsPanel } from "@/components/AiInsightsPanel";
+import { BatchProgressBar } from "@/components/BatchProgressBar";
+import { TicketWorkbench } from "@/components/TicketWorkbench";
+import { ReplyTicketModal } from "@/components/ReplyTicketModal";
+import {
+  deleteTicket,
+  deleteTicketsBulk,
+  runAgentCommand,
+  runBatchReclassifyWithSse,
+  saveInquiryForAction,
+  continueBatchJobWithPolling,
+  sendBulkTicketReply,
+  sendTicketReply,
+  updateTicket,
+  updateTicketsBulk,
+  fetchTicketPage
+} from "@/lib/firebase";
+import { useTicketList } from "@/hooks/useTicketList";
+import { useListPageSize } from "@/hooks/useListPageSize";
+import { formatSkipReasons } from "@/lib/email-ingest-labels";
+import {
+  EMAIL_SYNC_EVENT,
+  runEmailIngestClient,
+  type EmailSyncResult
+} from "@/lib/email-sync-client";
+import { useLiveRefresh } from "@/hooks/useLiveRefresh";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { CUSTOMER_FOLLOWUP_CATEGORY, PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
+import { ImportModal } from "@/components/ImportModal";
+import { NewTicketModal } from "@/components/NewTicketModal";
+import { EditTicketModal } from "@/components/EditTicketModal";
+import { ExportContactsModal } from "@/components/ExportContactsModal";
+import { ReplyTemplatesModal } from "@/components/ReplyTemplatesModal";
+import { BulkReplyModal } from "@/components/BulkReplyModal";
+import type { Ticket, TicketStatus } from "@/lib/types";
+import { startBulkJobWithSse } from "@/lib/bulk-job-client";
+import { confirmSpamWithBlockSender } from "@/lib/spam-confirm";
+import { BUCKET_LABELS, type TicketBucket } from "@/lib/ticket-buckets";
+
+export type WorkbenchStatusFilter = TicketStatus | "active" | "outbox";
+
+const EMAIL_SYNC_TOAST_MS = 6000;
+
+export function DashboardInboxPage({
+  initialStatus,
+  initialBucket = null
+}: {
+  initialStatus?: WorkbenchStatusFilter;
+  initialBucket?: TicketBucket | null;
+}) {
+  const router = useRouter();
+  const [activeCategory, setActiveCategory] = useState<string | "all">("all");
+  const [activeBucket, setActiveBucket] = useState<TicketBucket | null>(initialBucket);
+  const [activeStatus, setActiveStatus] = useState<WorkbenchStatusFilter>(
+    initialStatus ?? (initialBucket === "outbox" ? "outbox" : initialBucket === "handled" ? "closed" : "active")
+  );
+
+  useEffect(() => {
+    if (initialStatus) setActiveStatus(initialStatus);
+  }, [initialStatus]);
+
+  useEffect(() => {
+    if (initialBucket) {
+      setActiveBucket(initialBucket);
+      if (initialBucket === "outbox") setActiveStatus("outbox");
+      else if (initialBucket === "handled") setActiveStatus("closed");
+      else if (initialBucket === "active") setActiveStatus("active");
+    }
+  }, [initialBucket]);
+  const [searchValue, setSearchValue] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [tagsFilter, setTagsFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = useListPageSize(25, 12);
+
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showNewModal, setShowNewModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [showReplyTemplates, setShowReplyTemplates] = useState(false);
+  const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
+  const [replyingTicket, setReplyingTicket] = useState<Ticket | null>(null);
+  const [showBulkReply, setShowBulkReply] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
+
+  const [headerRefreshing, setHeaderRefreshing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [lastEmailSyncedAt, setLastEmailSyncedAt] = useState<Date | null>(null);
+  const [emailSyncing, setEmailSyncing] = useState(false);
+  const [emailSyncMessage, setEmailSyncMessage] = useState<{
+    kind: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [emailSyncToastLeaving, setEmailSyncToastLeaving] = useState(false);
+  const emailSyncToastTimerRef = useRef<number | null>(null);
+  const [aiReclassifying, setAiReclassifying] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({
+    visible: false,
+    label: "",
+    processed: 0,
+    total: 0,
+    progress: 0
+  });
+
+  const debouncedSearch = useDebouncedValue(searchValue, 220);
+  const tagTokens = useMemo(
+    () =>
+      tagsFilter
+        .split(/[,;\s]+/)
+        .map((t) => t.trim())
+        .filter(Boolean),
+    [tagsFilter]
+  );
+
+  const listQuery = useMemo(
+    () => ({
+      page,
+      pageSize,
+      category: activeCategory,
+      bucket: activeBucket ?? undefined,
+      status: activeBucket ? undefined : activeStatus,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      tags: tagTokens.length ? tagTokens : undefined,
+      q: debouncedSearch || undefined
+    }),
+    [
+      page,
+      pageSize,
+      activeCategory,
+      activeBucket,
+      activeStatus,
+      dateFrom,
+      dateTo,
+      tagTokens,
+      debouncedSearch
+    ]
+  );
+
+  const {
+    items,
+    total,
+    isLoading,
+    isRefreshing,
+    error: listError,
+    refresh,
+    patchItem,
+    removeItem,
+    upsertItem
+  } = useTicketList(listQuery);
+  const { stats, refreshStats, scheduleStatsRefresh } = useDashboardStats();
+  const activeTicket = useMemo(
+    () => items.find((ticket) => ticket.id === activeTicketId) ?? null,
+    [activeTicketId, items]
+  );
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([refreshStats(), refresh()]);
+    setLastSyncedAt(new Date());
+  }, [refresh, refreshStats]);
+
+  const afterMutation = useCallback(
+    async (options?: { full?: boolean }) => {
+      if (options?.full) {
+        await refreshAll();
+        return;
+      }
+      void refresh();
+      scheduleStatsRefresh();
+      setLastSyncedAt(new Date());
+    },
+    [refresh, refreshAll, scheduleStatsRefresh]
+  );
+
+  useLiveRefresh(() => {
+    void refresh();
+    scheduleStatsRefresh();
+    setLastSyncedAt(new Date());
+  }, 300_000);
+
+  const applyEmailSyncResult = useCallback(
+    (result: EmailSyncResult, source: "auto" | "manual") => {
+      setLastEmailSyncedAt(new Date());
+
+      if (!result.ok) {
+        setEmailSyncMessage({
+          kind: "error",
+          text: `סנכרון המייל נכשל: ${result.details || result.error || "שגיאה לא ידועה"}`
+        });
+        return;
+      }
+
+      void refreshAll();
+
+      const skipHint = formatSkipReasons(result.skipReasons);
+      const errorHint = result.errors?.length
+        ? ` שגיאות: ${result.errors.slice(0, 2).join(" · ")}`
+        : "";
+      const skipDetail = skipHint ? ` סיבות דילוג: ${skipHint}.` : "";
+
+      if (
+        (result.imported ?? 0) > 0 ||
+        (result.followupsAttached ?? 0) > 0 ||
+        (result.reopened ?? 0) > 0
+      ) {
+        const parts: string[] = [];
+        if ((result.imported ?? 0) > 0) parts.push(`${result.imported} פניות חדשות`);
+        if ((result.followupsAttached ?? 0) > 0) {
+          parts.push(`${result.followupsAttached} תשובות חוזרות לפניות קיימות`);
+        }
+        if ((result.reopened ?? 0) > 0) parts.push(`${result.reopened} פניות נפתחו מחדש`);
+        setEmailSyncMessage({
+          kind: "success",
+          text:
+            source === "auto"
+              ? `סנכרון אוטומטי: ${parts.join(", ")} ממייל.`
+              : `סנכרון מיילים הושלם: ${parts.join(", ")}.${errorHint}`
+        });
+        return;
+      }
+
+      setEmailSyncMessage({
+        kind: "success",
+        text: `סנכרון מיילים: לא נמצאו פניות חדשות (${result.scanned ?? 0} נסרקו, ${result.skipped ?? 0} דולגו).${skipDetail}${errorHint}`
+      });
+    },
+    [refreshAll]
+  );
+
+  useEffect(() => {
+    const onAutoSync = (event: Event) => {
+      const detail = (event as CustomEvent<EmailSyncResult>).detail;
+      if (!detail) return;
+      applyEmailSyncResult(detail, "auto");
+    };
+
+    window.addEventListener(EMAIL_SYNC_EVENT, onAutoSync);
+    return () => window.removeEventListener(EMAIL_SYNC_EVENT, onAutoSync);
+  }, [applyEmailSyncResult]);
+
+  useEffect(() => {
+    if (!emailSyncMessage) {
+      setEmailSyncToastLeaving(false);
+      return;
+    }
+
+    setEmailSyncToastLeaving(false);
+    if (emailSyncToastTimerRef.current) {
+      clearTimeout(emailSyncToastTimerRef.current);
+    }
+
+    const fadeAt = Math.max(500, EMAIL_SYNC_TOAST_MS - 400);
+    const fadeTimer = window.setTimeout(() => setEmailSyncToastLeaving(true), fadeAt);
+    emailSyncToastTimerRef.current = window.setTimeout(() => {
+      setEmailSyncMessage(null);
+      setEmailSyncToastLeaving(false);
+    }, EMAIL_SYNC_TOAST_MS);
+
+    return () => {
+      clearTimeout(fadeTimer);
+      if (emailSyncToastTimerRef.current) {
+        clearTimeout(emailSyncToastTimerRef.current);
+        emailSyncToastTimerRef.current = null;
+      }
+    };
+  }, [emailSyncMessage]);
+
+  const handleHeaderRefresh = useCallback(async () => {
+    setHeaderRefreshing(true);
+    try {
+      await refreshAll();
+      setLastSyncedAt(new Date());
+    } finally {
+      setHeaderRefreshing(false);
+    }
+  }, [refreshAll]);
+
+  const handleEmailSync = useCallback(async () => {
+    setEmailSyncing(true);
+    setEmailSyncMessage(null);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 120_000);
+
+    try {
+      const result = await runEmailIngestClient(controller.signal, { force: true });
+      setLastSyncedAt(new Date());
+      applyEmailSyncResult(result, "manual");
+    } catch (error) {
+      setEmailSyncMessage({
+        kind: "error",
+        text: `סנכרון המייל נכשל: ${
+          error instanceof Error && error.name === "AbortError"
+            ? "הפעולה נתקעה מעל דקה. בדוק את הגדרות Gmail/Render ונסה שוב."
+            : error instanceof Error
+              ? error.message
+              : "שגיאה לא ידועה"
+        }`
+      });
+    } finally {
+      window.clearTimeout(timeout);
+      setEmailSyncing(false);
+    }
+  }, [applyEmailSyncResult]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeCategory, activeStatus, debouncedSearch, dateFrom, dateTo, tagsFilter]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [activeCategory, activeStatus, debouncedSearch, dateFrom, dateTo, tagsFilter, page]);
+
+  useEffect(() => {
+    if (items.length === 0) {
+      setActiveTicketId(null);
+      return;
+    }
+    if (activeTicketId && !items.some((ticket) => ticket.id === activeTicketId)) {
+      setActiveTicketId(null);
+    }
+  }, [activeTicketId, items]);
+
+  const onToggleSelect = useCallback((ticketId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(ticketId)) next.delete(ticketId);
+      else next.add(ticketId);
+      return next;
+    });
+  }, []);
+
+  const onSelectPage = useCallback(
+    (select: boolean) => {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (select) {
+          for (const t of items) next.add(t.id);
+        } else {
+          for (const t of items) next.delete(t.id);
+        }
+        return next;
+      });
+    },
+    [items]
+  );
+
+  const onClearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  const onSetTicketStatus = async (ticketId: string, status: TicketStatus) => {
+    patchItem(ticketId, { status });
+    try {
+      const updated = await updateTicket(ticketId, { status });
+      upsertItem(updated);
+      await afterMutation();
+    } catch {
+      await afterMutation({ full: true });
+    }
+  };
+
+  const onDelete = async (ticketId: string) => {
+    removeItem(ticketId);
+    if (activeTicketId === ticketId) setActiveTicketId(null);
+    try {
+      await deleteTicket(ticketId);
+      await afterMutation();
+    } catch {
+      await afterMutation({ full: true });
+    }
+  };
+
+  const onBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    await deleteTicketsBulk(ids);
+    setSelectedIds(new Set());
+    await afterMutation({ full: true });
+  };
+
+  const onBulkChangeCategory = async (category: string) => {
+    const ids = Array.from(selectedIds);
+    await updateTicketsBulk(ids, { category });
+    setSelectedIds(new Set());
+    await afterMutation({ full: true });
+  };
+
+  const onBulkSetStatus = async (status: TicketStatus) => {
+    const ids = Array.from(selectedIds);
+    await updateTicketsBulk(ids, { status });
+    setSelectedIds(new Set());
+    await afterMutation({ full: true });
+  };
+
+  const onBulkAddTags = async (tags: string[]) => {
+    const ids = Array.from(selectedIds);
+    await updateTicketsBulk(ids, { tags, replaceTags: false });
+    setSelectedIds(new Set());
+    await afterMutation({ full: true });
+  };
+
+  const onBulkSpam = async () => {
+    const ids = Array.from(selectedIds);
+    const { ok, blockSender } = confirmSpamWithBlockSender(
+      `לסמן ${ids.length} פניות כספאם?`
+    );
+    if (!ok) return;
+    await updateTicketsBulk(ids, { category: "spam", status: "closed", blockSender });
+    setSelectedIds(new Set());
+    await afterMutation({ full: true });
+  };
+
+  const buildListFilterParams = useCallback(() => {
+    const sp = new URLSearchParams();
+    if (activeBucket) sp.set("bucket", activeBucket);
+    else sp.set("status", activeStatus);
+    if (activeCategory !== "all") sp.set("category", activeCategory);
+    if (debouncedSearch) sp.set("q", debouncedSearch);
+    if (dateFrom) sp.set("dateFrom", dateFrom);
+    if (dateTo) sp.set("dateTo", dateTo);
+    if (tagTokens.length) sp.set("tags", tagTokens.join(","));
+    return Object.fromEntries(sp.entries());
+  }, [activeBucket, activeStatus, activeCategory, debouncedSearch, dateFrom, dateTo, tagTokens]);
+
+  const onBulkJobByFilter = async (payload: {
+    action: "spam" | "delete" | "close" | "category";
+    category?: string;
+    blockSender?: boolean;
+  }) => {
+    const label =
+      payload.action === "spam"
+        ? "מסמן ספאם"
+        : payload.action === "delete"
+          ? "מוחק"
+          : payload.action === "close"
+            ? "סוגר"
+            : "מעדכן קטגוריה";
+    if (
+      !window.confirm(
+        `${label} על כל הפניות בסינון הנוכחי (עד ${total.toLocaleString("he-IL")})?`
+      )
+    ) {
+      return;
+    }
+
+    let blockSender = payload.blockSender ?? true;
+    if (payload.action === "spam" && payload.blockSender === undefined) {
+      const spamConfirm = confirmSpamWithBlockSender();
+      if (!spamConfirm.ok) return;
+      blockSender = spamConfirm.blockSender;
+    }
+
+    showBatchProgress(label, 0, total || 1);
+    try {
+      await startBulkJobWithSse(
+        {
+          filters: buildListFilterParams(),
+          action: payload.action,
+          category: payload.category,
+          blockSender
+        },
+        {
+          onProgress: (p) => showBatchProgress(label, p.processed, p.total)
+        }
+      );
+      await afterMutation({ full: true });
+      setEmailSyncMessage({ kind: "success", text: `${label} הושלם על כל המסונן.` });
+    } catch (error) {
+      setEmailSyncMessage({
+        kind: "error",
+        text: error instanceof Error ? error.message : "פעולה מרובה נכשלה"
+      });
+    } finally {
+      hideBatchProgress();
+    }
+  };
+
+  const onChangeSingleCategory = async (ticketId: string, category: string) => {
+    patchItem(ticketId, { category });
+    try {
+      const updated = await updateTicket(ticketId, { category });
+      upsertItem(updated);
+      await afterMutation();
+    } catch {
+      await afterMutation({ full: true });
+    }
+  };
+
+  const onTriageAssign = async (ticketId: string, category: string) => {
+    const currentIndex = items.findIndex((ticket) => ticket.id === ticketId);
+    let nextTicket: Ticket | null = items[currentIndex + 1] ?? items[currentIndex - 1] ?? null;
+
+    if (!nextTicket && currentIndex === items.length - 1 && page * pageSize < total) {
+      try {
+        const nextPage = await fetchTicketPage({
+          ...listQuery,
+          page: page + 1
+        });
+        nextTicket = nextPage.items[0] ?? null;
+      } catch {
+        nextTicket = null;
+      }
+    }
+
+    removeItem(ticketId);
+    if (nextTicket && nextTicket.id !== ticketId) {
+      setActiveTicketId(nextTicket.id);
+    } else {
+      setActiveTicketId(null);
+    }
+
+    try {
+      await updateTicket(ticketId, {
+        category,
+        status: "open",
+        aiSuggestedCategory: null,
+        classificationConfidence: null
+      });
+      await afterMutation();
+    } catch {
+      setActiveTicketId(ticketId);
+      await afterMutation({ full: true });
+    }
+  };
+
+  const onBulkByFilter = async (payload: {
+    category?: string;
+    status?: string;
+    action?: "update" | "delete";
+  }) => {
+    if (!window.confirm(`להחיל פעולה על כל הפניות בסינון הנוכחי (עד 500)?`)) return;
+
+    let blockSender: boolean | undefined;
+    if (payload.category === "spam") {
+      const spamConfirm = confirmSpamWithBlockSender();
+      if (!spamConfirm.ok) return;
+      blockSender = spamConfirm.blockSender;
+    }
+
+    const res = await fetch("/api/tickets/bulk-by-filter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        confirm: true,
+        filters: buildListFilterParams(),
+        action: payload.action ?? "update",
+        category: payload.category,
+        status: payload.status,
+        blockSender
+      })
+    });
+    if (!res.ok) throw new Error("Bulk by filter failed");
+    await afterMutation({ full: true });
+  };
+
+  const showBatchProgress = (label: string, processed: number, total: number) => {
+    const progress = total > 0 ? Math.round((processed / total) * 100) : 0;
+    setBatchProgress({ visible: true, label, processed, total, progress });
+  };
+
+  const hideBatchProgress = () => {
+    setBatchProgress((prev) => ({ ...prev, visible: false }));
+  };
+
+  const runBatchAi = async (
+    scope: "spam" | "pending_triage" | "non_spam" | "active_open" | "ids" | "all",
+    options?: { ids?: string[]; limit?: number }
+  ) => {
+    setAiReclassifying(true);
+    showBatchProgress("סיווג AI…", 0, 0);
+
+    try {
+      const result = await runBatchReclassifyWithSse({
+        scope,
+        ids: options?.ids,
+        limit:
+          options?.limit ??
+          (scope === "all" || scope === "active_open"
+            ? 10_000
+            : scope === "ids"
+              ? options?.ids?.length
+              : 150),
+        onProgress: (p) => showBatchProgress("סיווג AI…", p.processed, p.total)
+      });
+
+      await refreshAll();
+      setEmailSyncMessage({
+        kind: "success",
+        text: `סיווג AI הושלם: ${result.processed} מתוך ${result.total} פניות.`
+      });
+    } catch (error) {
+      setEmailSyncMessage({
+        kind: "error",
+        text: error instanceof Error ? error.message : "סיווג AI נכשל"
+      });
+    } finally {
+      setAiReclassifying(false);
+      hideBatchProgress();
+    }
+  };
+
+  const onBulkAiClassify = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    await runBatchAi("ids", { ids });
+    setSelectedIds(new Set());
+  };
+
+  const onReclassifyPendingTriage = async () => {
+    await runBatchAi("pending_triage", { limit: 5000 });
+  };
+
+  const onSortAllOpenQueue = async () => {
+    await runBatchAi("active_open", { limit: 10_000 });
+    try {
+      await fetch("/api/tickets/answer-bundles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sync_tags" }),
+        credentials: "same-origin"
+      });
+    } catch {
+      /* optional tag sync */
+    }
+  };
+
+  const runCrmMaintenance = useCallback(async () => {
+    setAiReclassifying(true);
+    showBatchProgress("תיקון כתובות מייל…", 0, 1);
+    try {
+      const repairRes = await fetch("/api/tickets/repair-email-addresses", {
+        method: "POST",
+        credentials: "same-origin"
+      });
+      if (!repairRes.ok) {
+        const err = (await repairRes.json().catch(() => null)) as { details?: string; error?: string } | null;
+        throw new Error(err?.details || err?.error || "תיקון מיילים נכשל");
+      }
+      const repair = (await repairRes.json()) as {
+        beforeMalformed: number;
+        afterMalformed: number;
+      };
+
+      await runBatchReclassifyWithSse({
+        scope: "all",
+        limit: 10_000,
+        onProgress: (p) => showBatchProgress("סיווג AI לכל הפניות…", p.processed, p.total)
+      });
+      await refreshAll();
+      const fixed = Math.max(0, (repair.beforeMalformed ?? 0) - (repair.afterMalformed ?? 0));
+      setEmailSyncMessage({
+        kind: "success",
+        text: `תחזוקה הושלמה: תוקנו ${fixed} כתובות מייל, סיווג AI לכל הפניות הושלם.`
+      });
+    } catch (error) {
+      setEmailSyncMessage({
+        kind: "error",
+        text: error instanceof Error ? error.message : "תחזוקת CRM נכשלה"
+      });
+    } finally {
+      setAiReclassifying(false);
+      hideBatchProgress();
+    }
+  }, [refreshAll]);
+
+  const onSpamSweepAll = async () => {
+    setAiReclassifying(true);
+    showBatchProgress("סריקת ספאם…", 0, 0);
+    let totalMoved = 0;
+    let totalScanned = 0;
+    let rounds = 0;
+
+    try {
+      while (rounds < 60) {
+        const res = await fetch("/api/tickets/spam-sweep", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ limit: 250 })
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => null)) as { details?: string; error?: string } | null;
+          throw new Error(err?.details || err?.error || "סריקת ספאם נכשלה");
+        }
+        const chunk = (await res.json()) as {
+          movedToSpam: number;
+          scanned: number;
+          done: boolean;
+        };
+        totalMoved += chunk.movedToSpam ?? 0;
+        totalScanned += chunk.scanned ?? 0;
+        rounds += 1;
+        showBatchProgress("סריקת ספאם…", totalMoved, totalMoved + 50);
+        if (chunk.done || (chunk.scanned ?? 0) === 0) break;
+      }
+      await refreshAll();
+      setEmailSyncMessage({
+        kind: "success",
+        text: `סריקת ספאם הושלמה: ${totalMoved} פניות הועברו לתיקיית ספאם (${totalScanned} נבדקו).`
+      });
+    } catch (error) {
+      setEmailSyncMessage({
+        kind: "error",
+        text: error instanceof Error ? error.message : "סריקת ספאם נכשלה"
+      });
+    } finally {
+      setAiReclassifying(false);
+      hideBatchProgress();
+    }
+  };
+
+  const onAgentCommand = async (text: string) => {
+    setAiReclassifying(true);
+    try {
+      const result = await runAgentCommand(text, Array.from(selectedIds));
+
+      if (result.jobId) {
+        showBatchProgress("סוכן AI ממשיך סיווג…", 0, 0);
+        const batch = await continueBatchJobWithPolling(result.jobId, {
+          onProgress: (p) => showBatchProgress("סוכן AI ממשיך סיווג…", p.processed, p.total)
+        });
+        await refreshAll();
+        return {
+          reply: `${result.reply}\n\nסיווג באצ' הושלם: ${batch.processed}/${batch.total}.`
+        };
+      }
+
+      await refreshAll();
+      return { reply: result.reply };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "פקודת סוכן נכשלה";
+      setEmailSyncMessage({ kind: "error", text: message });
+      return { reply: message };
+    } finally {
+      setAiReclassifying(false);
+      hideBatchProgress();
+    }
+  };
+
+  const onSendReply = async (message: string) => {
+    if (!replyingTicket) return;
+    const result = await sendTicketReply(replyingTicket.id, message, { closeAfterSend: true });
+    if (result.closureNote && replyingTicket) {
+      patchItem(replyingTicket.id, {
+        closureNote: result.closureNote,
+        status: result.closed ? "closed" : "in_progress"
+      });
+    }
+    await afterMutation({ full: true });
+    if (result.queued && result.message) {
+      setEmailSyncMessage({ kind: "success", text: result.message });
+    } else if (result.sent) {
+      setEmailSyncMessage({
+        kind: "success",
+        text: result.closed
+          ? `המענה נשלח והפנייה נסגרה. הערת טיפול נשמרה.`
+          : "המענה נשלח ללקוח."
+      });
+    }
+  };
+
+  const onBulkSendReply = async (message: string) => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    const result = await sendBulkTicketReply(ids, message, { closeAfterSend: true });
+    setSelectedIds(new Set());
+    await afterMutation({ full: true });
+    const parts = [
+      result.sent ? `${result.sent} נשלחו` : "",
+      result.queued ? `${result.queued} בתור` : "",
+      result.failed.length ? `${result.failed.length} נכשלו` : ""
+    ].filter(Boolean);
+    window.alert(`מענה מרובה: ${parts.join(" · ")}`);
+  };
+
+  const onSaveInquiry = async (ticket: Ticket) => {
+    await saveInquiryForAction(ticket);
+    setEmailSyncMessage({
+      kind: "success",
+      text: "הפנייה נשמרה כמסמך בפניות שמורות (נושא, מייל וטקסט)."
+    });
+  };
+
+  const dynamicCategories = stats?.byCategory ?? [];
+  const openCount = stats?.statusCounts.open ?? 0;
+  const inProgressCount = stats?.statusCounts.in_progress ?? 0;
+  const closedCount = stats?.statusCounts.closed ?? 0;
+  const outboxCount = stats?.outboxCount ?? 0;
+  const activeCount = openCount + inProgressCount;
+  const triageCount = stats?.pendingTriageCount ?? 0;
+  const followupCount = stats?.customerFollowupCount ?? 0;
+
+  const activeInboxTab = useMemo((): InboxTabId => {
+    if (activeCategory === PENDING_TRIAGE_CATEGORY) return "triage";
+    if (activeCategory === CUSTOMER_FOLLOWUP_CATEGORY) return "followup";
+    if (activeStatus === "outbox") return "outbox";
+    if (activeStatus === "closed") return "closed";
+    if (activeStatus === "in_progress") return "in_progress";
+    return "active";
+  }, [activeCategory, activeStatus]);
+
+  const applyInboxTab = useCallback((tab: InboxTabId) => {
+    setPage(1);
+    setActiveBucket(null);
+    switch (tab) {
+      case "active":
+        setActiveCategory("all");
+        setActiveStatus("active");
+        break;
+      case "triage":
+        setActiveCategory(PENDING_TRIAGE_CATEGORY);
+        setActiveStatus("active");
+        break;
+      case "followup":
+        setActiveCategory(CUSTOMER_FOLLOWUP_CATEGORY);
+        setActiveStatus("active");
+        break;
+      case "in_progress":
+        setActiveCategory("all");
+        setActiveStatus("in_progress");
+        break;
+      case "outbox":
+        setActiveCategory("all");
+        setActiveStatus("outbox");
+        break;
+      case "closed":
+        setActiveCategory("all");
+        setActiveStatus("closed");
+        break;
+      default:
+        break;
+    }
+  }, []);
+
+  const workbenchTitle = activeBucket
+    ? BUCKET_LABELS[activeBucket]
+    : activeCategory === CUSTOMER_FOLLOWUP_CATEGORY
+      ? "תשובות חוזרות"
+      : activeCategory === PENDING_TRIAGE_CATEGORY
+      ? "ממתין לסינון"
+      : activeStatus === "outbox"
+        ? "דואר יוצא — פניות שנענו"
+        : activeStatus === "closed"
+          ? "ארכיון — כל הפניות הסגורות"
+          : activeStatus === "in_progress"
+            ? "פניות בטיפול"
+            : "פניות פעילות";
+  const workbenchSubtitle =
+    activeCategory === CUSTOMER_FOLLOWUP_CATEGORY
+      ? "תשובות לקוח על פניות שכבר טופלו או נענו — באותה פנייה"
+      : activeCategory === PENDING_TRIAGE_CATEGORY
+        ? "פניות חדשות ממייל — בחר קטגוריה בלחיצה אחת"
+        : activeStatus === "outbox"
+          ? `מעקב אחרי ${total.toLocaleString("he-IL")} פניות שנענו ונסגרו · ממוין לפי תאריך טיפול`
+          : activeStatus === "closed"
+            ? `מציג ${total.toLocaleString("he-IL")} פניות סגורות (כולל ללא מענה)`
+            : undefined;
+  const workbenchListMode = activeStatus === "outbox" ? "outbox" as const : "default" as const;
+
+  const headerActions = (
+    <>
+      <div className="hidden flex-wrap items-center gap-2 md:flex">
+        <Link href="/" className="lux-button rounded-xl px-3 py-1.5 text-xs font-semibold">
+          מרכז עבודה
+        </Link>
+        <details className="relative">
+          <summary className="lux-button cursor-pointer list-none rounded-xl px-3 py-1.5 text-xs">
+            מתקדם
+          </summary>
+          <div className="glass-panel-strong absolute left-0 z-50 mt-2 w-40 p-1">
+            <button
+              type="button"
+              onClick={() => setShowReplyTemplates(true)}
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
+            >
+              <MessageSquareText className="size-3.5 opacity-80" />
+              תבניות
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowExportModal(true)}
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
+            >
+              <Download className="size-3.5 opacity-80" />
+              ייצוא
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowImportModal(true)}
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
+            >
+              <Upload className="size-3.5 opacity-80" />
+              יבוא
+            </button>
+            <Link
+              href="/trash"
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
+            >
+              סל מחזור
+            </Link>
+            <Link
+              href="/saved-inquiries"
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
+            >
+              פניות שמורות
+            </Link>
+          </div>
+        </details>
+        <button
+          type="button"
+          onClick={handleEmailSync}
+          disabled={emailSyncing}
+          className="lux-button rounded-xl px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <MailCheck className={`size-4 opacity-80 ${emailSyncing ? "animate-pulse" : ""}`} />
+          {emailSyncing ? "מסנכרן…" : "סנכרן מיילים"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowNewModal(true)}
+          className="lux-button-primary rounded-xl px-3 py-1.5 text-xs"
+        >
+          <Plus className="size-4" />
+          פנייה חדשה
+        </button>
+      </div>
+
+    </>
+  );
+
+  return (
+    <MotionPage className="crm-workspace crm-mobile-bottom-bar min-h-screen px-2 pb-24 pt-2 text-[13px] sm:px-3 md:px-4 md:pb-8">
+      <div className="mx-auto max-w-[1380px] space-y-2">
+        <AppHeader
+          actions={headerActions}
+          onRefresh={handleHeaderRefresh}
+          onEmailSync={() => {
+            void handleEmailSync();
+          }}
+          emailSyncing={emailSyncing}
+          refreshing={headerRefreshing}
+          lastSyncedAt={lastEmailSyncedAt ?? lastSyncedAt}
+        />
+
+        {listError ? (
+          <div className="lux-card flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+            <span>{listError}</span>
+            <button
+              type="button"
+              className="crm-touch-target rounded-lg border border-danger/40 bg-white px-3 py-1 text-xs font-semibold text-danger"
+              onClick={() => {
+                void refreshAll();
+              }}
+            >
+              נסה שוב
+            </button>
+          </div>
+        ) : null}
+
+        {emailSyncMessage ? (
+          <div
+            role="status"
+            aria-live="polite"
+            className={`crm-toast crm-toast-popup ${
+              emailSyncMessage.kind === "success" ? "crm-toast-success" : "crm-toast-error"
+            } ${emailSyncToastLeaving ? "crm-toast-leaving" : ""}`}
+          >
+            {emailSyncMessage.text}
+          </div>
+        ) : null}
+
+        <section className="space-y-2">
+          <div className="glass-panel rounded-xl3 p-3">
+            <DashboardInboxTabs
+              activeTab={activeInboxTab}
+              counts={{
+                active: activeCount,
+                triage: triageCount,
+                followup: followupCount,
+                inProgress: inProgressCount,
+                outbox: outboxCount,
+                closed: closedCount,
+                triageAiHint: stats?.pendingWithSuggestion
+              }}
+              onTabChange={applyInboxTab}
+            />
+            <div className="mt-3">
+              <DashboardToolbar
+                searchValue={searchValue}
+                onSearchChange={setSearchValue}
+                activeCategory={activeCategory}
+                categories={dynamicCategories}
+                onCategoryChange={(category) => {
+                  setActiveCategory(category);
+                  setPage(1);
+                }}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                onDateFromChange={setDateFrom}
+                onDateToChange={setDateTo}
+                tagsFilter={tagsFilter}
+                onTagsFilterChange={setTagsFilter}
+                onSortAllOpen={() => {
+                  void onSortAllOpenQueue();
+                }}
+                showAdvancedTools
+                toolsBusy={aiReclassifying}
+                onSpamSweep={() => {
+                  void onSpamSweepAll();
+                }}
+                onMaintenance={() => {
+                  void runCrmMaintenance();
+                }}
+              />
+            </div>
+          </div>
+
+          <details className="rounded-2xl border border-outline/60 bg-white/80">
+            <summary className="cursor-pointer select-none px-3 py-2 text-xs font-bold text-on-surface-variant">
+              AI ותובנות (אופציונלי)
+            </summary>
+            <div className="space-y-2 border-t border-outline/40 p-2">
+              <AiInsightsPanel />
+              <AiAgentPanel
+                selectedCount={selectedIds.size}
+                busy={aiReclassifying}
+                onRun={onAgentCommand}
+              />
+            </div>
+          </details>
+
+          {activeCategory === PENDING_TRIAGE_CATEGORY ? (
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={aiReclassifying}
+                onClick={() => {
+                  void onReclassifyPendingTriage();
+                }}
+                className="crm-touch-target lux-button border-violet-200 bg-violet-50 text-violet-950"
+              >
+                {aiReclassifying ? "מסווג עם AI…" : "סיווג AI — כל התור"}
+              </button>
+              <button
+                type="button"
+                disabled={aiReclassifying}
+                onClick={() => {
+                  if (total > 500) void onBulkJobByFilter({ action: "spam" });
+                  else void onBulkByFilter({ category: "spam", status: "closed" });
+                }}
+                className="crm-touch-target lux-button border-amber-200 bg-amber-50 text-amber-950 text-xs"
+              >
+                סמן סינון כספאם
+                {total > 500 ? ` (עד ${total.toLocaleString("he-IL")})` : " (עד 500)"}
+              </button>
+            </div>
+          ) : null}
+
+          {total > 0 ? (
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={aiReclassifying}
+                onClick={() => void onBulkJobByFilter({ action: "spam" })}
+                className="crm-touch-target lux-button border-amber-200/80 bg-amber-50/80 text-xs text-amber-950"
+              >
+                ספאם לכל המסונן ({total.toLocaleString("he-IL")})
+              </button>
+              <button
+                type="button"
+                disabled={aiReclassifying}
+                onClick={() => void onBulkJobByFilter({ action: "delete" })}
+                className="crm-touch-target lux-button border-rose-200/80 bg-rose-50/80 text-xs text-rose-900"
+              >
+                מחק את כל המסונן
+              </button>
+            </div>
+          ) : null}
+
+          <TicketWorkbench
+            title={workbenchTitle}
+            subtitle={workbenchSubtitle}
+            listMode={workbenchListMode}
+            tickets={items}
+            total={total}
+            page={page}
+            pageSize={pageSize}
+            isLoading={isLoading}
+            isRefreshing={isRefreshing}
+            selectedIds={selectedIds}
+            activeTicket={activeTicket}
+            onSetActiveTicket={(ticket) => setActiveTicketId(ticket.id)}
+            onToggleSelect={onToggleSelect}
+            onSelectPage={onSelectPage}
+            onPageChange={setPage}
+            onEdit={setEditingTicket}
+            onDelete={(id) => {
+              void onDelete(id);
+            }}
+            onSetStatus={(id, status) => {
+              void onSetTicketStatus(id, status);
+            }}
+            onChangeCategory={(id, category) => {
+              void onChangeSingleCategory(id, category);
+            }}
+            onReply={setReplyingTicket}
+            onSaveInquiry={(ticket) => {
+              void onSaveInquiry(ticket);
+            }}
+            onTriageAssign={(id, category) => {
+              void onTriageAssign(id, category);
+            }}
+          />
+
+          <BulkActionBar
+            count={selectedIds.size}
+            onReply={() => setShowBulkReply(true)}
+            onAiClassify={() => {
+              void onBulkAiClassify();
+            }}
+            aiBusy={aiReclassifying}
+            onDelete={onBulkDelete}
+            onChangeCategory={onBulkChangeCategory}
+            onSetStatus={onBulkSetStatus}
+            onAddTags={onBulkAddTags}
+            onMoveToSpam={onBulkSpam}
+            onClearSelection={onClearSelection}
+          />
+        </section>
+      </div>
+
+      <ImportModal
+        isOpen={showImportModal}
+        onClose={() => {
+          setShowImportModal(false);
+          void refreshAll();
+        }}
+      />
+      <NewTicketModal
+        isOpen={showNewModal}
+        onClose={() => {
+          setShowNewModal(false);
+          void refreshAll();
+        }}
+      />
+      <EditTicketModal
+        ticket={editingTicket}
+        onClose={() => {
+          setEditingTicket(null);
+          void refreshAll();
+        }}
+      />
+      <ReplyTicketModal
+        ticket={replyingTicket}
+        onClose={() => setReplyingTicket(null)}
+        onSubmit={onSendReply}
+      />
+      <ExportContactsModal isOpen={showExportModal} onClose={() => setShowExportModal(false)} />
+      <ReplyTemplatesModal isOpen={showReplyTemplates} onClose={() => setShowReplyTemplates(false)} />
+      <BulkReplyModal
+        isOpen={showBulkReply}
+        count={selectedIds.size}
+        onClose={() => setShowBulkReply(false)}
+        onSubmit={onBulkSendReply}
+      />
+
+      <MobileDock
+        onSyncMail={() => {
+          void handleEmailSync();
+        }}
+        onTriage={() => {
+          router.push("/triage");
+        }}
+        onAnswerBundles={() => {
+          router.push("/answer-bundles");
+        }}
+        onReview={() => {
+          router.push("/review");
+        }}
+        emailSyncing={emailSyncing}
+        triageCount={triageCount}
+        bundleCount={0}
+      />
+
+      <BatchProgressBar
+        visible={batchProgress.visible}
+        label={batchProgress.label}
+        processed={batchProgress.processed}
+        total={batchProgress.total}
+        progress={batchProgress.progress}
+      />
+    </MotionPage>
+  );
+}

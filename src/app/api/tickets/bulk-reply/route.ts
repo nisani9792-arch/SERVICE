@@ -7,7 +7,7 @@ import { sql } from "@/lib/neon";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const MAX_BULK = 25;
+const MAX_BULK = 30;
 
 export async function POST(request: NextRequest) {
   const denied = await requireGateAccess(request);

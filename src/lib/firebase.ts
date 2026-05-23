@@ -21,6 +21,7 @@ export type TicketListQuery = {
   pageSize?: number;
   category?: string | "all";
   status?: string | "all";
+  bucket?: "active" | "handled" | "spam" | "outbox" | "deleted";
   dateFrom?: string;
   dateTo?: string;
   tags?: string[];
@@ -38,7 +39,8 @@ export const fetchTicketPage = async (
   sp.set("page", String(query.page ?? 1));
   sp.set("pageSize", String(query.pageSize ?? 25));
   if (query.category && query.category !== "all") sp.set("category", query.category);
-  if (query.status && query.status !== "all") sp.set("status", query.status);
+  if (query.bucket) sp.set("bucket", query.bucket);
+  else if (query.status && query.status !== "all") sp.set("status", query.status);
   if (query.dateFrom) sp.set("dateFrom", query.dateFrom);
   if (query.dateTo) sp.set("dateTo", query.dateTo);
   if (query.tags?.length) sp.set("tags", query.tags.join(","));
@@ -300,6 +302,7 @@ export const deleteTicket = async (ticketId: string) => {
 export type BulkPatchInput = TicketUpdateInput & {
   tags?: string[];
   replaceTags?: boolean;
+  blockSender?: boolean;
 };
 
 export const updateTicketsBulk = async (ticketIds: string[], input: BulkPatchInput) => {

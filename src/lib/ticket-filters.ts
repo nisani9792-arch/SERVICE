@@ -1,6 +1,8 @@
+import { parseTicketBucket, type TicketBucket } from "@/lib/ticket-buckets";
 import { parseTicketNumberQuery } from "@/lib/ticket-sequence";
 
 export type TicketListFilters = {
+  bucketFilter: TicketBucket | null;
   categoryFilter: string | null;
   ticketNumberExact: number | null;
   activeStatusFilter: boolean;
@@ -31,18 +33,27 @@ export function parseTicketListFilters(searchParams: URLSearchParams): TicketLis
   );
   const offset = (page - 1) * pageSize;
 
+  const bucketParam = searchParams.get("bucket");
+  const bucketFilter = parseTicketBucket(bucketParam);
+
   const category = searchParams.get("category");
   const categoryFilter = category && category !== "all" ? category : null;
-  const trashOnly = searchParams.get("trash") === "1";
+  const trashOnly = bucketFilter === "deleted" || searchParams.get("trash") === "1";
   const excludeSpamFilter =
     !trashOnly &&
     !categoryFilter &&
+    bucketFilter !== "spam" &&
     searchParams.get("includeSpam") !== "1";
 
   const status = searchParams.get("status");
-  const activeStatusFilter = status === "active";
-  const outboxStatusFilter = status === "outbox";
-  const closedStatusFilter = status === "closed";
+  let activeStatusFilter = status === "active" || bucketFilter === "active";
+  let outboxStatusFilter = status === "outbox" || bucketFilter === "outbox";
+  let closedStatusFilter = status === "closed" || bucketFilter === "handled";
+  if (bucketFilter === "spam") {
+    activeStatusFilter = false;
+    outboxStatusFilter = false;
+    closedStatusFilter = false;
+  }
   const exactStatusFilter =
     status &&
     status !== "all" &&
@@ -85,6 +96,7 @@ export function parseTicketListFilters(searchParams: URLSearchParams): TicketLis
   const sortMode = searchParams.get("sort") === "triage" ? "triage" : "default";
 
   return {
+    bucketFilter,
     categoryFilter,
     ticketNumberExact,
     activeStatusFilter,

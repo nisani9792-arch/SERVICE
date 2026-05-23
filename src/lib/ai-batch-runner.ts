@@ -167,6 +167,20 @@ async function fetchJobTickets(
     `) as TicketRow[];
   }
 
+  if (scope === "active_open") {
+    return (await sql()`
+      SELECT id, sender_email, subject, body, body_cleaned, category, status
+      FROM tickets
+      WHERE deleted_at IS NULL
+        AND status IN ('open', 'in_progress')
+        AND category <> ${"customer_followup"}
+        AND lower(trim(category)) NOT IN ('spam', 'spam (מובנה)')
+      ORDER BY created_at ASC
+      OFFSET ${offset}
+      LIMIT ${limit}
+    `) as TicketRow[];
+  }
+
   if (scope === "all") {
     return (await sql()`
       SELECT id, sender_email, subject, body, body_cleaned, category, status
@@ -230,6 +244,17 @@ export async function countBatchTargets(scope: string, ids: string[]): Promise<n
       WHERE category <> ${"customer_followup"}
         AND lower(trim(category)) NOT IN ('spam', 'spam (מובנה)')
         AND deleted_at IS NULL
+    `;
+    return Number((rows[0] as { c: number }).c ?? 0);
+  }
+  if (scope === "active_open") {
+    const rows = await sql()`
+      SELECT count(*)::int AS c
+      FROM tickets
+      WHERE deleted_at IS NULL
+        AND status IN ('open', 'in_progress')
+        AND category <> ${"customer_followup"}
+        AND lower(trim(category)) NOT IN ('spam', 'spam (מובנה)')
     `;
     return Number((rows[0] as { c: number }).c ?? 0);
   }

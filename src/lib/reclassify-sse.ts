@@ -18,7 +18,7 @@ export type BatchSseComplete = {
 };
 
 export type RunBatchReclassifyOptions = {
-  scope: "spam" | "pending_triage" | "non_spam" | "ids" | "all";
+  scope: "spam" | "pending_triage" | "non_spam" | "active_open" | "ids" | "all";
   limit?: number;
   ids?: string[];
   chunkSize?: number;

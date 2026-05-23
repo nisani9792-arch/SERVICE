@@ -330,7 +330,19 @@ export async function processInboundEmailMessage(
   }
 
   try {
-    const classification = await resolveClassificationForMessage(message);
+    const { isSenderBlocked } = await import("@/lib/spam-sender");
+    let classification = await resolveClassificationForMessage(message);
+    if (await isSenderBlocked(message.senderEmail)) {
+      classification = {
+        category: "spam",
+        priority: 1,
+        summary: "שולח חסום — פנייה נסגרה אוטומטית.",
+        status: "closed",
+        aiSuggestedCategory: null,
+        classificationConfidence: 1,
+        extraTags: ["blocked_sender"]
+      };
+    }
     const insertResult = await insertEmailTicket(message, ctx.sourceTag, classification);
 
     if (insertResult.inserted) {
