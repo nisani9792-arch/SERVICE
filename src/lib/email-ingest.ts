@@ -9,6 +9,11 @@ import {
 } from "@/lib/ticket-attachments";
 import { cleanMessageForAi } from "@/lib/message-filter";
 import { classifyHybrid } from "@/lib/classification";
+import {
+  extractContactFormMessage,
+  isWebsiteContactRelay,
+  unwrapWebsiteContactRelay
+} from "@/lib/contact-form-inquiry";
 import { sql } from "@/lib/neon";
 import { allocateNextTicketNumber } from "@/lib/ticket-sequence";
 import { ensureTicketListColumns } from "@/lib/ticket-schema";
@@ -76,6 +81,7 @@ export type ParsedEmailMessage = {
   body: string;
   messageAt: string | null;
   attachments: EmailAttachmentCandidate[];
+  ingestTags?: string[];
 };
 
 type ForcedClassification = {
@@ -262,6 +268,8 @@ export async function processInboundEmailMessage(
   message: ParsedEmailMessage,
   ctx: { ownerEmail: string; sourceTag: string }
 ): Promise<InboundProcessResult> {
+  message = applyWebsiteContactRelayUnwrap(message, ctx.ownerEmail);
+
   if (isSystemOrListMessage(message)) {
     return {
       imported: false,
@@ -395,7 +403,33 @@ function isSystemOrListMessage(message: ParsedEmailMessage): boolean {
 }
 
 function isOwnOutgoingMessage(message: ParsedEmailMessage, ownEmail: string): boolean {
+  if (isWebsiteContactRelay(message.senderEmail, message.subject, message.body, ownEmail)) {
+    return false;
+  }
   return message.senderEmail.toLowerCase() === ownEmail.toLowerCase();
+}
+
+function applyWebsiteContactRelayUnwrap(
+  message: ParsedEmailMessage,
+  ownerEmail: string
+): ParsedEmailMessage {
+  const unwrapped = unwrapWebsiteContactRelay(
+    message.senderEmail,
+    message.senderName,
+    message.subject,
+    message.body,
+    ownerEmail
+  );
+  if (!unwrapped) return message;
+
+  return {
+    ...message,
+    senderEmail: unwrapped.senderEmail,
+    senderName: unwrapped.senderName,
+    subject: unwrapped.subject,
+    body: unwrapped.body,
+    ingestTags: [...(message.ingestTags ?? []), "WEBSITE_FORM"]
+  };
 }
 
 function forcedClassificationFor(message: ParsedEmailMessage): ForcedClassification | null {
@@ -420,7 +454,8 @@ async function resolveClassificationForMessage(
   const forced = forcedClassificationFor(message);
   if (forced) return forced;
 
-  const bodyCleaned = cleanMessageForAi(message.body);
+  const bodyCleaned =
+    extractContactFormMessage(message.body) || cleanMessageForAi(message.body);
   const hybrid = await classifyHybrid(message.senderEmail, message.subject, bodyCleaned);
 
   return {
@@ -533,7 +568,7 @@ async function insertEmailTicket(
 
   const bodyCleaned = cleanMessageForAi(message.body);
   const ticketNumber = await allocateNextTicketNumber();
-  const tags = [sourceTag, ...(classification.extraTags ?? [])];
+  const tags = [sourceTag, ...(classification.extraTags ?? []), ...(message.ingestTags ?? [])];
 
   const rows = await sql()`
     INSERT INTO tickets (
