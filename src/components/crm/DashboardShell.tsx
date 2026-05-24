@@ -26,7 +26,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-dvh bg-surface">
-      <aside className="hidden w-56 shrink-0 flex-col border-e border-outline/60 bg-white/80 backdrop-blur-xl md:flex">
+      <aside className="hidden w-60 shrink-0 flex-col border-e border-outline/60 bg-white/85 backdrop-blur-xl md:flex">
         <div className="border-b border-outline/50 px-4 py-4">
           <p className="text-sm font-bold tracking-tight text-on-surface">Jusic CRM</p>
           <p className="text-[10px] font-medium text-on-surface-variant">Pro Command Center</p>

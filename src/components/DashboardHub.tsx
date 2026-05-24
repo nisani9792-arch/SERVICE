@@ -12,6 +12,7 @@ import {
   MessageSquareReply,
   Send,
   ShieldBan,
+  Smartphone,
   Sparkles,
   Trash2,
   Zap
@@ -117,183 +118,221 @@ export function DashboardHub() {
   };
 
   const triageCount = stats?.pendingTriageCount ?? 0;
-  const activeCount = stats?.activeCount ?? (stats?.statusCounts.open ?? 0) + (stats?.statusCounts.in_progress ?? 0);
+  const activeCount =
+    stats?.activeCount ?? (stats?.statusCounts.open ?? 0) + (stats?.statusCounts.in_progress ?? 0);
   const handledCount = stats?.handledCount ?? 0;
   const spamCount = stats?.spamCount ?? 0;
   const outboxCount = stats?.outboxCount ?? 0;
   const deletedCount = stats?.deletedCount ?? 0;
 
   return (
-    <MotionPage className="crm-workspace min-h-screen px-3 pb-8 pt-2 md:px-6 md:pb-8">
-      <div className="mx-auto max-w-lg space-y-4">
-        <AppHeader
-          actions={null}
-          refreshing={refreshing}
-          lastSyncedAt={lastSyncedAt}
-          onRefresh={() => {
-            setRefreshing(true);
-            void Promise.all([refreshStats(), loadBundles()]).finally(() => {
-              setRefreshing(false);
-              setLastSyncedAt(new Date());
-            });
-          }}
-          onEmailSync={() => {
-            void syncMail();
-          }}
-          emailSyncing={emailSyncing}
-        />
+    <MotionPage className="crm-workspace min-h-full w-full px-4 py-4 md:px-8 md:py-6">
+      <div className="mx-auto w-full max-w-7xl space-y-6">
+        <div className="glass-panel rounded-2xl border border-outline/50 p-4 md:p-5">
+          <AppHeader
+            actions={null}
+            refreshing={refreshing}
+            lastSyncedAt={lastSyncedAt}
+            onRefresh={() => {
+              setRefreshing(true);
+              void Promise.all([refreshStats(), loadBundles()]).finally(() => {
+                setRefreshing(false);
+                setLastSyncedAt(new Date());
+              });
+            }}
+            onEmailSync={() => {
+              void syncMail();
+            }}
+            emailSyncing={emailSyncing}
+          />
+        </div>
 
         {toast ? (
-          <p className="crm-toast crm-toast-success rounded-xl px-3 py-2 text-xs" role="status">
+          <p className="crm-toast crm-toast-success rounded-xl px-4 py-2 text-sm" role="status">
             {toast}
           </p>
         ) : null}
 
-        <p className="text-center text-sm font-semibold text-on-surface">דליים ומצבי עבודה</p>
+        <section>
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h1 className="text-lg font-bold text-on-surface md:text-xl">מרכז פיקוד</h1>
+              <p className="text-xs text-on-surface-variant md:text-sm">
+                ניטור דליים — לעיבוד עבור ל
+                <Link href="/dashboard/inbox" className="mx-1 font-semibold text-primary underline">
+                  לוח העיבוד
+                </Link>
+              </p>
+            </div>
+            <p className="text-[11px] text-on-surface-variant">
+              סה״כ במערכת: {(stats?.total ?? 0).toLocaleString("he-IL")} פניות
+            </p>
+          </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <CrmBucketCard
-            href={"/dashboard/inbox?bucket=active" as Route}
-            label="פעילות"
-            count={activeCount}
-            hint="פתוחות ובטיפול"
-            icon={Zap}
-            accentClass="border-sky-200/90 hover:border-sky-400"
-          />
-          <CrmBucketCard
-            href={"/dashboard/inbox?bucket=handled" as Route}
-            label="טופלו"
-            count={handledCount}
-            hint="סגורות ללא ספאם"
-            icon={Archive}
-            accentClass="border-emerald-200/90 hover:border-emerald-400"
-          />
-          <CrmBucketCard
-            href={"/dashboard/inbox?bucket=spam" as Route}
-            label="ספאם"
-            count={spamCount}
-            hint="כולל חסימת שולחים"
-            icon={ShieldBan}
-            accentClass="border-amber-200/90 hover:border-amber-400"
-          />
-          <CrmBucketCard
-            href={"/dashboard/inbox?bucket=outbox" as Route}
-            label="דואר יוצא"
-            count={outboxCount}
-            hint="נענו ונסגרו"
-            icon={Send}
-            accentClass="border-violet-200/90 hover:border-violet-400"
-          />
-          <CrmBucketCard
-            href={"/dashboard/inbox?bucket=deleted" as Route}
-            label="נמחקו"
-            count={deletedCount}
-            hint="סל מחזור"
-            icon={Trash2}
-            accentClass="border-rose-200/90 hover:border-rose-400"
-          />
-          <CrmBucketCard
-            href="/triage"
-            label="ממתין לסינון"
-            count={triageCount}
-            hint="פניות חדשות"
-            icon={Inbox}
-            accentClass="border-fuchsia-200/90 hover:border-fuchsia-400"
-          />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+            <CrmBucketCard
+              href={"/dashboard/inbox?bucket=active" as Route}
+              label="פעילות"
+              count={activeCount}
+              hint="פתוחות ובטיפול"
+              icon={Zap}
+              accentClass="border-sky-200/90 hover:border-sky-400"
+              size="lg"
+            />
+            <CrmBucketCard
+              href={"/dashboard/inbox?bucket=handled" as Route}
+              label="טופלו"
+              count={handledCount}
+              hint="סגורות ללא ספאם"
+              icon={Archive}
+              accentClass="border-emerald-200/90 hover:border-emerald-400"
+              size="lg"
+            />
+            <CrmBucketCard
+              href={"/dashboard/inbox?bucket=spam" as Route}
+              label="ספאם"
+              count={spamCount}
+              hint="כולל חסימת שולחים"
+              icon={ShieldBan}
+              accentClass="border-amber-200/90 hover:border-amber-400"
+              size="lg"
+            />
+            <CrmBucketCard
+              href={"/dashboard/inbox?bucket=outbox" as Route}
+              label="דואר יוצא"
+              count={outboxCount}
+              hint="נענו ונסגרו"
+              icon={Send}
+              accentClass="border-violet-200/90 hover:border-violet-400"
+              size="lg"
+            />
+            <CrmBucketCard
+              href={"/dashboard/inbox?bucket=deleted" as Route}
+              label="נמחקו"
+              count={deletedCount}
+              hint="סל מחזור"
+              icon={Trash2}
+              accentClass="border-rose-200/90 hover:border-rose-400"
+              size="lg"
+            />
+            <CrmBucketCard
+              href={"/mobile/triage?queue=triage" as Route}
+              label="ממתין לסינון"
+              count={triageCount}
+              hint="פניות חדשות"
+              icon={Inbox}
+              accentClass="border-fuchsia-200/90 hover:border-fuchsia-400"
+              size="lg"
+            />
+          </div>
+        </section>
+
+        <section>
+          <h2 className="mb-3 text-sm font-bold text-on-surface md:text-base">זרימות עבודה</h2>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Link
+              href={"/dashboard/inbox" as Route}
+              className="glass-panel flex min-h-[7rem] items-start gap-4 rounded-2xl border-2 border-primary/30 p-5 transition hover:border-primary/60 hover:shadow-glow-sm"
+            >
+              <span className="rounded-xl bg-primary-soft p-3 text-primary">
+                <Layers className="size-7" />
+              </span>
+              <div className="min-w-0 flex-1 text-right">
+                <h2 className="text-lg font-bold text-on-surface">לוח עיבוד (Desktop)</h2>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  חיפוש, סינון, פרטי פנייה, AI, פעולות מרובות · קיצורי מקלדת j/k/e/d
+                </p>
+                <p className="mt-2 text-xs font-bold text-primary">
+                  {activeCount.toLocaleString("he-IL")} פעילות ממתינות
+                </p>
+              </div>
+            </Link>
+
+            <Link
+              href={"/mobile/triage?queue=active" as Route}
+              className="glass-panel flex min-h-[7rem] items-start gap-4 rounded-2xl border border-outline p-5 transition hover:border-primary/40"
+            >
+              <span className="rounded-xl bg-surface-container p-3 text-on-surface">
+                <Smartphone className="size-7" />
+              </span>
+              <div className="min-w-0 flex-1 text-right">
+                <h2 className="text-lg font-bold text-on-surface">מצב סריקה (נייד / טאבלט)</h2>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  כרטיס מלא, סווייפ, מענה מהיר — לשטח או לטלפון
+                </p>
+              </div>
+            </Link>
+
+            <Link
+              href="/answer-bundles"
+              className="glass-panel block rounded-2xl border border-emerald-200/80 p-5 transition hover:border-emerald-400"
+            >
+              <div className="flex items-start gap-3">
+                <span className="rounded-xl bg-emerald-100 p-2.5 text-emerald-900">
+                  <MessageSquareReply className="size-6" />
+                </span>
+                <div className="min-w-0 flex-1 text-right">
+                  <h2 className="text-base font-bold text-on-surface">מענה בחבילות</h2>
+                  <p className="mt-0.5 text-sm text-on-surface-variant">
+                    תשובה אחת ל-20–30 פניות זהות
+                  </p>
+                  <p className="mt-2 text-xs font-bold text-emerald-800">
+                    {loadingBundles ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Loader2 className="size-3 animate-spin" />
+                        טוען חבילות…
+                      </span>
+                    ) : (
+                      <>
+                        {bundleCount?.toLocaleString("he-IL") ?? "—"} חבילות ·{" "}
+                        {(openTotal ?? activeCount).toLocaleString("he-IL")} פתוחות
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </Link>
+
+            <div className="glass-panel rounded-2xl border border-fuchsia-200/80 p-5">
+              <div className="flex items-start gap-3">
+                <span className="rounded-xl bg-fuchsia-100 p-2.5 text-fuchsia-900">
+                  <Inbox className="size-6" />
+                </span>
+                <div className="min-w-0 flex-1 text-right">
+                  <h2 className="text-base font-bold text-on-surface">מיון AI + תור ישן</h2>
+                  <p className="mt-0.5 text-sm text-on-surface-variant">
+                    סיווג אצווה לכל התור הפתוח · {triageCount.toLocaleString("he-IL")} ממתין לסינון
+                  </p>
+                  <button
+                    type="button"
+                    disabled={sorting}
+                    onClick={() => void sortAllOpen()}
+                    className="mt-3 rounded-lg bg-fuchsia-800 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                  >
+                    {sorting ? "ממיין…" : "מיין את כל התור הפתוח"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="flex flex-wrap items-center justify-center gap-4 border-t border-outline/40 pt-4 text-sm">
+          <Link
+            href="/rapid-reply"
+            className="inline-flex items-center gap-2 text-on-surface-variant hover:text-primary"
+          >
+            <Sparkles className="size-4" />
+            מענה מהיר (חריג)
+          </Link>
+          <Link
+            href={"/mobile/triage?queue=active" as Route}
+            className="inline-flex items-center gap-2 text-on-surface-variant hover:text-primary"
+          >
+            <LayoutGrid className="size-4" />
+            פתח סריקת כרטיסים
+          </Link>
         </div>
-
-        <p className="pt-1 text-center text-xs text-on-surface-variant">זרימות עבודה</p>
-
-        <Link
-          href="/triage"
-          className="glass-panel block rounded-2xl border border-fuchsia-200/80 p-4 transition hover:border-fuchsia-400"
-        >
-          <div className="flex items-start gap-3">
-            <span className="rounded-xl bg-fuchsia-100 p-2.5 text-fuchsia-900">
-              <Inbox className="size-6" />
-            </span>
-            <div className="min-w-0 flex-1 text-right">
-              <h2 className="text-base font-bold text-on-surface">מיון</h2>
-              <p className="mt-0.5 text-xs text-on-surface-variant">
-                פניות חדשות + סיווג מהיר · {triageCount.toLocaleString("he-IL")} ממתין
-              </p>
-              <button
-                type="button"
-                disabled={sorting}
-                onClick={(e) => {
-                  e.preventDefault();
-                  void sortAllOpen();
-                }}
-                className="mt-2 text-[11px] font-bold text-fuchsia-800 underline disabled:opacity-50"
-              >
-                {sorting ? "ממיין תור ישן…" : "מיין את כל התור הפתוח (ישן + חדש)"}
-              </button>
-            </div>
-          </div>
-        </Link>
-
-        <Link
-          href="/answer-bundles"
-          className="glass-panel block rounded-2xl border border-emerald-200/80 p-4 transition hover:border-emerald-400"
-        >
-          <div className="flex items-start gap-3">
-            <span className="rounded-xl bg-emerald-100 p-2.5 text-emerald-900">
-              <MessageSquareReply className="size-6" />
-            </span>
-            <div className="min-w-0 flex-1 text-right">
-              <h2 className="text-base font-bold text-on-surface">מענה בחבילות</h2>
-              <p className="mt-0.5 text-xs text-on-surface-variant">
-                תשובה אחת ל-20–30 פניות זהות
-              </p>
-              <p className="mt-2 text-[11px] font-bold text-emerald-800">
-                {loadingBundles ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Loader2 className="size-3 animate-spin" />
-                    טוען חבילות…
-                  </span>
-                ) : (
-                  <>
-                    {bundleCount?.toLocaleString("he-IL") ?? "—"} חבילות ·{" "}
-                    {(openTotal ?? activeCount).toLocaleString("he-IL")} פתוחות
-                  </>
-                )}
-              </p>
-            </div>
-          </div>
-        </Link>
-
-        <Link
-          href={"/mobile/triage?queue=active" as Route}
-          className="glass-panel block rounded-2xl border border-primary/25 p-4 transition hover:border-primary/50"
-        >
-          <div className="flex items-start gap-3">
-            <span className="rounded-xl bg-primary-soft p-2.5 text-primary">
-              <LayoutGrid className="size-6" />
-            </span>
-            <div className="min-w-0 flex-1 text-right">
-              <h2 className="text-base font-bold text-on-surface">מצב סריקה (Focus)</h2>
-              <p className="mt-0.5 text-xs text-on-surface-variant">
-                סווייפ / מקלדת · ארכיון · מחק · ספאם · מענה
-              </p>
-            </div>
-          </div>
-        </Link>
-
-        <Link
-          href="/dashboard/inbox"
-          className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-outline px-3 py-2.5 text-xs font-semibold text-on-surface-variant hover:border-primary/40 hover:text-primary"
-        >
-          <Layers className="size-4" />
-          לוח מתקדם — חיפוש, סינון, פעולות מרובות
-        </Link>
-
-        <Link
-          href="/rapid-reply"
-          className="flex items-center justify-center gap-2 text-[11px] text-on-surface-variant hover:text-primary"
-        >
-          <Sparkles className="size-3.5" />
-          מענה מהיר לפנייה בודדת (חריגים)
-        </Link>
       </div>
 
       <BatchProgressBar
