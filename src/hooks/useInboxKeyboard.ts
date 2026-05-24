@@ -35,6 +35,8 @@ export function useInboxKeyboard({
         return;
       }
 
+      if (event.metaKey || event.ctrlKey) return;
+
       const idx = activeTicketId
         ? items.findIndex((t) => t.id === activeTicketId)
         : 0;

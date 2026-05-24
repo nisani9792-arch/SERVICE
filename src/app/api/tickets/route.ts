@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireGateAccess, requireRegisteredOperator } from "@/lib/api-guard";
-import { classifyTicketContent } from "@/lib/gemini";
+import { classifyHybrid } from "@/lib/classification";
 import { cleanMessageForAi } from "@/lib/message-filter";
 import { sql } from "@/lib/neon";
 import { allocateNextTicketNumber } from "@/lib/ticket-sequence";
@@ -188,18 +188,21 @@ export async function POST(request: NextRequest) {
 
     await ensureTicketUpgradeSchema();
     const bodyCleaned = cleanMessageForAi(content);
-    const classification = await classifyTicketContent(senderEmail, subject, bodyCleaned);
+    const classification = await classifyHybrid(senderEmail, subject, bodyCleaned);
     const ticketNumber = await allocateNextTicketNumber();
+    const tags = classification.extraTags.length ? classification.extraTags : [];
 
     const rows = await sql()`
       INSERT INTO tickets (
         ticket_number, sender_email, sender_name, subject, body, body_cleaned,
-        category, priority, ai_summary, status, source, assigned_to
+        category, priority, ai_summary, ai_suggested_category, classification_confidence,
+        status, source, assigned_to, tags
       )
       VALUES (
         ${ticketNumber}, ${senderEmail}, ${senderName}, ${subject}, ${content}, ${bodyCleaned},
         ${classification.category}, ${classification.priority}, ${classification.summary},
-        ${"open"}, ${source}, ${operator.displayName}
+        ${classification.aiSuggestedCategory}, ${classification.classificationConfidence},
+        ${classification.status}, ${source}, ${operator.displayName}, ${tags}
       )
       RETURNING id, ticket_number, sender_email, sender_name, subject, body, body_cleaned,
                 category, priority, ai_summary, ai_suggested_category, classification_confidence,

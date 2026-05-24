@@ -459,3 +459,137 @@
   scrollbar-width: thin;
   scrollbar-color: rgba(47, 180, 216, 0.28) transparent;
 }
+
+/* ─── Deep Resolution Engine (JDS) — dark glass, scoped to workbench ─── */
+.jusic-resolution {
+  color-scheme: dark;
+  --jds-bg: #0b0f14;
+  --jds-surface: rgba(18, 24, 32, 0.82);
+  --jds-surface-raised: rgba(28, 36, 48, 0.65);
+  --jds-on-surface: #eef2f6;
+  --jds-on-surface-muted: #8b98a8;
+  --jds-primary: #45c8e8;
+  --jds-primary-glow: rgba(69, 200, 232, 0.22);
+  --jds-border: rgba(255, 255, 255, 0.1);
+  --jds-glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --jds-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.jds-split-pane {
+  @apply grid min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr),minmax(22rem,0.58fr)];
+}
+
+.jds-list-panel,
+.jds-detail-panel {
+  border-radius: var(--j-radius);
+  border: 1px solid var(--jds-border);
+  background: var(--jds-surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--jds-glass-edge), var(--jds-shadow);
+  color: var(--jds-on-surface);
+}
+
+.jds-detail-sheet {
+  border-radius: var(--j-radius) var(--j-radius) 0 0;
+  border: 1px solid var(--jds-border);
+  border-bottom: none;
+  background: rgba(14, 19, 26, 0.94);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  box-shadow: var(--jds-glass-edge), 0 -12px 48px rgba(0, 0, 0, 0.55);
+  color: var(--jds-on-surface);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.jds-panel-header {
+  border-bottom: 1px solid var(--jds-border);
+  background: var(--jds-surface-raised);
+}
+
+.jds-panel-footer {
+  border-top: 1px solid var(--jds-border);
+  background: rgba(14, 19, 26, 0.88);
+}
+
+.jds-list-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(69, 200, 232, 0.35) transparent;
+}
+
+.jds-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(69, 200, 232, 0.1) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: jds-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes jds-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.jds-empty-title {
+  color: var(--jds-on-surface);
+}
+
+.jds-empty-subtitle {
+  color: var(--jds-on-surface-muted);
+}
+
+.jds-copilot-card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(20, 28, 38, 0.75);
+  backdrop-filter: blur(16px);
+}
+
+.jds-copilot-glow {
+  border-color: rgba(69, 200, 232, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(69, 200, 232, 0.2),
+    0 0 32px rgba(69, 200, 232, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.jds-copilot-loading {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.jds-cmdk {
+  background: rgba(12, 17, 24, 0.96);
+  color: var(--jds-on-surface);
+}
+
+.jds-cmdk-root [cmdk-group-heading] {
+  @apply px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide;
+  color: var(--jds-on-surface-muted);
+}
+
+.jds-cmdk-item {
+  @apply flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2.5 text-sm;
+  color: var(--jds-on-surface);
+}
+
+.jds-cmdk-item[data-selected="true"] {
+  background: rgba(69, 200, 232, 0.14);
+  color: var(--jds-primary);
+}
+
+.jds-cmdk-item[data-disabled="true"] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.jds-cmdk-kbd {
+  @apply mr-auto rounded border px-1.5 py-0.5 font-mono text-[10px];
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--jds-on-surface-muted);
+}

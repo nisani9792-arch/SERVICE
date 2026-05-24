@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireGateAccess } from "@/lib/api-guard";
-import { classifyTicketContent } from "@/lib/gemini";
+import { classifyHybrid } from "@/lib/classification";
+import { cleanMessageForAi } from "@/lib/message-filter";
 import { prepareHistoricalBatch } from "@/lib/historical-import";
 import type { ClassifiedImportRecord, HistoricalTicketJson, ImportRecordInput } from "@/lib/types";
 import { sql } from "@/lib/neon";
@@ -46,7 +47,13 @@ export async function POST(request: NextRequest) {
         classification = DEFAULT_FAST_CLASSIFICATION;
       } else {
         try {
-          classification = await classifyTicketContent(senderEmail, subject, content);
+          const bodyCleaned = cleanMessageForAi(content);
+          const hybrid = await classifyHybrid(senderEmail, subject, bodyCleaned);
+          classification = {
+            category: hybrid.category,
+            priority: hybrid.priority,
+            summary: hybrid.summary
+          };
         } catch {
           classification = DEFAULT_FAST_CLASSIFICATION;
         }

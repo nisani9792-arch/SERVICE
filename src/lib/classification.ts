@@ -14,11 +14,14 @@ export { normalizeCategory, CANONICAL_CATEGORIES } from "@/lib/category-normaliz
 export type { CanonicalCategory } from "@/lib/category-normalize";
 
 const AUTO_SPAM_CONFIDENCE = 0.85;
+const AUTO_APPLY_CONFIDENCE = 0.72;
 const AUTO_URGENT_PRIORITY = 5 as TicketPriority;
 
+/** Hybrid AI routing is ON by default; set CRM_HYBRID_CLASSIFY=0 to disable. */
 export function isHybridClassifyEnabled(): boolean {
   const flag = process.env.CRM_HYBRID_CLASSIFY?.trim().toLowerCase();
-  return flag === "1" || flag === "true" || flag === "yes";
+  if (flag === "0" || flag === "false" || flag === "no") return false;
+  return true;
 }
 
 export type HybridClassification = {
@@ -132,7 +135,14 @@ export async function classifyHybrid(
     return buildAutoApplied("bugs", gemini.priority, gemini.summary, "open", gemini.confidence);
   }
 
-  return buildPendingSuggestion(gemini);
+  if (gemini.confidence >= AUTO_APPLY_CONFIDENCE) {
+    return {
+      ...buildAutoApplied(normalized, gemini.priority, gemini.summary, "open", gemini.confidence),
+      extraTags: ["AI_CLASSIFIED"]
+    };
+  }
+
+  return buildPendingSuggestion(gemini, gemini.confidence >= 0.5 ? ["AI_SUGGESTED"] : []);
 }
 
 export async function classifyDirect(

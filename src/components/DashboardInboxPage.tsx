@@ -21,6 +21,7 @@ import { AiAgentPanel } from "@/components/AiAgentPanel";
 import { AiInsightsPanel } from "@/components/AiInsightsPanel";
 import { BatchProgressBar } from "@/components/BatchProgressBar";
 import { TicketWorkbench } from "@/components/TicketWorkbench";
+import { ResolutionCommandPalette } from "@/components/resolution/ResolutionCommandPalette";
 import { ReplyTicketModal } from "@/components/ReplyTicketModal";
 import {
   deleteTicket,
@@ -46,6 +47,7 @@ import {
 import { useLiveRefresh } from "@/hooks/useLiveRefresh";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useInboxKeyboard } from "@/hooks/useInboxKeyboard";
+import { useTicketUrlSync } from "@/hooks/useResolutionSelection";
 import { CUSTOMER_FOLLOWUP_CATEGORY, PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
 import { ImportModal } from "@/components/ImportModal";
 import { NewTicketModal } from "@/components/NewTicketModal";
@@ -104,6 +106,7 @@ export function DashboardInboxPage({
   const [showBulkReply, setShowBulkReply] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   const [headerRefreshing, setHeaderRefreshing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
@@ -175,6 +178,8 @@ export function DashboardInboxPage({
     () => items.find((ticket) => ticket.id === activeTicketId) ?? null,
     [activeTicketId, items]
   );
+
+  useTicketUrlSync(activeTicketId, setActiveTicketId, items);
 
   const refreshAll = useCallback(async () => {
     await Promise.all([refreshStats(), refresh()]);
@@ -422,6 +427,77 @@ export function DashboardInboxPage({
       await afterMutation({ full: true });
     }
   };
+
+  const advanceAfterTicketRemoved = useCallback(
+    (ticketId: string) => {
+      const idx = items.findIndex((ticket) => ticket.id === ticketId);
+      const next = items[idx + 1] ?? items[idx - 1] ?? null;
+      removeItem(ticketId);
+      setActiveTicketId(next?.id ?? null);
+    },
+    [items, removeItem]
+  );
+
+  const onMarkSpam = useCallback(
+    async (ticketId: string) => {
+      const confirm = confirmSpamWithBlockSender("לסמן פנייה כספאם?");
+      if (!confirm.ok) return;
+      advanceAfterTicketRemoved(ticketId);
+      try {
+        await updateTicketsBulk([ticketId], {
+          category: "spam",
+          blockSender: confirm.blockSender
+        });
+        await afterMutation();
+      } catch {
+        await afterMutation({ full: true });
+      }
+    },
+    [advanceAfterTicketRemoved, afterMutation]
+  );
+
+  const onArchiveTicket = useCallback(
+    async (ticketId: string) => {
+      patchItem(ticketId, { status: "closed" });
+      try {
+        const updated = await updateTicket(ticketId, { status: "closed" });
+        upsertItem(updated);
+        await afterMutation();
+      } catch {
+        await afterMutation({ full: true });
+      }
+    },
+    [afterMutation, patchItem, upsertItem]
+  );
+
+  const onInlineReply = useCallback(
+    async (ticketId: string, message: string) => {
+      patchItem(ticketId, { status: "in_progress" });
+      try {
+        const result = await sendTicketReply(ticketId, message, { closeAfterSend: true });
+        patchItem(ticketId, {
+          closureNote: result.closureNote ?? undefined,
+          status: result.closed ? "closed" : "in_progress"
+        });
+        await afterMutation({ full: true });
+        if (result.sent || result.queued) {
+          setEmailSyncMessage({
+            kind: "success",
+            text: result.closed
+              ? "המענה נשלח והפנייה נסגרה."
+              : result.message ?? "המענה נשלח."
+          });
+        }
+      } catch (error) {
+        await afterMutation({ full: true });
+        setEmailSyncMessage({
+          kind: "error",
+          text: error instanceof Error ? error.message : "שליחת מענה נכשלה"
+        });
+      }
+    },
+    [afterMutation, patchItem]
+  );
 
   const onBulkDelete = async () => {
     const ids = Array.from(selectedIds);
@@ -1156,7 +1232,15 @@ export function DashboardInboxPage({
             קיצורי מקלדת: <span className="font-mono font-bold">j</span> הבא ·{" "}
             <span className="font-mono font-bold">k</span> הקודם ·{" "}
             <span className="font-mono font-bold">e</span> ארכיון ·{" "}
-            <span className="font-mono font-bold">d</span> מחק
+            <span className="font-mono font-bold">d</span> מחק ·{" "}
+            <button
+              type="button"
+              onClick={() => setCommandPaletteOpen(true)}
+              className="font-mono font-bold text-primary underline-offset-2 hover:underline"
+            >
+              ⌘K
+            </button>{" "}
+            פקודות
           </p>
 
           <TicketWorkbench
@@ -1192,6 +1276,13 @@ export function DashboardInboxPage({
             onTriageAssign={(id, category) => {
               void onTriageAssign(id, category);
             }}
+            onSpam={(id) => {
+              void onMarkSpam(id);
+            }}
+            onArchive={(id) => {
+              void onArchiveTicket(id);
+            }}
+            onInlineReply={onInlineReply}
           />
 
           <BulkActionBar
@@ -1272,6 +1363,25 @@ export function DashboardInboxPage({
         processed={batchProgress.processed}
         total={batchProgress.total}
         progress={batchProgress.progress}
+      />
+
+      <ResolutionCommandPalette
+        open={commandPaletteOpen}
+        onOpenChange={setCommandPaletteOpen}
+        activeTicket={activeTicket}
+        onMarkSpam={(id) => {
+          void onMarkSpam(id);
+        }}
+        onArchive={(id) => {
+          void onArchiveTicket(id);
+        }}
+        onFocusAiReply={() => {
+          window.dispatchEvent(new Event("resolution:focus-reply"));
+        }}
+        onApplyBundleReply={(text) => {
+          if (!activeTicket) return;
+          void onInlineReply(activeTicket.id, text);
+        }}
       />
     </MotionPage>
   );
