@@ -913,6 +913,27 @@ export function DashboardInboxPage({
 
   const headerActions = (
     <>
+      <div className="flex flex-wrap items-center gap-2 md:hidden">
+        <Link href="/dashboard" className="lux-button rounded-xl px-2.5 py-1.5 text-[10px] font-semibold">
+          מרכז
+        </Link>
+        <button
+          type="button"
+          onClick={handleEmailSync}
+          disabled={emailSyncing}
+          className="lux-button rounded-xl px-2.5 py-1.5 text-[10px] disabled:opacity-60"
+        >
+          {emailSyncing ? "מסנכרן…" : "סנכרן"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowNewModal(true)}
+          className="lux-button-primary rounded-xl px-2.5 py-1.5 text-[10px]"
+        >
+          <Plus className="size-3.5" />
+          חדש
+        </button>
+      </div>
       <div className="hidden flex-wrap items-center gap-2 md:flex">
         <Link href="/dashboard" className="lux-button rounded-xl px-3 py-1.5 text-xs font-semibold">
           מרכז עבודה
@@ -1231,7 +1252,7 @@ export function DashboardInboxPage({
             void handleEmailSync();
           }}
           onTriage={() => {
-            router.push("/mobile/triage?queue=triage");
+            router.push("/triage");
           }}
           onAnswerBundles={() => {
             router.push("/answer-bundles");

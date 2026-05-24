@@ -93,7 +93,7 @@ export function TriageMode() {
     <div className="crm-shell flex min-h-screen flex-col">
       <header className="crm-card mb-3 flex flex-wrap items-center gap-3 px-3 py-2.5">
         <Link
-          href="/"
+          href="/dashboard/inbox"
           className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
         >
           <ArrowRight className="size-4 rotate-180" />
@@ -164,8 +164,8 @@ export function TriageMode() {
         ) : (
           <div className="crm-card mx-auto max-w-md p-8 text-center">
             <p className="text-sm font-semibold text-on-surface">אין פניות ממתינות לסינון</p>
-            <Link href="/" className="crm-btn-primary mt-4 inline-flex">
-              חזרה ללוח הבקרה
+            <Link href="/dashboard/inbox" className="crm-btn-primary mt-4 inline-flex">
+              חזרה ללוח עיבוד
             </Link>
           </div>
         )}

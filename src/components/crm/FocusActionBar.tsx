@@ -20,7 +20,7 @@ export function FocusActionBar({
     "crm-touch-target flex size-16 items-center justify-center rounded-full shadow-lg transition active:scale-95 disabled:opacity-40";
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-6">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[45] flex justify-center px-6 md:bottom-[max(1rem,env(safe-area-inset-bottom))]">
       <div className="pointer-events-auto flex items-end gap-6">
         <motion.button
           type="button"

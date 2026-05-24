@@ -15,17 +15,15 @@ export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
   if (pathname === "/") {
-    const dest = isMobileDevice(request) ? "/mobile/triage" : "/dashboard";
+    const dest = isMobileDevice(request) ? "/dashboard/inbox" : "/dashboard";
     return NextResponse.redirect(new URL(dest + search, request.url));
   }
 
-  if (pathname === "/focus" || pathname === "/review" || pathname === "/triage") {
+  if (pathname === "/focus" || pathname === "/review") {
     const queue =
-      pathname === "/triage"
-        ? "triage"
-        : pathname === "/review"
-          ? "active"
-          : request.nextUrl.searchParams.get("queue") ?? "active";
+      pathname === "/review"
+        ? "active"
+        : request.nextUrl.searchParams.get("queue") ?? "active";
     const sp = new URLSearchParams(search);
     if (!sp.has("queue")) sp.set("queue", queue);
     return NextResponse.redirect(new URL(`/mobile/triage?${sp}`, request.url));
@@ -39,5 +37,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/focus", "/review", "/triage", "/inbox"]
+  matcher: ["/", "/focus", "/review", "/inbox"]
 };

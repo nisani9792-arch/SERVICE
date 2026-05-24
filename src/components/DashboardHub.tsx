@@ -216,7 +216,7 @@ export function DashboardHub() {
               size="lg"
             />
             <CrmBucketCard
-              href={"/mobile/triage?queue=triage" as Route}
+              href={"/triage" as Route}
               label="ממתין לסינון"
               count={triageCount}
               hint="פניות חדשות"

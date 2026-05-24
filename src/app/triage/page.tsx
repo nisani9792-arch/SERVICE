@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { TriageMode } from "@/components/TriageMode";
 
-export default function TriageRedirectPage() {
-  redirect("/mobile/triage?queue=triage");
+export default function TriagePage() {
+  return <TriageMode />;
 }
