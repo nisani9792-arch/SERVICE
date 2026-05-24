@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { MotionPage } from "@/components/ui/Motion";
-import { MobileDock } from "@/components/MobileDock";
 import { BatchProgressBar } from "@/components/BatchProgressBar";
 import { CrmBucketCard } from "@/components/crm/CrmBucketCard";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
@@ -125,7 +124,7 @@ export function DashboardHub() {
   const deletedCount = stats?.deletedCount ?? 0;
 
   return (
-    <MotionPage className="crm-workspace min-h-screen px-3 pb-24 pt-2 md:px-4 md:pb-8">
+    <MotionPage className="crm-workspace min-h-screen px-3 pb-8 pt-2 md:px-6 md:pb-8">
       <div className="mx-auto max-w-lg space-y-4">
         <AppHeader
           actions={null}
@@ -154,7 +153,7 @@ export function DashboardHub() {
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <CrmBucketCard
-            href={"/inbox?bucket=active" as Route}
+            href={"/dashboard/inbox?bucket=active" as Route}
             label="פעילות"
             count={activeCount}
             hint="פתוחות ובטיפול"
@@ -162,7 +161,7 @@ export function DashboardHub() {
             accentClass="border-sky-200/90 hover:border-sky-400"
           />
           <CrmBucketCard
-            href={"/inbox?bucket=handled" as Route}
+            href={"/dashboard/inbox?bucket=handled" as Route}
             label="טופלו"
             count={handledCount}
             hint="סגורות ללא ספאם"
@@ -170,7 +169,7 @@ export function DashboardHub() {
             accentClass="border-emerald-200/90 hover:border-emerald-400"
           />
           <CrmBucketCard
-            href={"/inbox?bucket=spam" as Route}
+            href={"/dashboard/inbox?bucket=spam" as Route}
             label="ספאם"
             count={spamCount}
             hint="כולל חסימת שולחים"
@@ -178,7 +177,7 @@ export function DashboardHub() {
             accentClass="border-amber-200/90 hover:border-amber-400"
           />
           <CrmBucketCard
-            href={"/inbox?bucket=outbox" as Route}
+            href={"/dashboard/inbox?bucket=outbox" as Route}
             label="דואר יוצא"
             count={outboxCount}
             hint="נענו ונסגרו"
@@ -186,7 +185,7 @@ export function DashboardHub() {
             accentClass="border-violet-200/90 hover:border-violet-400"
           />
           <CrmBucketCard
-            href={"/inbox?bucket=deleted" as Route}
+            href={"/dashboard/inbox?bucket=deleted" as Route}
             label="נמחקו"
             count={deletedCount}
             hint="סל מחזור"
@@ -264,7 +263,7 @@ export function DashboardHub() {
         </Link>
 
         <Link
-          href="/review"
+          href={"/mobile/triage?queue=active" as Route}
           className="glass-panel block rounded-2xl border border-primary/25 p-4 transition hover:border-primary/50"
         >
           <div className="flex items-start gap-3">
@@ -272,16 +271,16 @@ export function DashboardHub() {
               <LayoutGrid className="size-6" />
             </span>
             <div className="min-w-0 flex-1 text-right">
-              <h2 className="text-base font-bold text-on-surface">סריקת כרטיסים</h2>
+              <h2 className="text-base font-bold text-on-surface">מצב סריקה (Focus)</h2>
               <p className="mt-0.5 text-xs text-on-surface-variant">
-                טקסט פנייה אמיתי · מחק / ספאם / מענה מהיר
+                סווייפ / מקלדת · ארכיון · מחק · ספאם · מענה
               </p>
             </div>
           </div>
         </Link>
 
         <Link
-          href="/inbox"
+          href="/dashboard/inbox"
           className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-outline px-3 py-2.5 text-xs font-semibold text-on-surface-variant hover:border-primary/40 hover:text-primary"
         >
           <Layers className="size-4" />
@@ -296,24 +295,6 @@ export function DashboardHub() {
           מענה מהיר לפנייה בודדת (חריגים)
         </Link>
       </div>
-
-      <MobileDock
-        onSyncMail={() => {
-          void syncMail();
-        }}
-        onTriage={() => {
-          window.location.href = "/triage";
-        }}
-        onAnswerBundles={() => {
-          window.location.href = "/answer-bundles";
-        }}
-        onReview={() => {
-          window.location.href = "/review";
-        }}
-        emailSyncing={emailSyncing}
-        triageCount={triageCount}
-        bundleCount={bundleCount ?? 0}
-      />
 
       <BatchProgressBar
         visible={batchProgress.visible}

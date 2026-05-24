@@ -45,6 +45,7 @@ import {
 } from "@/lib/email-sync-client";
 import { useLiveRefresh } from "@/hooks/useLiveRefresh";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useInboxKeyboard } from "@/hooks/useInboxKeyboard";
 import { CUSTOMER_FOLLOWUP_CATEGORY, PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
 import { ImportModal } from "@/components/ImportModal";
 import { NewTicketModal } from "@/components/NewTicketModal";
@@ -192,6 +193,39 @@ export function DashboardInboxPage({
     },
     [refresh, refreshAll, scheduleStatsRefresh]
   );
+
+  const onKeyboardArchive = useCallback(
+    async (ticketId: string) => {
+      try {
+        await updateTicket(ticketId, { status: "closed" });
+        await afterMutation();
+      } catch {
+        await afterMutation({ full: true });
+      }
+    },
+    [afterMutation]
+  );
+
+  const onKeyboardDelete = useCallback(
+    async (ticketId: string) => {
+      try {
+        await deleteTicket(ticketId);
+        if (activeTicketId === ticketId) setActiveTicketId(null);
+        await afterMutation();
+      } catch {
+        await afterMutation({ full: true });
+      }
+    },
+    [activeTicketId, afterMutation]
+  );
+
+  useInboxKeyboard({
+    items,
+    activeTicketId,
+    setActiveTicketId,
+    onArchive: onKeyboardArchive,
+    onDelete: onKeyboardDelete
+  });
 
   useLiveRefresh(() => {
     void refresh();
@@ -880,7 +914,7 @@ export function DashboardInboxPage({
   const headerActions = (
     <>
       <div className="hidden flex-wrap items-center gap-2 md:flex">
-        <Link href="/" className="lux-button rounded-xl px-3 py-1.5 text-xs font-semibold">
+        <Link href="/dashboard" className="lux-button rounded-xl px-3 py-1.5 text-xs font-semibold">
           מרכז עבודה
         </Link>
         <details className="relative">
@@ -1097,6 +1131,13 @@ export function DashboardInboxPage({
             </div>
           ) : null}
 
+          <p className="mb-2 hidden text-[10px] text-on-surface-variant md:block">
+            קיצורי מקלדת: <span className="font-mono font-bold">j</span> הבא ·{" "}
+            <span className="font-mono font-bold">k</span> הקודם ·{" "}
+            <span className="font-mono font-bold">e</span> ארכיון ·{" "}
+            <span className="font-mono font-bold">d</span> מחק
+          </p>
+
           <TicketWorkbench
             title={workbenchTitle}
             subtitle={workbenchSubtitle}
@@ -1184,23 +1225,25 @@ export function DashboardInboxPage({
         onSubmit={onBulkSendReply}
       />
 
-      <MobileDock
-        onSyncMail={() => {
-          void handleEmailSync();
-        }}
-        onTriage={() => {
-          router.push("/triage");
-        }}
-        onAnswerBundles={() => {
-          router.push("/answer-bundles");
-        }}
-        onReview={() => {
-          router.push("/review");
-        }}
-        emailSyncing={emailSyncing}
-        triageCount={triageCount}
-        bundleCount={0}
-      />
+      <div className="md:hidden">
+        <MobileDock
+          onSyncMail={() => {
+            void handleEmailSync();
+          }}
+          onTriage={() => {
+            router.push("/mobile/triage?queue=triage");
+          }}
+          onAnswerBundles={() => {
+            router.push("/answer-bundles");
+          }}
+          onReview={() => {
+            router.push("/mobile/triage?queue=active");
+          }}
+          emailSyncing={emailSyncing}
+          triageCount={triageCount}
+          bundleCount={0}
+        />
+      </div>
 
       <BatchProgressBar
         visible={batchProgress.visible}

@@ -7,6 +7,7 @@ import { allocateNextTicketNumber } from "@/lib/ticket-sequence";
 import { ensureTicketListColumns, ensureTicketUpgradeSchema } from "@/lib/ticket-schema";
 import { parseTicketListFilters } from "@/lib/ticket-filters";
 import { rowToTicket } from "@/lib/ticket-row";
+import { ensureTicketBucketView } from "@/lib/ticket-bucket-view";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export async function GET(request: NextRequest) {
 
   try {
     await ensureTicketListColumns();
+    await ensureTicketBucketView();
 
     const parsed = parseTicketListFilters(new URL(request.url).searchParams);
     if ("error" in parsed) {
@@ -90,6 +92,13 @@ export async function GET(request: NextRequest) {
         AND (
           ${f.exactStatusFilter}::text IS NULL
           OR status = ${f.exactStatusFilter}
+        )
+        AND (
+          ${f.bucketFilter}::text IS NULL
+          OR EXISTS (
+            SELECT 1 FROM ticket_buckets_v bv
+            WHERE bv.id = tickets.id AND bv.bucket_key = ${f.bucketFilter}
+          )
         )
         AND (
           ${f.dateFromTs}::timestamptz IS NULL

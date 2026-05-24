@@ -1,5 +1,4 @@
-import { DashboardHub } from "@/components/DashboardHub";
-
-export default function HomePage() {
-  return <DashboardHub />;
+/** Root routing handled by middleware → /dashboard or /mobile/triage */
+export default function RootPage() {
+  return null;
 }

@@ -46,10 +46,10 @@ export function parseTicketListFilters(searchParams: URLSearchParams): TicketLis
     searchParams.get("includeSpam") !== "1";
 
   const status = searchParams.get("status");
-  let activeStatusFilter = status === "active" || bucketFilter === "active";
-  let outboxStatusFilter = status === "outbox" || bucketFilter === "outbox";
-  let closedStatusFilter = status === "closed" || bucketFilter === "handled";
-  if (bucketFilter === "spam") {
+  let activeStatusFilter = status === "active";
+  let outboxStatusFilter = status === "outbox";
+  let closedStatusFilter = status === "closed";
+  if (bucketFilter) {
     activeStatusFilter = false;
     outboxStatusFilter = false;
     closedStatusFilter = false;

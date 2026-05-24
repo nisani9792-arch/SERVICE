@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireGateAccess } from "@/lib/api-guard";
 import { sql } from "@/lib/neon";
 import { ensureTicketListColumns } from "@/lib/ticket-schema";
+import { fetchBucketCounts, ensureTicketBucketView } from "@/lib/ticket-bucket-view";
 import { getStatsCache, setStatsCache, STATS_CACHE_MS } from "@/lib/stats-cache";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ export async function GET(request: NextRequest) {
 
   try {
     await ensureTicketListColumns();
+    await ensureTicketBucketView();
     const bypassCache = request.headers.get("x-service-live") === "true";
     const now = Date.now();
     const cached = getStatsCache();
@@ -73,26 +75,17 @@ export async function GET(request: NextRequest) {
           WHERE deleted_at IS NULL
             AND priority >= 4
             AND status NOT IN ('closed', 'handled')
-        )::int AS high_priority_open,
-        count(*) FILTER (
-          WHERE deleted_at IS NULL
-            AND status IN ('open', 'in_progress')
-            AND lower(trim(category)) NOT IN ('spam', 'spam (מובנה)')
-        )::int AS active_count,
-        count(*) FILTER (
-          WHERE deleted_at IS NULL
-            AND status IN ('closed', 'handled')
-            AND lower(trim(category)) NOT IN ('spam', 'spam (מובנה)')
-        )::int AS handled_count,
-        count(*) FILTER (
-          WHERE deleted_at IS NULL
-            AND lower(trim(category)) IN ('spam', 'spam (מובנה)')
-        )::int AS spam_only_count
+        )::int AS high_priority_open
       FROM tickets
     `;
 
-    const deletedRows = await sql()`
-      SELECT count(*)::int AS deleted_count FROM tickets WHERE deleted_at IS NOT NULL
+    const bucketCounts = await fetchBucketCounts();
+
+    const triageRows = await sql()`
+      SELECT count(*)::int AS c
+      FROM ticket_buckets_v
+      WHERE bucket_key = 'active'
+        AND category IN ('pending_triage', 'customer_followup')
     `;
 
     const catRows = await sql()`
@@ -127,16 +120,17 @@ export async function GET(request: NextRequest) {
       statusCounts: { open, in_progress, closed },
       openClosedRatio: { open: open + in_progress, closed },
       spamPercent: total > 0 ? Math.round((spamLike / total) * 1000) / 10 : 0,
-      spamCount: Number(agg?.spam_only_count ?? 0) || spamLike,
-      pendingTriageCount: Number(agg?.pending_triage ?? 0),
+      spamCount: bucketCounts.spam ?? spamLike,
+      pendingTriageCount: Number((triageRows[0] as { c: number })?.c ?? agg?.pending_triage ?? 0),
       customerFollowupCount: Number(agg?.customer_followup ?? 0),
       pendingWithSuggestion: Number(agg?.pending_with_suggestion ?? 0),
       pendingNoSuggestion: Number(agg?.pending_no_suggestion ?? 0),
       highPriorityOpen: Number(agg?.high_priority_open ?? 0),
-      outboxCount: Number(agg?.outbox_count ?? 0),
-      activeCount: Number(agg?.active_count ?? 0),
-      handledCount: Number(agg?.handled_count ?? 0),
-      deletedCount: Number((deletedRows[0] as { deleted_count: number })?.deleted_count ?? 0)
+      outboxCount: bucketCounts.outbox ?? Number(agg?.outbox_count ?? 0),
+      activeCount: bucketCounts.active ?? 0,
+      handledCount: bucketCounts.handled ?? 0,
+      deletedCount: bucketCounts.deleted ?? 0,
+      bucketCounts
     };
 
     setStatsCache(payload);
