@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { TicketListRow } from "@/components/TicketListRow";
 import { buildVirtualListRows, type VirtualListRow } from "@/lib/ticket-list-utils";
@@ -21,7 +21,7 @@ export interface VirtualTicketListProps {
   onToggleSelect: (id: string) => void;
 }
 
-export function VirtualTicketList({
+function VirtualTicketListInner({
   tickets,
   activeTicketId,
   selectedIds,
@@ -78,3 +78,5 @@ export function VirtualTicketList({
     </div>
   );
 }
+
+export const VirtualTicketList = memo(VirtualTicketListInner);

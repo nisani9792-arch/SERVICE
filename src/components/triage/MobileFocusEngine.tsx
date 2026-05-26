@@ -38,7 +38,7 @@ function parseQueue(raw: string | null): TriageQueueKey {
 
 /**
  * Mobile Focus Engine — card stack for fast review.
- * Full inbox management stays on /dashboard/inbox; dock links back.
+ * Full inbox management stays on /dashboard?view=workbench; dock links back.
  */
 export function MobileFocusEngine() {
   const router = useRouter();
@@ -98,14 +98,14 @@ export function MobileFocusEngine() {
       <div className="shrink-0 space-y-2 px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div className="flex items-center justify-between gap-2">
           <Link
-            href={"/dashboard/inbox" as Route}
+            href={"/dashboard?view=workbench" as Route}
             className="inline-flex items-center gap-1 rounded-lg border border-outline/60 bg-white/80 px-2.5 py-1.5 text-[11px] font-bold text-primary"
           >
             <Layers className="size-3.5" />
             לוח עיבוד
           </Link>
           <Link
-            href={"/triage" as Route}
+            href={"/dashboard?view=triage" as Route}
             className="rounded-lg border border-fuchsia-200 bg-fuchsia-50 px-2.5 py-1.5 text-[11px] font-bold text-fuchsia-900"
           >
             סינון מהיר
@@ -168,7 +168,7 @@ export function MobileFocusEngine() {
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
             <p className="text-sm font-semibold">התור ריק</p>
             <Link
-              href={"/dashboard/inbox" as Route}
+              href={"/dashboard?view=workbench" as Route}
               className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white"
             >
               חזרה ללוח עיבוד
@@ -205,8 +205,8 @@ export function MobileFocusEngine() {
       />
 
       <MobileDock
-        onSyncMail={() => router.push("/dashboard/inbox")}
-        onTriage={() => router.push("/triage")}
+        onSyncMail={() => router.push("/dashboard?view=workbench")}
+        onTriage={() => router.push("/dashboard?view=triage")}
         onAnswerBundles={() => router.push("/answer-bundles")}
         onReview={() => router.push("/mobile/triage?queue=active")}
         emailSyncing={false}

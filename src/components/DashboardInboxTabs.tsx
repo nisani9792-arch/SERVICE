@@ -94,7 +94,7 @@ export function DashboardInboxTabs({ activeTab, counts, onTabChange }: Dashboard
             {TABS.find((t) => t.id === "triage")?.hint} — {counts.triage.toLocaleString("he-IL")} פניות
           </p>
           <Link
-            href="/triage"
+            href="/dashboard?view=triage"
             className="rounded-lg border border-fuchsia-200 bg-fuchsia-50 px-2 py-1 text-[10px] font-bold text-fuchsia-900 hover:bg-fuchsia-100"
           >
             מצב סינון מהיר

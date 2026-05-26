@@ -158,3 +158,82 @@ ${candidateLines}
     return null;
   }
 }
+
+export type DraftEmailInput = {
+  subject: string;
+  inquiryText: string;
+  category?: string;
+  customerName?: string;
+  similarReplies?: SimilarReplySuggestion[];
+};
+
+export type DraftEmailResult = {
+  body: string;
+  tone: string;
+  usedKnowledge: boolean;
+};
+
+/** Compose a precise Hebrew reply using KB matches + ticket context. */
+export async function draftEmailWithKnowledge(
+  input: DraftEmailInput
+): Promise<DraftEmailResult | null> {
+  const apiKey = geminiApiKey();
+  if (!apiKey || input.inquiryText.trim().length < 6) return null;
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: MODEL_NAME,
+    generationConfig: { temperature: 0.35, responseMimeType: "application/json" }
+  });
+
+  const kbBlock =
+    input.similarReplies && input.similarReplies.length > 0
+      ? input.similarReplies
+          .slice(0, 4)
+          .map(
+            (s, i) =>
+              `[${i + 1}] ${s.matchReason}\nשאלה: ${s.inquirySnippet.slice(0, 200)}\nמענה קודם: ${s.replyText.slice(0, 500)}`
+          )
+          .join("\n\n")
+      : "אין מענים היסטוריים — השתמש בידע כללי על Jusic (מוזיקה, מנוי, אפליקציה).";
+
+  const prompt = `
+You write customer support email replies for Jusic (Hebrew music app).
+Return strict JSON: {"body":"...","tone":"professional|empathetic|brief"}
+
+Rules:
+- Hebrew, RTL-friendly plain text (no HTML)
+- Address the customer by name if provided
+- Answer the specific question; do not invent refunds or policy exceptions
+- Prefer facts from past replies when relevant
+- 3-8 sentences; end with a clear next step
+- Do NOT include subject line or email headers
+
+Customer name: ${input.customerName ?? "לקוח/ה"}
+Category: ${input.category ?? "כללי"}
+Subject: ${input.subject.slice(0, 200)}
+
+Inquiry:
+${input.inquiryText.slice(0, 4000)}
+
+Knowledge base / similar past replies:
+${kbBlock}
+`;
+
+  try {
+    const response = await model.generateContent(prompt);
+    const parsed = JSON.parse(extractJsonBlock(response.response.text())) as {
+      body?: unknown;
+      tone?: unknown;
+    };
+    const body = typeof parsed.body === "string" ? parsed.body.trim() : "";
+    if (body.length < 12) return null;
+    return {
+      body: body.slice(0, 6000),
+      tone: typeof parsed.tone === "string" ? parsed.tone : "professional",
+      usedKnowledge: Boolean(input.similarReplies?.length)
+    };
+  } catch {
+    return null;
+  }
+}

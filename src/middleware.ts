@@ -11,12 +11,30 @@ function isMobileDevice(request: NextRequest): boolean {
   return chMobile === "?1";
 }
 
+function withDashboardView(request: NextRequest, view: string): NextResponse {
+  const url = request.nextUrl.clone();
+  url.pathname = "/dashboard";
+  url.searchParams.set("view", view);
+  return NextResponse.redirect(url);
+}
+
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+  const mobile = isMobileDevice(request);
 
   if (pathname === "/") {
-    const dest = isMobileDevice(request) ? "/dashboard/inbox" : "/dashboard";
-    return NextResponse.redirect(new URL(dest + search, request.url));
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    url.searchParams.set("view", mobile ? "workbench" : "command");
+    return NextResponse.redirect(url);
+  }
+
+  if (pathname === "/dashboard") {
+    if (!request.nextUrl.searchParams.has("view")) {
+      const url = request.nextUrl.clone();
+      url.searchParams.set("view", mobile ? "workbench" : "command");
+      return NextResponse.redirect(url);
+    }
   }
 
   if (pathname === "/focus" || pathname === "/review") {
@@ -29,13 +47,37 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(`/mobile/triage?${sp}`, request.url));
   }
 
-  if (pathname === "/inbox") {
-    return NextResponse.redirect(new URL(`/dashboard/inbox${search}`, request.url));
+  if (pathname === "/inbox" || pathname.startsWith("/dashboard/inbox")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    if (!url.searchParams.has("view")) url.searchParams.set("view", "workbench");
+    return NextResponse.redirect(url);
+  }
+
+  if (pathname === "/triage") {
+    return withDashboardView(request, "triage");
+  }
+  if (pathname === "/rapid-reply") {
+    return withDashboardView(request, "rapid");
+  }
+  if (pathname === "/trash") {
+    return withDashboardView(request, "trash");
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/", "/focus", "/review", "/inbox"]
+  matcher: [
+    "/",
+    "/dashboard",
+    "/dashboard/inbox",
+    "/dashboard/inbox/:path*",
+    "/inbox",
+    "/triage",
+    "/rapid-reply",
+    "/trash",
+    "/focus",
+    "/review"
+  ]
 };

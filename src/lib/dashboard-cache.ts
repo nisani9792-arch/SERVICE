@@ -41,6 +41,16 @@ export function writeStatsCache(stats: DashboardStatsModel): void {
   writeEnvelope(STATS_KEY, stats);
 }
 
+/** Clear cached headline stats so the next fetch cannot show stale KPIs after server mutations. */
+export function clearSessionStatsCache(): void {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    sessionStorage.removeItem(STATS_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function listCacheKey(queryKey: string): string {
   return `${LIST_PREFIX}${queryKey}`;
 }

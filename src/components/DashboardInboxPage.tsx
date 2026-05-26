@@ -236,7 +236,7 @@ export function DashboardInboxPage({
     void refresh();
     scheduleStatsRefresh();
     setLastSyncedAt(new Date());
-  }, 300_000);
+  }, 45_000);
 
   const applyEmailSyncResult = useCallback(
     (result: EmailSyncResult, source: "auto" | "manual") => {
@@ -1044,7 +1044,7 @@ export function DashboardInboxPage({
               יבוא
             </button>
             <Link
-              href="/trash"
+              href="/dashboard?view=trash"
               className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
             >
               סל מחזור
@@ -1343,7 +1343,7 @@ export function DashboardInboxPage({
             void handleEmailSync();
           }}
           onTriage={() => {
-            router.push("/triage");
+            router.push("/dashboard?view=triage");
           }}
           onAnswerBundles={() => {
             router.push("/answer-bundles");

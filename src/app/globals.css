@@ -11,21 +11,21 @@
   --j-brand-grey: #7a858f;
   --j-brand-grey-dark: #4a5560;
 
-  --j-surface: #e8edf1;
-  --j-surface-container: #dde4ea;
-  --j-surface-high: rgba(255, 255, 255, 0.9);
-  --j-on-surface: #1a2329;
-  --j-on-surface-variant: #4e5962;
+  --j-surface: #f8fafc;
+  --j-surface-container: #f1f5f9;
+  --j-surface-high: rgba(255, 255, 255, 0.96);
+  --j-on-surface: #0f172a;
+  --j-on-surface-variant: #475569;
 
-  --j-primary: var(--j-brand-cyan);
-  --j-primary-soft: rgba(47, 180, 216, 0.14);
-  --j-accent: var(--j-brand-grey-dark);
-  --j-accent-soft: rgba(74, 85, 96, 0.1);
+  --j-primary: #4f46e5;
+  --j-primary-soft: rgba(79, 70, 229, 0.1);
+  --j-accent: #0d9488;
+  --j-accent-soft: rgba(13, 148, 136, 0.1);
 
-  --j-outline: rgba(74, 85, 96, 0.16);
-  --j-success: #0d9668;
-  --j-danger: #d64555;
-  --j-warning: #c27803;
+  --j-outline: rgba(148, 163, 184, 0.35);
+  --j-success: #059669;
+  --j-danger: #dc2626;
+  --j-warning: #d97706;
 
   --j-radius: 1.125rem;
   --j-ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -460,19 +460,19 @@
   scrollbar-color: rgba(47, 180, 216, 0.28) transparent;
 }
 
-/* ─── Deep Resolution Engine (JDS) — dark glass, scoped to workbench ─── */
+/* ─── Deep Resolution Engine (JDS) — premium light workbench ─── */
 .jusic-resolution {
-  color-scheme: dark;
-  --jds-bg: #0b0f14;
-  --jds-surface: rgba(18, 24, 32, 0.82);
-  --jds-surface-raised: rgba(28, 36, 48, 0.65);
-  --jds-on-surface: #eef2f6;
-  --jds-on-surface-muted: #8b98a8;
-  --jds-primary: #45c8e8;
-  --jds-primary-glow: rgba(69, 200, 232, 0.22);
-  --jds-border: rgba(255, 255, 255, 0.1);
-  --jds-glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --jds-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  color-scheme: light;
+  --jds-bg: #f8fafc;
+  --jds-surface: rgba(255, 255, 255, 0.94);
+  --jds-surface-raised: #f1f5f9;
+  --jds-on-surface: #0f172a;
+  --jds-on-surface-muted: #64748b;
+  --jds-primary: #4f46e5;
+  --jds-primary-glow: rgba(79, 70, 229, 0.12);
+  --jds-border: rgba(148, 163, 184, 0.35);
+  --jds-glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --jds-shadow: 0 4px 24px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(148, 163, 184, 0.12);
 }
 
 .jds-split-pane {
@@ -494,10 +494,10 @@
   border-radius: var(--j-radius) var(--j-radius) 0 0;
   border: 1px solid var(--jds-border);
   border-bottom: none;
-  background: rgba(14, 19, 26, 0.94);
+  background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(28px);
   -webkit-backdrop-filter: blur(28px);
-  box-shadow: var(--jds-glass-edge), 0 -12px 48px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--jds-glass-edge), 0 -12px 48px rgba(15, 23, 42, 0.12);
   color: var(--jds-on-surface);
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -509,20 +509,20 @@
 
 .jds-panel-footer {
   border-top: 1px solid var(--jds-border);
-  background: rgba(14, 19, 26, 0.88);
+  background: rgba(248, 250, 252, 0.95);
 }
 
 .jds-list-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(69, 200, 232, 0.35) transparent;
+  scrollbar-color: rgba(79, 70, 229, 0.25) transparent;
 }
 
 .jds-skeleton {
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.04) 0%,
-    rgba(69, 200, 232, 0.1) 50%,
-    rgba(255, 255, 255, 0.04) 100%
+    rgba(79, 70, 229, 0.04) 0%,
+    rgba(79, 70, 229, 0.1) 50%,
+    rgba(79, 70, 229, 0.04) 100%
   );
   background-size: 200% 100%;
   animation: jds-shimmer 1.5s ease-in-out infinite;
@@ -546,25 +546,25 @@
 }
 
 .jds-copilot-card {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(20, 28, 38, 0.75);
+  border: 1px solid var(--jds-border);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(16px);
 }
 
 .jds-copilot-glow {
-  border-color: rgba(69, 200, 232, 0.45);
+  border-color: rgba(79, 70, 229, 0.35);
   box-shadow:
-    0 0 0 1px rgba(69, 200, 232, 0.2),
-    0 0 32px rgba(69, 200, 232, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 0 0 1px rgba(79, 70, 229, 0.12),
+    0 0 24px rgba(79, 70, 229, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 .jds-copilot-loading {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--jds-border);
 }
 
 .jds-cmdk {
-  background: rgba(12, 17, 24, 0.96);
+  background: rgba(255, 255, 255, 0.98);
   color: var(--jds-on-surface);
 }
 
@@ -579,7 +579,7 @@
 }
 
 .jds-cmdk-item[data-selected="true"] {
-  background: rgba(69, 200, 232, 0.14);
+  background: rgba(79, 70, 229, 0.1);
   color: var(--jds-primary);
 }
 
@@ -590,6 +590,6 @@
 
 .jds-cmdk-kbd {
   @apply mr-auto rounded border px-1.5 py-0.5 font-mono text-[10px];
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: var(--jds-border);
   color: var(--jds-on-surface-muted);
 }

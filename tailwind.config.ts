@@ -20,7 +20,24 @@ const config: Config = {
         outline: "var(--j-outline)",
         success: "var(--j-success)",
         danger: "var(--j-danger)",
-        warning: "var(--j-warning)"
+        warning: "var(--j-warning)",
+        slate: {
+          50: "#f8fafc",
+          100: "#f1f5f9",
+          200: "#e2e8f0",
+          600: "#475569",
+          900: "#0f172a"
+        },
+        indigo: {
+          50: "#eef2ff",
+          200: "#c7d2fe",
+          600: "#4f46e5",
+          700: "#4338ca"
+        },
+        emerald: {
+          50: "#ecfdf5",
+          200: "#a7f3d0"
+        }
       },
       boxShadow: {
         glow: "var(--j-glow-primary)",

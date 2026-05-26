@@ -60,7 +60,7 @@ export function RapidReplyMode() {
     <div className="flex min-h-dvh flex-col bg-surface">
       <header className="flex items-center gap-3 border-b border-outline/60 bg-white px-4 py-3">
         <Link
-          href="/"
+          href="/dashboard?view=workbench"
           className="rounded-xl border border-outline p-2 text-on-surface-variant hover:bg-surface-container"
           aria-label="חזרה"
         >
@@ -93,7 +93,7 @@ export function RapidReplyMode() {
       ) : !ticket ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
           <p className="text-sm font-semibold text-on-surface">אין פניות פתוחות בתור</p>
-          <Link href="/" className="text-xs text-primary underline">
+          <Link href="/dashboard?view=workbench" className="text-xs text-primary underline">
             חזרה ללוח
           </Link>
         </div>

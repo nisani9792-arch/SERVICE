@@ -39,6 +39,8 @@ function buildPendingSuggestion(
   gemini: GeminiClassifyResult,
   extraTags: string[] = []
 ): HybridClassification {
+  const aiTags = (gemini.suggestedTags ?? []).slice(0, 6);
+  const merged = Array.from(new Set([...extraTags, ...aiTags])).slice(0, 12);
   return {
     category: PENDING_TRIAGE_CATEGORY,
     priority: gemini.priority,
@@ -46,7 +48,7 @@ function buildPendingSuggestion(
     status: "open",
     aiSuggestedCategory: normalizeCategory(gemini.category),
     classificationConfidence: gemini.confidence,
-    extraTags,
+    extraTags: merged,
     autoApplied: false
   };
 }
@@ -136,9 +138,10 @@ export async function classifyHybrid(
   }
 
   if (gemini.confidence >= AUTO_APPLY_CONFIDENCE) {
+    const aiTags = (gemini.suggestedTags ?? []).slice(0, 6);
     return {
       ...buildAutoApplied(normalized, gemini.priority, gemini.summary, "open", gemini.confidence),
-      extraTags: ["AI_CLASSIFIED"]
+      extraTags: Array.from(new Set(["AI_CLASSIFIED", ...aiTags])).slice(0, 12)
     };
   }
 

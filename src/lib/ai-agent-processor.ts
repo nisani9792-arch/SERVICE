@@ -5,7 +5,7 @@ import {
   getBatchJob,
   runBatchJobChunk
 } from "@/lib/ai-batch-runner";
-import { classifyTicketContent } from "@/lib/gemini";
+import { reclassifyTicketContent } from "@/lib/gemini";
 import { cleanMessageForAi } from "@/lib/message-filter";
 import { sweepSpamHeuristicChunk } from "@/lib/spam-sweep";
 import { sql } from "@/lib/neon";
@@ -18,7 +18,11 @@ export type AgentTaskType =
   | "spam_sweep"
   | "classify_text"
   | "search_tickets"
-  | "summarize_selection";
+  | "summarize_selection"
+  | "deep_classify"
+  | "sentiment_audit"
+  | "draft_reply"
+  | "historical_match";
 
 export type AgentTask = {
   type: AgentTaskType;
@@ -29,6 +33,7 @@ export type AgentTask = {
   subject?: string;
   body?: string;
   senderEmail?: string;
+  ticketId?: string;
 };
 
 export type AgentActionResult = {
@@ -91,6 +96,26 @@ function heuristicTasks(text: string, ctx: AgentContext): AgentTask[] {
     tasks.push({ type: "summarize_selection", ids: ctx.selectedTicketIds.slice(0, 8) });
   }
 
+  if (/טיוט|draft|מענה|תשובה/.test(lower) && ctx.selectedTicketIds?.length) {
+    tasks.push({
+      type: "draft_reply",
+      ticketId: ctx.selectedTicketIds[0],
+      ids: ctx.selectedTicketIds.slice(0, 1)
+    });
+  }
+
+  if (/סנטימנט|sentiment|רגש|טון/.test(lower) && ctx.selectedTicketIds?.length) {
+    tasks.push({ type: "sentiment_audit", ids: ctx.selectedTicketIds.slice(0, 12) });
+  }
+
+  if (/היסטור|דומה|similar|התאמה/.test(lower) && ctx.selectedTicketIds?.length) {
+    tasks.push({ type: "historical_match", ticketId: ctx.selectedTicketIds[0] });
+  }
+
+  if (/סווג|classif|תיוג|tag/.test(lower) && ctx.selectedTicketIds?.length && !tasks.some((t) => t.type === "reclassify_batch")) {
+    tasks.push({ type: "deep_classify", ids: ctx.selectedTicketIds.slice(0, 20) });
+  }
+
   if (tasks.length === 0 && text.trim().length > 12) {
     tasks.push({ type: "classify_text", body: text, subject: "פניית משתמש" });
   }
@@ -116,6 +141,10 @@ Allowed task types:
 - classify_text: { "type":"classify_text", "subject":"", "body":"", "senderEmail":"" }
 - search_tickets: { "type":"search_tickets", "query":"", "limit": 15 }
 - summarize_selection: { "type":"summarize_selection", "ids": ["uuid"] }
+- deep_classify: { "type":"deep_classify", "ids": ["uuid"] } — full Gemini + tags + KB hint
+- sentiment_audit: { "type":"sentiment_audit", "ids": ["uuid"] }
+- draft_reply: { "type":"draft_reply", "ticketId":"uuid" }
+- historical_match: { "type":"historical_match", "ticketId":"uuid" }
 
 Context:
 selectedTicketIds: ${JSON.stringify(ctx.selectedTicketIds ?? [])}
@@ -165,7 +194,7 @@ async function runSearchAgent(query: string, limit: number): Promise<AgentAction
 
 async function runClassifierAgent(task: AgentTask): Promise<AgentActionResult> {
   const body = cleanMessageForAi(task.body ?? "");
-  const classification = await classifyTicketContent(
+  const classification = await reclassifyTicketContent(
     task.senderEmail ?? "",
     task.subject ?? "פנייה",
     body
@@ -264,6 +293,119 @@ async function runBatchAgent(task: AgentTask): Promise<AgentActionResult & { job
   };
 }
 
+async function runDeepClassifyAgent(ids: string[]): Promise<AgentActionResult> {
+  if (ids.length === 0) {
+    return { agent: "deep_classify", ok: false, message: "לא נבחרו פניות" };
+  }
+  const rows = await sql()`
+    SELECT id, sender_email, subject, body, body_cleaned
+    FROM tickets WHERE id = ANY(${ids}) LIMIT 20
+  `;
+  const results: Array<Record<string, unknown>> = [];
+  for (const row of rows) {
+    const r = row as { id: string; sender_email: string; subject: string; body: string; body_cleaned: string | null };
+    const body = cleanMessageForAi(r.body_cleaned || r.body || "");
+    const c = await reclassifyTicketContent(r.sender_email, r.subject, body);
+    results.push({
+      id: r.id,
+      category: c.category,
+      priority: c.priority,
+      summary: c.summary,
+      confidence: c.confidence,
+      suggestedTags: c.suggestedTags,
+      sentiment: c.sentiment,
+      kbRoutingHint: c.kbRoutingHint
+    });
+  }
+  return {
+    agent: "deep_classify",
+    ok: true,
+    message: `סיווג עמוק ל-${results.length} פניות (תגיות + סנטימנט + KB)`,
+    data: { results }
+  };
+}
+
+async function runSentimentAuditAgent(ids: string[]): Promise<AgentActionResult> {
+  if (ids.length === 0) {
+    return { agent: "sentiment_audit", ok: false, message: "לא נבחרו פניות" };
+  }
+  const rows = await sql()`
+    SELECT id, subject, sender_email, body, body_cleaned
+    FROM tickets WHERE id = ANY(${ids}) LIMIT 12
+  `;
+  const lines: string[] = [];
+  for (const row of rows) {
+    const r = row as { id: string; subject: string; sender_email: string; body: string; body_cleaned: string | null };
+    const body = cleanMessageForAi(r.body_cleaned || r.body || "");
+    const c = await reclassifyTicketContent(r.sender_email, r.subject, body);
+    lines.push(
+      `${r.subject.slice(0, 60)} → ${c.sentiment ?? "neutral"} (${c.category}, P${c.priority})`
+    );
+  }
+  return {
+    agent: "sentiment_audit",
+    ok: true,
+    message: lines.join("\n") || "אין פניות",
+    data: { lines }
+  };
+}
+
+async function runHistoricalMatchAgent(ticketId: string): Promise<AgentActionResult> {
+  const rows = await sql()`
+    SELECT id, subject, body, body_cleaned, category
+    FROM tickets WHERE id = ${ticketId} LIMIT 1
+  `;
+  const row = rows[0] as { subject: string; body: string; body_cleaned: string | null } | undefined;
+  if (!row) {
+    return { agent: "historical_match", ok: false, message: "פנייה לא נמצאה" };
+  }
+  const { findSimilarReplySuggestions } = await import("@/lib/reply-knowledge");
+  const inquiry = cleanMessageForAi(row.body_cleaned || row.body || "");
+  const suggestions = await findSimilarReplySuggestions(row.subject, inquiry, 5);
+  return {
+    agent: "historical_match",
+    ok: true,
+    message: suggestions.length
+      ? `נמצאו ${suggestions.length} מענים דומים מהידע`
+      : "לא נמצאו מענים היסטוריים קרובים",
+    data: { suggestions }
+  };
+}
+
+async function runDraftReplyAgent(ticketId: string): Promise<AgentActionResult> {
+  const rows = await sql()`
+    SELECT id, subject, body, body_cleaned, sender_name, sender_email, category
+    FROM tickets WHERE id = ${ticketId} LIMIT 1
+  `;
+  const row = rows[0] as {
+    subject: string;
+    body: string;
+    body_cleaned: string | null;
+    sender_name: string | null;
+    category: string;
+  } | undefined;
+  if (!row) {
+    return { agent: "draft_reply", ok: false, message: "פנייה לא נמצאה" };
+  }
+  const { findSimilarReplySuggestions } = await import("@/lib/reply-knowledge");
+  const { draftEmailWithKnowledge } = await import("@/lib/reply-knowledge-ai");
+  const inquiry = cleanMessageForAi(row.body_cleaned || row.body || "");
+  const suggestions = await findSimilarReplySuggestions(row.subject, inquiry, 5);
+  const draft = await draftEmailWithKnowledge({
+    subject: row.subject,
+    inquiryText: inquiry,
+    category: row.category,
+    customerName: row.sender_name ?? undefined,
+    similarReplies: suggestions
+  });
+  return {
+    agent: "draft_reply",
+    ok: Boolean(draft?.body),
+    message: draft?.body ? "טיוטת מענה מוכנה (ידע + היסטוריה)" : "לא ניתן ליצור טיוטה",
+    data: { draft, suggestions }
+  };
+}
+
 async function executeTask(task: AgentTask): Promise<AgentActionResult & { jobId?: string }> {
   switch (task.type) {
     case "reclassify_batch":
@@ -276,6 +418,14 @@ async function executeTask(task: AgentTask): Promise<AgentActionResult & { jobId
       return runSearchAgent(task.query ?? "", task.limit ?? 15);
     case "summarize_selection":
       return runSummarizeAgent(task.ids ?? []);
+    case "deep_classify":
+      return runDeepClassifyAgent(task.ids ?? []);
+    case "sentiment_audit":
+      return runSentimentAuditAgent(task.ids ?? []);
+    case "historical_match":
+      return runHistoricalMatchAgent(task.ticketId ?? task.ids?.[0] ?? "");
+    case "draft_reply":
+      return runDraftReplyAgent(task.ticketId ?? task.ids?.[0] ?? "");
     default:
       return { agent: "unknown", ok: false, message: "משימה לא נתמכת" };
   }

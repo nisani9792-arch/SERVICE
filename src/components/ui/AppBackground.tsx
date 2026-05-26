@@ -1,12 +1,15 @@
 "use client";
 
-/** Ambient mesh gradient layer — Gemini-inspired fluid backdrop. */
+/** Ambient mesh gradient — soft slate/indigo light backdrop. */
 export function AppBackground() {
   return (
-    <div className="app-mesh pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
-      <div className="app-mesh-blob app-mesh-blob-a" />
-      <div className="app-mesh-blob app-mesh-blob-b" />
-      <div className="app-mesh-blob app-mesh-blob-c" />
+    <div
+      className="app-mesh pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-slate-50"
+      aria-hidden
+    >
+      <div className="app-mesh-blob app-mesh-blob-a opacity-40" />
+      <div className="app-mesh-blob app-mesh-blob-b opacity-35" />
+      <div className="app-mesh-blob app-mesh-blob-c opacity-30" />
     </div>
   );
 }

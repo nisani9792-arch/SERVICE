@@ -1,5 +1,5 @@
-import { RapidReplyMode } from "@/components/RapidReplyMode";
+import { redirect } from "next/navigation";
 
-export default function RapidReplyPage() {
-  return <RapidReplyMode />;
+export default function RapidReplyRedirectPage() {
+  redirect("/dashboard?view=rapid");
 }

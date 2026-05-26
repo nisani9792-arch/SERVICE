@@ -114,23 +114,51 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const activeCount = bucketCounts.active ?? 0;
+    const handledCount = bucketCounts.handled ?? 0;
+    const spamCount = bucketCounts.spam ?? spamLike;
+    const outboxCount = bucketCounts.outbox ?? Number(agg?.outbox_count ?? 0);
+    const deletedCount = bucketCounts.deleted ?? 0;
+    const pendingTriageCount = Number((triageRows[0] as { c: number })?.c ?? agg?.pending_triage ?? 0);
+    const customerFollowupCount = Number(agg?.customer_followup ?? 0);
+    const pendingWithSuggestion = Number(agg?.pending_with_suggestion ?? 0);
+    const pendingNoSuggestion = Number(agg?.pending_no_suggestion ?? 0);
+    const highPriorityOpen = Number(agg?.high_priority_open ?? 0);
+
     const payload = {
       total,
       byCategory,
       statusCounts: { open, in_progress, closed },
       openClosedRatio: { open: open + in_progress, closed },
       spamPercent: total > 0 ? Math.round((spamLike / total) * 1000) / 10 : 0,
-      spamCount: bucketCounts.spam ?? spamLike,
-      pendingTriageCount: Number((triageRows[0] as { c: number })?.c ?? agg?.pending_triage ?? 0),
-      customerFollowupCount: Number(agg?.customer_followup ?? 0),
-      pendingWithSuggestion: Number(agg?.pending_with_suggestion ?? 0),
-      pendingNoSuggestion: Number(agg?.pending_no_suggestion ?? 0),
-      highPriorityOpen: Number(agg?.high_priority_open ?? 0),
-      outboxCount: bucketCounts.outbox ?? Number(agg?.outbox_count ?? 0),
-      activeCount: bucketCounts.active ?? 0,
-      handledCount: bucketCounts.handled ?? 0,
-      deletedCount: bucketCounts.deleted ?? 0,
-      bucketCounts
+      spamCount,
+      pendingTriageCount,
+      customerFollowupCount,
+      pendingWithSuggestion,
+      pendingNoSuggestion,
+      highPriorityOpen,
+      outboxCount,
+      activeCount,
+      handledCount,
+      deletedCount,
+      bucketCounts,
+      /** Fingerprint for live clients — changes when any headline KPI changes */
+      _statsSig: [
+        total,
+        open,
+        in_progress,
+        closed,
+        activeCount,
+        handledCount,
+        spamCount,
+        outboxCount,
+        deletedCount,
+        pendingTriageCount,
+        customerFollowupCount,
+        pendingWithSuggestion,
+        pendingNoSuggestion,
+        highPriorityOpen
+      ].join("|")
     };
 
     setStatsCache(payload);

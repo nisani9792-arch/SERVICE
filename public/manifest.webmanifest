@@ -4,7 +4,7 @@
   "description": "JUSIC SERVICE — מערכת לניהול פניות, סיווג ותפעול",
   "lang": "he",
   "dir": "rtl",
-  "start_url": "/dashboard/inbox",
+  "start_url": "/dashboard?view=workbench",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

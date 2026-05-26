@@ -166,7 +166,7 @@ export function ResolutionCommandPalette({
 
                 <Command.Group heading="ניווט" className="jds-cmdk-group">
                   <Command.Item
-                    onSelect={() => run(() => router.push("/dashboard/inbox"))}
+                    onSelect={() => run(() => router.push("/dashboard?view=workbench"))}
                     className="jds-cmdk-item"
                   >
                     <Layers className="size-4" />

@@ -12,6 +12,12 @@ export type GeminiClassifyResult = {
   summary: string;
   confidence: number;
   unavailable: boolean;
+  /** Short CRM tags (snake_case), max 6 */
+  suggestedTags?: string[];
+  /** Customer emotional tone */
+  sentiment?: "positive" | "neutral" | "negative" | "frustrated";
+  /** One Hebrew sentence: how this maps to internal KB / policies */
+  kbRoutingHint?: string;
 };
 
 const ALLOWED_CATEGORIES = [
@@ -139,8 +145,13 @@ Rules:
 
 ${FEW_SHOT_EXAMPLES}
 
+Also include (optional but strongly preferred when confident):
+- suggestedTags: 2-6 short snake_case tags for CRM routing (e.g. "billing_dispute", "login_error", "upload_help")
+- sentiment: one of positive | neutral | negative | frustrated
+- kbRoutingHint: one Hebrew sentence describing how this maps to Jusic policies / help-center themes (not verbatim policy text)
+
 Return exactly:
-{"category":"Customer_Support","priority":3,"summary":"...","confidence":0.85}
+{"category":"Customer_Support","priority":3,"summary":"...","confidence":0.85,"suggestedTags":["..."],"sentiment":"neutral","kbRoutingHint":"..."}
 
 senderEmail: ${senderEmail}
 subject: ${subject}
@@ -226,6 +237,9 @@ export async function classifyWithGemini(
       priority?: number;
       summary?: string;
       confidence?: number;
+      suggestedTags?: unknown;
+      sentiment?: string;
+      kbRoutingHint?: string;
     };
 
     const normalized = normalizeCategory(String(parsed.category ?? "").replace(/\s+/g, "_"));
@@ -235,6 +249,30 @@ export async function classifyWithGemini(
       ? normalized
       : "Customer_Support";
 
+    const sentiments = new Set(["positive", "neutral", "negative", "frustrated"]);
+    const sentiment =
+      typeof parsed.sentiment === "string" && sentiments.has(parsed.sentiment)
+        ? (parsed.sentiment as GeminiClassifyResult["sentiment"])
+        : undefined;
+
+    const suggestedTags = Array.isArray(parsed.suggestedTags)
+      ? parsed.suggestedTags
+          .map((t) =>
+            String(t)
+              .trim()
+              .toLowerCase()
+              .replace(/\s+/g, "_")
+              .slice(0, 48)
+          )
+          .filter((t) => t.length >= 2)
+          .slice(0, 6)
+      : undefined;
+
+    const kbRoutingHint =
+      typeof parsed.kbRoutingHint === "string" && parsed.kbRoutingHint.trim().length > 0
+        ? parsed.kbRoutingHint.trim().slice(0, 280)
+        : undefined;
+
     return {
       category,
       priority: coercePriority(parsed.priority),
@@ -243,7 +281,10 @@ export async function classifyWithGemini(
           ? parsed.summary.trim()
           : "פנייה כללית שהתקבלה וממתינה לטיפול.",
       confidence: coerceConfidence(parsed.confidence),
-      unavailable: false
+      unavailable: false,
+      suggestedTags,
+      sentiment,
+      kbRoutingHint
     };
   } catch {
     return {
@@ -294,6 +335,9 @@ export type ReclassifyResult = {
   priority: TicketPriority;
   summary: string;
   confidence: number;
+  suggestedTags?: string[];
+  sentiment?: GeminiClassifyResult["sentiment"];
+  kbRoutingHint?: string;
 };
 
 export const reclassifyTicketContent = async (
@@ -316,6 +360,9 @@ export const reclassifyTicketContent = async (
     category: result.category,
     priority: result.priority,
     summary: result.summary,
-    confidence: result.confidence
+    confidence: result.confidence,
+    suggestedTags: result.suggestedTags,
+    sentiment: result.sentiment,
+    kbRoutingHint: result.kbRoutingHint
   };
 };

@@ -21,6 +21,9 @@ export type DashboardStatsModel = {
   activeCount?: number;
   handledCount?: number;
   deletedCount?: number;
+  bucketCounts?: Record<string, number>;
+  /** Server-side fingerprint for live sync (see /api/stats). */
+  _statsSig?: string;
 };
 
 interface DashboardStatsProps {

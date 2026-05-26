@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Heebo } from "next/font/google";
 import { AccessGate } from "@/components/AccessGate";
+import { BrowserTicketNotifications } from "@/components/crm/BrowserTicketNotifications";
+import { CrmStatsProvider } from "@/components/crm/CrmStatsProvider";
 import { PwaInstallPrompt } from "@/components/PwaInstallPrompt";
 import { AppBackground } from "@/components/ui/AppBackground";
 import { APP_DESCRIPTION, APP_LOGO_SRC, APP_NAME } from "@/lib/brand";
@@ -35,7 +37,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#2fb4d8"
+  themeColor: "#f8fafc"
 };
 
 export default function RootLayout({
@@ -47,7 +49,12 @@ export default function RootLayout({
     <html lang="he" dir="rtl">
       <body className={`${heebo.variable} font-sans`}>
         <AppBackground />
-        <AccessGate>{children}</AccessGate>
+        <AccessGate>
+          <CrmStatsProvider>
+            {children}
+            <BrowserTicketNotifications />
+          </CrmStatsProvider>
+        </AccessGate>
         <PwaInstallPrompt />
       </body>
     </html>

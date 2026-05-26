@@ -159,7 +159,7 @@ export function DashboardHub() {
               <h1 className="text-lg font-bold text-on-surface md:text-xl">מרכז פיקוד</h1>
               <p className="text-xs text-on-surface-variant md:text-sm">
                 ניטור דליים — לעיבוד עבור ל
-                <Link href="/dashboard/inbox" className="mx-1 font-semibold text-primary underline">
+                <Link href="/dashboard?view=workbench" className="mx-1 font-semibold text-primary underline">
                   לוח העיבוד
                 </Link>
               </p>
@@ -171,7 +171,7 @@ export function DashboardHub() {
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
             <CrmBucketCard
-              href={"/dashboard/inbox?bucket=active" as Route}
+              href={"/dashboard?view=workbench&bucket=active" as Route}
               label="פעילות"
               count={activeCount}
               hint="פתוחות ובטיפול"
@@ -180,7 +180,7 @@ export function DashboardHub() {
               size="lg"
             />
             <CrmBucketCard
-              href={"/dashboard/inbox?bucket=handled" as Route}
+              href={"/dashboard?view=workbench&bucket=handled" as Route}
               label="טופלו"
               count={handledCount}
               hint="סגורות ללא ספאם"
@@ -189,7 +189,7 @@ export function DashboardHub() {
               size="lg"
             />
             <CrmBucketCard
-              href={"/dashboard/inbox?bucket=spam" as Route}
+              href={"/dashboard?view=workbench&bucket=spam" as Route}
               label="ספאם"
               count={spamCount}
               hint="כולל חסימת שולחים"
@@ -198,7 +198,7 @@ export function DashboardHub() {
               size="lg"
             />
             <CrmBucketCard
-              href={"/dashboard/inbox?bucket=outbox" as Route}
+              href={"/dashboard?view=workbench&bucket=outbox" as Route}
               label="דואר יוצא"
               count={outboxCount}
               hint="נענו ונסגרו"
@@ -207,7 +207,7 @@ export function DashboardHub() {
               size="lg"
             />
             <CrmBucketCard
-              href={"/dashboard/inbox?bucket=deleted" as Route}
+              href={"/dashboard?view=workbench&bucket=deleted" as Route}
               label="נמחקו"
               count={deletedCount}
               hint="סל מחזור"
@@ -216,7 +216,7 @@ export function DashboardHub() {
               size="lg"
             />
             <CrmBucketCard
-              href={"/triage" as Route}
+              href={"/dashboard?view=triage" as Route}
               label="ממתין לסינון"
               count={triageCount}
               hint="פניות חדשות"
@@ -231,7 +231,7 @@ export function DashboardHub() {
           <h2 className="mb-3 text-sm font-bold text-on-surface md:text-base">זרימות עבודה</h2>
           <div className="grid gap-4 lg:grid-cols-2">
             <Link
-              href={"/dashboard/inbox" as Route}
+              href={"/dashboard?view=workbench" as Route}
               className="glass-panel flex min-h-[7rem] items-start gap-4 rounded-2xl border-2 border-primary/30 p-5 transition hover:border-primary/60 hover:shadow-glow-sm"
             >
               <span className="rounded-xl bg-primary-soft p-3 text-primary">
@@ -319,7 +319,7 @@ export function DashboardHub() {
 
         <div className="flex flex-wrap items-center justify-center gap-4 border-t border-outline/40 pt-4 text-sm">
           <Link
-            href="/rapid-reply"
+            href="/dashboard?view=rapid"
             className="inline-flex items-center gap-2 text-on-surface-variant hover:text-primary"
           >
             <Sparkles className="size-4" />

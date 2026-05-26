@@ -1,6 +1,17 @@
-import { DashboardHub } from "@/components/DashboardHub";
+import { Suspense } from "react";
+import { CrmWorkspace } from "@/components/crm/CrmWorkspace";
 
-/** Pro Command Center — monitoring & navigation (processing lives in /dashboard/inbox). */
+/** Unified Viewport CRM — all panels route via ?view=… (see middleware). */
 export default function DashboardPage() {
-  return <DashboardHub />;
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[50vh] items-center justify-center text-sm text-slate-600">
+          טוען סביבת עבודה…
+        </div>
+      }
+    >
+      <CrmWorkspace />
+    </Suspense>
+  );
 }

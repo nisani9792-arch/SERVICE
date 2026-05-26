@@ -1,51 +1,77 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { Route } from "next";
 import {
   Archive,
   Inbox,
   LayoutGrid,
   MessageSquareReply,
+  ScanLine,
   Smartphone,
-  Trash2
+  Trash2,
+  Zap
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { parseWorkspaceView, type CrmWorkspaceView } from "@/lib/crm-workspace-views";
 
-const NAV: Array<{ href: Route; label: string; icon: typeof Inbox }> = [
-  { href: "/dashboard", label: "מרכז פיקוד", icon: LayoutGrid },
-  { href: "/dashboard/inbox", label: "עיבוד פניות", icon: Inbox },
-  { href: "/answer-bundles", label: "חבילות מענה", icon: MessageSquareReply },
-  { href: "/dashboard/inbox", label: "ארכיון", icon: Archive },
-  { href: "/trash", label: "סל", icon: Trash2 }
+type NavItem = {
+  view: CrmWorkspaceView;
+  label: string;
+  icon: typeof Inbox;
+  extra?: Record<string, string>;
+};
+
+const NAV: NavItem[] = [
+  { view: "command", label: "מרכז פיקוד", icon: LayoutGrid },
+  { view: "workbench", label: "לוח עיבוד", icon: Inbox },
+  { view: "triage", label: "סינון מהיר", icon: ScanLine },
+  { view: "rapid", label: "מענה מהיר", icon: Zap },
+  { view: "review", label: "סקירה", icon: MessageSquareReply },
+  { view: "workbench", label: "ארכיון", icon: Archive, extra: { bucket: "handled" } },
+  { view: "trash", label: "סל מחזור", icon: Trash2 }
 ];
+
+function hrefForItem(item: NavItem): Route {
+  const sp = new URLSearchParams();
+  sp.set("view", item.view);
+  if (item.extra) {
+    for (const [k, v] of Object.entries(item.extra)) sp.set(k, v);
+  }
+  return (`/dashboard?${sp.toString()}`) as Route;
+}
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentView = parseWorkspaceView(searchParams.get("view"));
 
   return (
-    <div className="flex min-h-dvh bg-surface">
-      <aside className="hidden w-60 shrink-0 flex-col border-e border-outline/60 bg-white/85 backdrop-blur-xl md:flex">
-        <div className="border-b border-outline/50 px-4 py-4">
-          <p className="text-sm font-bold tracking-tight text-on-surface">Jusic CRM</p>
-          <p className="text-[10px] font-medium text-on-surface-variant">Pro Command Center</p>
+    <div className="flex min-h-dvh bg-slate-50">
+      <aside className="hidden w-64 shrink-0 flex-col border-e border-slate-200 bg-white shadow-sm md:flex">
+        <div className="border-b border-slate-200 px-4 py-4">
+          <p className="text-sm font-bold tracking-tight text-slate-900">Jusic CRM</p>
+          <p className="text-[10px] font-medium text-slate-500">Elite Pro · Workspace</p>
         </div>
         <nav className="flex flex-1 flex-col gap-0.5 p-2">
           {NAV.map((item) => {
+            const href = hrefForItem(item);
+            const bucket = searchParams.get("bucket") ?? "";
             const active =
-              pathname === item.href ||
-              (item.href === "/dashboard/inbox" && pathname.startsWith("/dashboard/inbox"));
+              pathname.startsWith("/dashboard") &&
+              currentView === item.view &&
+              (!item.extra?.bucket || bucket === item.extra.bucket);
             const Icon = item.icon;
             return (
               <Link
-                key={item.href}
-                href={item.href}
+                key={`${item.view}-${item.label}-${item.extra?.bucket ?? ""}`}
+                href={href}
                 className={cn(
                   "flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition",
                   active
-                    ? "bg-primary-soft text-primary"
-                    : "text-on-surface-variant hover:bg-surface-container"
+                    ? "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200"
+                    : "text-slate-600 hover:bg-slate-50"
                 )}
               >
                 <Icon className="size-4 shrink-0" />
@@ -54,17 +80,17 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="border-t border-outline/50 p-2">
+        <div className="border-t border-slate-200 p-2">
           <Link
             href={"/mobile/triage" as Route}
-            className="flex items-center gap-2 rounded-xl border border-dashed border-primary/40 px-3 py-2 text-[10px] font-bold text-primary"
+            className="flex items-center gap-2 rounded-xl border border-dashed border-indigo-300 px-3 py-2 text-[10px] font-bold text-indigo-700"
           >
             <Smartphone className="size-4" />
             מצב סריקה (נייד)
           </Link>
         </div>
       </aside>
-      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+      <div className="flex min-w-0 flex-1 flex-col bg-slate-50">{children}</div>
     </div>
   );
 }
