@@ -96,7 +96,7 @@ export function SplitPaneLayout({
       {/* Detail — desktop inline column (RTL: visual left / center) */}
       <motion.aside
         layout
-        className="jds-detail-panel hidden min-h-0 min-w-0 flex-col overflow-hidden xl:flex"
+        className="jds-detail-panel hidden min-h-0 min-w-0 flex-col overflow-hidden lg:flex"
         transition={{ layout: { duration: 0.32, ease: EASE } }}
         aria-live="polite"
         aria-label="פרטי פנייה"
@@ -133,7 +133,7 @@ export function SplitPaneLayout({
         {hasActiveDetail && detailOpen ? (
           <motion.div
             key="mobile-detail"
-            className="fixed inset-0 z-50 xl:hidden"
+            className="fixed inset-0 z-50 lg:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

@@ -1,36 +1,12 @@
 "use client";
 
 import { memo } from "react";
-import { CategoryBadge } from "@/components/CategoryBadge";
-import { listInquiryPreview, listOutboxPreview } from "@/lib/inquiry-preview";
+import { Reply } from "lucide-react";
+import { CompactCategoryChip } from "@/components/crm/CompactCategoryChip";
 import { displayTicketDate } from "@/lib/ticket-row";
-import { formatTicketNumber } from "@/lib/ticket-sequence";
+import { CUSTOMER_FOLLOWUP_CATEGORY } from "@/lib/triage";
+import { cn } from "@/lib/cn";
 import type { Ticket, TicketStatus } from "@/lib/types";
-
-const STATUS_LABELS: Record<TicketStatus, string> = {
-  open: "פתוח",
-  in_progress: "בטיפול",
-  closed: "סגור"
-};
-
-const STATUS_STYLES: Record<TicketStatus, string> = {
-  open: "bg-blue-50 text-blue-950 border-blue-200",
-  in_progress: "bg-amber-50 text-amber-950 border-amber-200",
-  closed: "bg-surface-container text-on-surface-variant border-outline"
-};
-
-const STATUS_ACCENT: Record<TicketStatus, string> = {
-  open: "bg-blue-500",
-  in_progress: "bg-amber-500",
-  closed: "bg-outline"
-};
-
-function formatWhen(ticket: Ticket): string {
-  return displayTicketDate(ticket).toLocaleString("he-IL", {
-    dateStyle: "short",
-    timeStyle: "short"
-  });
-}
 
 export type TicketListMode = "default" | "outbox";
 
@@ -43,16 +19,34 @@ export interface TicketListRowProps {
   onToggleSelect: (id: string) => void;
 }
 
+function formatRowDate(ticket: Ticket): string {
+  return displayTicketDate(ticket).toLocaleString("he-IL", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function readDotClass(status: TicketStatus, isFollowUp: boolean): string {
+  if (isFollowUp) return "bg-amber-500 ring-2 ring-amber-200";
+  if (status === "open") return "bg-indigo-600";
+  if (status === "in_progress") return "bg-amber-500";
+  return "bg-slate-300";
+}
+
 function TicketListRowInner({
   ticket,
   active,
   selected,
-  listMode = "default",
   onSelect,
   onToggleSelect
 }: TicketListRowProps) {
+  const isFollowUp = ticket.category === CUSTOMER_FOLLOWUP_CATEGORY;
+  const subject = (ticket.subject || ticket.aiSummary || "ללא נושא").trim();
+
   return (
-    <article
+    <div
       role="button"
       tabIndex={0}
       onClick={() => onSelect(ticket)}
@@ -62,67 +56,53 @@ function TicketListRowInner({
           onSelect(ticket);
         }
       }}
-      className={`relative cursor-pointer rounded-xl2 border p-2.5 transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-        active
-          ? "border-primary/40 bg-primary-soft/50 shadow-glow-sm ring-1 ring-primary/20"
-          : selected
-            ? "border-primary/30 bg-primary-soft/30 shadow-glow-sm"
-            : "border-outline/80 bg-white/60 backdrop-blur-md hover:border-primary/35 hover:bg-white/85 hover:shadow-glow-sm"
-      }`}
+      className={cn(
+        "crm-inbox-row group flex h-9 max-h-9 min-h-9 w-full items-center gap-1.5 border-b border-slate-100 px-1.5 text-right transition-colors",
+        isFollowUp && "crm-inbox-row-followup",
+        active && "crm-inbox-row-active",
+        selected && !active && "bg-indigo-50/80"
+      )}
     >
-      <span
-        className={`absolute inset-y-2 right-0 w-1 rounded-full ${STATUS_ACCENT[ticket.status]}`}
-        aria-hidden
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={() => onToggleSelect(ticket.id)}
+        onClick={(event) => event.stopPropagation()}
+        className={cn(
+          "size-3 shrink-0 accent-indigo-600 transition group-hover:opacity-100 focus:opacity-100",
+          selected ? "opacity-100" : "opacity-0"
+        )}
+        aria-label="בחר פנייה"
       />
-      <div className="flex items-start gap-2 pr-2">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={() => onToggleSelect(ticket.id)}
-          onClick={(event) => event.stopPropagation()}
-          className="mt-1 size-4 shrink-0 accent-primary"
-          aria-label="בחר פנייה"
-        />
-        <RowContent ticket={ticket} listMode={listMode} />
-      </div>
-    </article>
-  );
-}
 
-function RowContent({ ticket, listMode }: { ticket: Ticket; listMode: TicketListMode }) {
-  const preview =
-    listMode === "outbox" ? listOutboxPreview(ticket) : listInquiryPreview(ticket);
-  return (
-    <div className="min-w-0 flex-1 text-right">
-      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-2 text-[11px] font-semibold text-on-surface-variant">
-          {ticket.ticketNumber != null ? (
-            <span className="rounded-md bg-surface-container px-1.5 py-0.5 font-mono text-[10px] text-primary">
-              {formatTicketNumber(ticket.ticketNumber)}
-            </span>
-          ) : null}
-          {formatWhen(ticket)}
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <CategoryBadge category={ticket.category} />
-          <span
-            className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${STATUS_STYLES[ticket.status]}`}
-          >
-            {STATUS_LABELS[ticket.status]}
-          </span>
-        </span>
-      </div>
-      <h3 className="line-clamp-1 text-[13px] font-bold leading-snug text-on-surface">{ticket.subject}</h3>
-      <p className="mt-0.5 line-clamp-1 text-[11px] text-on-surface-variant">
-        {ticket.senderName || "ללא שם"} · {ticket.senderEmail || "ללא אימייל"}
-      </p>
-      <p
-        className={`mt-1 line-clamp-2 text-xs leading-snug ${
-          listMode === "outbox" ? "text-emerald-900/90" : "text-on-surface-variant"
-        }`}
+      <span
+        className={cn("size-2 shrink-0 rounded-full", readDotClass(ticket.status, isFollowUp))}
+        aria-hidden
+        title={isFollowUp ? "תשובת לקוח" : ticket.status}
+      />
+
+      {isFollowUp ? (
+        <Reply className="size-3 shrink-0 text-amber-600 opacity-90" aria-hidden />
+      ) : null}
+
+      <span
+        className={cn(
+          "min-w-0 flex-1 truncate text-[12px] leading-none",
+          ticket.status === "open" || isFollowUp ? "font-bold text-slate-900" : "font-medium text-slate-700"
+        )}
+        title={subject}
       >
-        {preview}
-      </p>
+        {subject}
+      </span>
+
+      <CompactCategoryChip category={ticket.category} />
+
+      <time
+        className="w-[4.25rem] shrink-0 truncate text-left text-[10px] tabular-nums leading-none text-slate-400"
+        dateTime={displayTicketDate(ticket).toISOString()}
+      >
+        {formatRowDate(ticket)}
+      </time>
     </div>
   );
 }
@@ -135,8 +115,7 @@ export const TicketListRow = memo(TicketListRowInner, (prev, next) => {
     prev.ticket.updatedAt === next.ticket.updatedAt &&
     prev.ticket.status === next.ticket.status &&
     prev.ticket.category === next.ticket.category &&
-    prev.ticket.subject === next.ticket.subject &&
-    prev.ticket.body === next.ticket.body
+    prev.ticket.subject === next.ticket.subject
   );
 });
 

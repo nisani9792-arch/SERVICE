@@ -46,7 +46,8 @@ export function CrmWorkspace() {
     case "trash":
       return <TrashWorkspacePanel />;
     case "command":
-    default:
       return <DashboardHub />;
+    default:
+      return <DashboardInboxPage initialStatus={initialStatus} initialBucket={initialBucket} />;
   }
 }

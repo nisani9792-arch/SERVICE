@@ -13,6 +13,9 @@ const MIN_SUGGESTION_SCORE = 10;
 const MIN_KEYWORD_OVERLAP = 2;
 const MIN_OVERLAP_RATIO = 0.34;
 
+/** Smart reply suggestions disabled — inaccurate for operators. */
+export const REPLY_SUGGESTIONS_ENABLED = false;
+
 export async function ensureReplyKnowledgeSchema(): Promise<void> {
   if (!schemaReady) {
     schemaReady = (async () => {
@@ -234,6 +237,8 @@ export async function findSimilarReplySuggestions(
   inquiryText: string,
   limit = 5
 ): Promise<SimilarReplySuggestion[]> {
+  if (!REPLY_SUGGESTIONS_ENABLED) return [];
+
   await ensureReplyKnowledgeSchema();
   const signature = await getReplySignature();
 

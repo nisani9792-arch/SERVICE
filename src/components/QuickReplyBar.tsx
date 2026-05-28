@@ -3,63 +3,50 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Loader2, Send } from "lucide-react";
 import { sendTicketReply } from "@/lib/firebase";
+import { cn } from "@/lib/cn";
 import type { Ticket } from "@/lib/types";
 
 interface QuickReplyBarProps {
   ticket: Ticket | null;
   onSent: () => void;
-  onCancel: () => void;
+  onCancel?: () => void;
+  onSubmit?: (message: string) => Promise<void>;
+  variant?: "default" | "workbench";
 }
 
-type Suggestion = {
-  id: string;
-  subject: string;
-  inquirySnippet: string;
-  replyText: string;
-  matchReason: string;
-  recurring: boolean;
-};
-
-export function QuickReplyBar({ ticket, onSent, onCancel }: QuickReplyBarProps) {
+export function QuickReplyBar({
+  ticket,
+  onSent,
+  onCancel,
+  onSubmit,
+  variant = "default"
+}: QuickReplyBarProps) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Array<{ id: string; title: string; body: string }>>(
     []
   );
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+
+  const isWorkbench = variant === "workbench";
 
   useEffect(() => {
     if (!ticket) {
       setMessage("");
       setError(null);
-      setSuggestions([]);
       return;
     }
     void (async () => {
       try {
-        const [tplRes, sugRes] = await Promise.all([
-          fetch("/api/reply-templates", { cache: "no-store" }),
-          fetch(`/api/tickets/${ticket.id}/reply-suggestions`, {
-            cache: "no-store",
-            credentials: "same-origin"
-          })
-        ]);
+        const tplRes = await fetch("/api/reply-templates", { cache: "no-store" });
         if (tplRes.ok) {
           const data = (await tplRes.json()) as {
             items: Array<{ id: string; title: string; body: string }>;
           };
           setTemplates(data.items ?? []);
         }
-        if (sugRes.ok) {
-          const data = (await sugRes.json()) as { suggestions: Suggestion[] };
-          setSuggestions(data.suggestions ?? []);
-        } else {
-          setSuggestions([]);
-        }
       } catch {
         setTemplates([]);
-        setSuggestions([]);
       }
     })();
   }, [ticket]);
@@ -71,7 +58,11 @@ export function QuickReplyBar({ ticket, onSent, onCancel }: QuickReplyBarProps) 
       setSending(true);
       setError(null);
       try {
-        await sendTicketReply(ticket.id, message.trim());
+        if (onSubmit) {
+          await onSubmit(message.trim());
+        } else {
+          await sendTicketReply(ticket.id, message.trim());
+        }
         setMessage("");
         onSent();
       } catch (err) {
@@ -80,7 +71,7 @@ export function QuickReplyBar({ ticket, onSent, onCancel }: QuickReplyBarProps) 
         setSending(false);
       }
     },
-    [message, onSent, sending, ticket]
+    [message, onSent, onSubmit, sending, ticket]
   );
 
   if (!ticket) return null;
@@ -98,56 +89,81 @@ export function QuickReplyBar({ ticket, onSent, onCancel }: QuickReplyBarProps) 
       onSubmit={(event) => {
         event.preventDefault();
       }}
-      className="crm-triage-reply border-t border-outline/70 bg-white p-3"
+      className={cn(
+        isWorkbench
+          ? "crm-quick-reply-workbench shrink-0 px-3 py-2"
+          : "crm-triage-reply border-t border-outline/70 bg-white p-3"
+      )}
     >
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-bold text-on-surface">תשובה מהירה</span>
-        {suggestions.slice(0, 3).map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setMessage(item.replyText)}
-            title={`${item.matchReason}\nפנייה: ${item.inquirySnippet}`}
-            className="rounded-lg border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-semibold text-violet-950 hover:bg-violet-100"
-          >
-            {item.recurring ? "חוזר" : "רלוונטי"}: {item.replyText.slice(0, 36)}
-            {item.replyText.length > 36 ? "…" : ""}
-          </button>
-        ))}
-        {templates.slice(0, 3).map((tpl) => (
+      <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+        <span
+          className={cn(
+            "text-[11px] font-bold",
+            isWorkbench ? "text-slate-700" : "text-on-surface"
+          )}
+        >
+          מענה מהיר
+        </span>
+        {templates.slice(0, 4).map((tpl) => (
           <button
             key={tpl.id}
             type="button"
             onClick={() => setMessage(tpl.body)}
-            className="rounded-lg border border-outline px-2 py-1 text-[10px] font-semibold text-primary hover:bg-primary-soft/30"
+            className={cn(
+              "rounded-md border px-1.5 py-0.5 text-[9px] font-semibold transition",
+              isWorkbench
+                ? "border-slate-200 bg-white text-indigo-700 hover:bg-indigo-50"
+                : "border-outline text-primary hover:bg-primary-soft/30"
+            )}
           >
             {tpl.title}
           </button>
         ))}
-        <button type="button" onClick={onCancel} className="mr-auto text-[10px] text-on-surface-variant">
-          סגור
+        {onCancel ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            className={cn(
+              "mr-auto text-[10px]",
+              isWorkbench ? "text-slate-500" : "text-on-surface-variant"
+            )}
+          >
+            סגור
+          </button>
+        ) : null}
+      </div>
+      <div className="flex gap-2">
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={onTextareaKeyDown}
+          rows={isWorkbench ? 2 : 3}
+          dir="rtl"
+          enterKeyHint="enter"
+          placeholder="כתוב תשובה… Ctrl+Enter לשליחה"
+          className={cn(
+            "min-h-0 flex-1 resize-none rounded-xl border px-2.5 py-2 text-sm outline-none focus:ring-2",
+            isWorkbench
+              ? "border-slate-200 bg-white focus:border-indigo-400 focus:ring-indigo-100"
+              : "crm-input"
+          )}
+        />
+        <button
+          type="button"
+          disabled={sending || !message.trim()}
+          onClick={() => void submit()}
+          className={cn(
+            "inline-flex shrink-0 items-center justify-center gap-1 rounded-xl px-3 text-xs font-bold disabled:opacity-45",
+            isWorkbench
+              ? "bg-indigo-600 text-white hover:bg-indigo-700"
+              : "crm-btn-primary"
+          )}
+        >
+          {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+          שלח
         </button>
       </div>
-      <textarea
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        onKeyDown={onTextareaKeyDown}
-        rows={3}
-        dir="rtl"
-        enterKeyHint="enter"
-        placeholder="כתוב תשובה… Ctrl+Enter לשליחה (פתיחה וסיום אוטומטיים)"
-        className="crm-input mb-2 resize-none text-sm"
-      />
-      {error ? <p className="mb-2 text-xs text-red-600">{error}</p> : null}
-      <button
-        type="button"
-        disabled={sending || !message.trim()}
-        onClick={() => void submit()}
-        className="crm-btn-primary w-full gap-2"
-      >
-        {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-        שלח תשובה
-      </button>
+      {error ? <p className="mt-1 text-[10px] text-red-600">{error}</p> : null}
     </form>
   );
 }

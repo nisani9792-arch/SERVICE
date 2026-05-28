@@ -62,13 +62,13 @@ function TicketListPanelInner({
   }
 
   return (
-    <div className="space-y-3 p-1">
+    <div className="crm-inbox-list divide-y divide-slate-100">
       {groups.map(([label, groupTickets]) => (
         <section key={label}>
-          <h3 className="sticky top-0 z-[1] mb-1.5 rounded-lg bg-white/95 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">
+          <h3 className="sticky top-0 z-[1] bg-slate-50/95 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-400 backdrop-blur-sm">
             {label}
           </h3>
-          <div className="space-y-1.5">
+          <div>
             {groupTickets.map((ticket) => (
               <TicketListRow
                 key={ticket.id}

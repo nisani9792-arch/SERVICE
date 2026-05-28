@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { cn } from "@/lib/cn";
 
 export type InboxTabId =
   | "active"
@@ -22,22 +23,19 @@ export type DashboardInboxTabsProps = {
     triageAiHint?: number;
   };
   onTabChange: (tab: InboxTabId) => void;
+  compact?: boolean;
 };
 
-const TABS: Array<{
-  id: InboxTabId;
-  label: string;
-  hint: string;
-}> = [
-  { id: "active", label: "פעילות", hint: "פתוחות ובטיפול" },
-  { id: "triage", label: "סינון", hint: "חדשות ממייל" },
-  { id: "followup", label: "תשובות חוזרות", hint: "לקוח חזר" },
-  { id: "in_progress", label: "בטיפול", hint: "במעקב" },
-  { id: "outbox", label: "דואר יוצא", hint: "נענו ונסגרו" },
-  { id: "closed", label: "ארכיון", hint: "כל הסגורות" }
+const TABS: Array<{ id: InboxTabId; label: string }> = [
+  { id: "active", label: "פעילות" },
+  { id: "triage", label: "סינון" },
+  { id: "followup", label: "חוזרות" },
+  { id: "in_progress", label: "בטיפול" },
+  { id: "outbox", label: "יוצא" },
+  { id: "closed", label: "ארכיון" }
 ];
 
-export function DashboardInboxTabs({ activeTab, counts, onTabChange }: DashboardInboxTabsProps) {
+export function DashboardInboxTabs({ activeTab, counts, onTabChange, compact }: DashboardInboxTabsProps) {
   const countFor = (id: InboxTabId): number => {
     switch (id) {
       case "active":
@@ -58,14 +56,15 @@ export function DashboardInboxTabs({ activeTab, counts, onTabChange }: Dashboard
   };
 
   return (
-    <div className="space-y-2">
+    <div className={compact ? "min-w-0" : "space-y-2"}>
       <div
-        className="flex gap-1 overflow-x-auto pb-0.5"
+        className="flex gap-0.5 overflow-x-auto"
         role="tablist"
         aria-label="סינון פניות"
       >
         {TABS.map((tab) => {
           const selected = activeTab === tab.id;
+          const n = countFor(tab.id);
           return (
             <button
               key={tab.id}
@@ -73,38 +72,30 @@ export function DashboardInboxTabs({ activeTab, counts, onTabChange }: Dashboard
               role="tab"
               aria-selected={selected}
               onClick={() => onTabChange(tab.id)}
-              className={`min-w-[5.5rem] shrink-0 rounded-xl border px-2.5 py-2 text-right transition ${
+              className={cn(
+                "shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold leading-tight transition",
                 selected
-                  ? "border-primary bg-primary text-white shadow-soft"
-                  : "border-outline/80 bg-white text-on-surface hover:border-primary/30"
-              }`}
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100",
+                tab.id === "followup" && !selected && n > 0 && "bg-amber-50 text-amber-900"
+              )}
             >
-              <span className="block text-[11px] font-bold leading-tight">{tab.label}</span>
-              <span className={`mt-0.5 block text-[10px] ${selected ? "opacity-90" : "text-on-surface-variant"}`}>
-                {countFor(tab.id).toLocaleString("he-IL")}
+              {tab.label}
+              <span className={cn("ms-1 tabular-nums", selected ? "opacity-90" : "opacity-70")}>
+                {n.toLocaleString("he-IL")}
               </span>
             </button>
           );
         })}
       </div>
 
-      {activeTab === "triage" ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-[11px] text-on-surface-variant">
-            {TABS.find((t) => t.id === "triage")?.hint} — {counts.triage.toLocaleString("he-IL")} פניות
-          </p>
-          <Link
-            href="/dashboard?view=triage"
-            className="rounded-lg border border-fuchsia-200 bg-fuchsia-50 px-2 py-1 text-[10px] font-bold text-fuchsia-900 hover:bg-fuchsia-100"
-          >
-            מצב סינון מהיר
-            {counts.triageAiHint != null ? ` (${counts.triageAiHint} עם AI)` : ""}
-          </Link>
-        </div>
-      ) : activeTab === "outbox" ? (
-        <p className="text-[11px] text-on-surface-variant">
-          מעקב אחרי פניות שנענו ונסגרו — ממוין לפי תאריך טיפול אחרון
-        </p>
+      {!compact && activeTab === "triage" ? (
+        <Link
+          href="/dashboard?view=triage"
+          className="inline-block rounded-lg border border-fuchsia-200 bg-fuchsia-50 px-2 py-1 text-[10px] font-bold text-fuchsia-900"
+        >
+          מצב סינון מהיר
+        </Link>
       ) : null}
     </div>
   );

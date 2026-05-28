@@ -3,6 +3,8 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Loader2, Mail, Send, X } from "lucide-react";
+import { CustomerFollowUpDisplay } from "@/components/CustomerFollowUpDisplay";
+import { hasCustomerFollowUp } from "@/lib/customer-followup-text";
 import type { ReplyTemplate, Ticket } from "@/lib/types";
 
 interface ReplyTicketModalProps {
@@ -29,17 +31,6 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
   const [emailStatus, setEmailStatus] = useState<EmailStatusHint | null>(null);
   const [signatureOpening, setSignatureOpening] = useState("");
   const [signatureClosing, setSignatureClosing] = useState("");
-  const [similarReplies, setSimilarReplies] = useState<
-    Array<{
-      id: string;
-      subject: string;
-      inquirySnippet: string;
-      replyText: string;
-      score: number;
-      matchReason: string;
-      recurring: boolean;
-    }>
-  >([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const loadTemplates = useCallback(async () => {
@@ -84,32 +75,6 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
     setError(null);
     void loadTemplates();
     void loadEmailStatus();
-    void (async () => {
-      try {
-        const res = await fetch(`/api/tickets/${ticket.id}/reply-suggestions`, {
-          cache: "no-store",
-          credentials: "same-origin"
-        });
-        if (!res.ok) {
-          setSimilarReplies([]);
-          return;
-        }
-        const data = (await res.json()) as {
-          suggestions: Array<{
-            id: string;
-            subject: string;
-            inquirySnippet: string;
-            replyText: string;
-            score: number;
-            matchReason: string;
-            recurring: boolean;
-          }>;
-        };
-        setSimilarReplies(data.suggestions ?? []);
-      } catch {
-        setSimilarReplies([]);
-      }
-    })();
     requestAnimationFrame(() => textareaRef.current?.focus());
   }, [ticket, loadTemplates, loadEmailStatus]);
 
@@ -187,6 +152,17 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
               <ReplyMetaRow fromLine={fromLine} emailStatus={emailStatus} />
             </div>
 
+            {hasCustomerFollowUp(ticket.body || "") ? (
+              <CustomerFollowUpDisplay body={ticket.body || ""} variant="light" showHistory />
+            ) : ticket.body ? (
+              <div className="rounded-xl border border-outline/70 bg-surface-container/40 p-3">
+                <p className="mb-1.5 text-[11px] font-bold text-on-surface-variant">תוכן הפנייה</p>
+                <p className="max-h-48 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-on-surface">
+                  {ticket.body}
+                </p>
+              </div>
+            ) : null}
+
             {templates.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
                 {templates.slice(0, 6).map((tpl) => (
@@ -200,39 +176,6 @@ export function ReplyTicketModal({ ticket, onClose, onSubmit }: ReplyTicketModal
                     {tpl.title || tpl.shortcut || "תבנית"}
                   </button>
                 ))}
-              </div>
-            ) : null}
-
-            {similarReplies.length > 0 ? (
-              <div className="rounded-xl border border-violet-200/80 bg-violet-50/50 p-2.5">
-                <p className="mb-1.5 text-[11px] font-bold text-violet-950">
-                  מענה רלוונטי לפנייה זו
-                </p>
-                <div className="flex flex-col gap-1.5">
-                  {similarReplies.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className="rounded-lg border border-violet-200/60 bg-white px-2 py-1.5 text-right text-[11px] hover:border-primary/30"
-                      onClick={() => insertTemplate(item.replyText)}
-                    >
-                      <span className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-semibold text-on-surface">
-                          {item.recurring ? "שאלה חוזרת" : item.subject}
-                        </span>
-                        <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-900">
-                          {item.matchReason}
-                        </span>
-                      </span>
-                      <span className="mt-0.5 line-clamp-1 block text-[10px] text-on-surface-variant">
-                        פנייה: {item.inquirySnippet}
-                      </span>
-                      <span className="mt-0.5 line-clamp-2 block text-on-surface-variant">
-                        מענה: {item.replyText}
-                      </span>
-                    </button>
-                  ))}
-                </div>
               </div>
             ) : null}
 

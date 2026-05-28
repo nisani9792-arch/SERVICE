@@ -40,7 +40,7 @@ interface TicketWorkbenchProps {
 
 export function TicketWorkbench(props: TicketWorkbenchProps) {
   const {
-    title = "פניות פעילות",
+    title = "פניות",
     subtitle,
     tickets,
     total,
@@ -99,58 +99,59 @@ export function TicketWorkbench(props: TicketWorkbenchProps) {
     node.scrollTop = scrollTopRef.current;
   }, [activeTicket?.id]);
 
-  const detailLoading = !!activeTicket && (!detailTicket?.body || detailTicket.body.length <= (activeTicket.body?.length ?? 0));
+  const detailLoading =
+    !!activeTicket &&
+    (!detailTicket?.body || detailTicket.body.length <= (activeTicket.body?.length ?? 0));
 
-  const detailProps = activeTicket && detailTicket
-    ? {
-        ticket: detailTicket,
-        detailLoading,
-        onSetStatus,
-        onReply,
-        onSaveInquiry,
-        onEdit,
-        onDelete,
-        onChangeCategory,
-        onTriageAssign,
-        onSpam,
-        onArchive,
-        onInlineReply,
-        onClose: () => setMobileDetailOpen(false),
-        compactHeader: mobileDetailOpen
-      }
-    : null;
+  const detailProps =
+    activeTicket && detailTicket
+      ? {
+          ticket: detailTicket,
+          detailLoading,
+          onSetStatus,
+          onReply,
+          onSaveInquiry,
+          onEdit,
+          onDelete,
+          onChangeCategory,
+          onTriageAssign,
+          onSpam,
+          onArchive,
+          onInlineReply,
+          onClose: () => setMobileDetailOpen(false),
+          compactHeader: mobileDetailOpen
+        }
+      : null;
 
   const listPane = (
     <>
-      <div className="jds-panel-header flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-slate-50/90 px-2 py-1">
         <div className="min-w-0">
-          <h2 className="text-sm font-bold">{title}</h2>
-          <p className="text-[11px] jds-empty-subtitle">
-            {subtitle ?? `${total.toLocaleString("he-IL")} תוצאות · לחץ על פנייה לפרטים ופעולות`}
+          <h2 className="truncate text-[11px] font-bold text-slate-800">{title}</h2>
+          <p className="truncate text-[9px] text-slate-500">
+            {subtitle ?? `${total.toLocaleString("he-IL")} תוצאות`}
             {isRefreshing ? " · מעדכן…" : ""}
           </p>
         </div>
-        <label className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-semibold jds-empty-subtitle">
+        <label className="inline-flex shrink-0 items-center gap-1 text-[9px] font-semibold text-slate-500">
           <input
             type="checkbox"
             checked={allSelected}
             onChange={(event) => onSelectPage(event.target.checked)}
-            className="size-3.5 accent-[var(--jds-primary)]"
+            className="size-3 accent-indigo-600"
           />
-          בחר עמוד
+          הכל
         </label>
       </div>
 
       <div
         ref={listScrollRef}
-        className="jds-list-scroll max-h-[min(68dvh,68vh)] min-h-[16rem] overflow-y-auto overscroll-contain md:max-h-[72vh] md:min-h-[20rem]"
+        className="jds-list-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain"
       >
         {isLoading ? (
-          <ResolutionSkeleton rows={6} />
+          <ResolutionSkeleton rows={12} />
         ) : tickets.length === 0 ? (
-          <div className="rounded-xl bg-white/5 px-3 py-10 text-center text-sm jds-empty-subtitle">
-            אין פניות להצגה לפי המסננים.
-          </div>
+          <div className="px-3 py-8 text-center text-xs text-slate-500">אין פניות לפי המסננים.</div>
         ) : (
           <TicketListPanel
             tickets={tickets}
@@ -163,26 +164,25 @@ export function TicketWorkbench(props: TicketWorkbenchProps) {
         )}
       </div>
 
-      <div className="jds-panel-footer flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-[11px] jds-empty-subtitle">
-        <span>
-          מציג {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, total)} מתוך{" "}
-          {total.toLocaleString("he-IL")}
+      <div className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-200/80 bg-slate-50/90 px-2 py-1 text-[9px] text-slate-500">
+        <span className="tabular-nums">
+          {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} / {total.toLocaleString("he-IL")}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <button
             type="button"
-            className="rounded-full border border-white/10 bg-white/5 px-3 py-1 font-semibold disabled:opacity-45"
+            className="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-semibold disabled:opacity-40"
             disabled={page <= 1}
             onClick={() => onPageChange(page - 1)}
           >
             הקודם
           </button>
-          <span className="tabular-nums">
+          <span className="tabular-nums font-bold text-slate-700">
             {page}/{totalPages}
           </span>
           <button
             type="button"
-            className="rounded-full border border-white/10 bg-white/5 px-3 py-1 font-semibold disabled:opacity-45"
+            className="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-semibold disabled:opacity-40"
             disabled={page >= totalPages}
             onClick={() => onPageChange(page + 1)}
           >
@@ -195,6 +195,8 @@ export function TicketWorkbench(props: TicketWorkbenchProps) {
 
   return (
     <SplitPaneLayout
+      className="jusic-resolution min-h-0 flex-1"
+      minHeight="0"
       listPane={listPane}
       detailPane={detailProps ? <TicketDetail {...detailProps} /> : null}
       detailKey={activeTicket?.id ?? null}

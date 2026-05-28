@@ -3,16 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Download,
-  MailCheck,
-  MessageSquareText,
-  Plus,
-  Upload
-} from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
-import { MotionPage } from "@/components/ui/Motion";
+import { CrmWorkspaceHeader } from "@/components/crm/CrmWorkspaceHeader";
 import { MobileDock } from "@/components/MobileDock";
+import { SearchBar } from "@/components/SearchBar";
 import { DashboardInboxTabs, type InboxTabId } from "@/components/DashboardInboxTabs";
 import { DashboardToolbar } from "@/components/DashboardToolbar";
 import { BulkActionBar } from "@/components/BulkActionBar";
@@ -987,111 +980,60 @@ export function DashboardInboxPage({
             : undefined;
   const workbenchListMode = activeStatus === "outbox" ? "outbox" as const : "default" as const;
 
-  const headerActions = (
-    <>
-      <div className="flex flex-wrap items-center gap-2 md:hidden">
-        <Link href="/dashboard" className="lux-button rounded-xl px-2.5 py-1.5 text-[10px] font-semibold">
-          מרכז
+  const advancedMenu = (
+    <details className="relative">
+      <summary className="crm-icon-btn cursor-pointer list-none">⋯</summary>
+      <div className="absolute left-0 z-50 mt-1 w-36 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+        <button
+          type="button"
+          onClick={() => setShowReplyTemplates(true)}
+          className="flex w-full rounded-lg px-2 py-1.5 text-right text-[10px] font-semibold hover:bg-slate-50"
+        >
+          תבניות
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowExportModal(true)}
+          className="flex w-full rounded-lg px-2 py-1.5 text-right text-[10px] font-semibold hover:bg-slate-50"
+        >
+          ייצוא
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowImportModal(true)}
+          className="flex w-full rounded-lg px-2 py-1.5 text-right text-[10px] font-semibold hover:bg-slate-50"
+        >
+          יבוא
+        </button>
+        <Link
+          href="/saved-inquiries"
+          className="flex w-full rounded-lg px-2 py-1.5 text-right text-[10px] font-semibold hover:bg-slate-50"
+        >
+          פניות שמורות
         </Link>
-        <button
-          type="button"
-          onClick={handleEmailSync}
-          disabled={emailSyncing}
-          className="lux-button rounded-xl px-2.5 py-1.5 text-[10px] disabled:opacity-60"
-        >
-          {emailSyncing ? "מסנכרן…" : "סנכרן"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowNewModal(true)}
-          className="lux-button-primary rounded-xl px-2.5 py-1.5 text-[10px]"
-        >
-          <Plus className="size-3.5" />
-          חדש
-        </button>
       </div>
-      <div className="hidden flex-wrap items-center gap-2 md:flex">
-        <Link href="/dashboard" className="lux-button rounded-xl px-3 py-1.5 text-xs font-semibold">
-          מרכז עבודה
-        </Link>
-        <details className="relative">
-          <summary className="lux-button cursor-pointer list-none rounded-xl px-3 py-1.5 text-xs">
-            מתקדם
-          </summary>
-          <div className="glass-panel-strong absolute left-0 z-50 mt-2 w-40 p-1">
-            <button
-              type="button"
-              onClick={() => setShowReplyTemplates(true)}
-              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
-            >
-              <MessageSquareText className="size-3.5 opacity-80" />
-              תבניות
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowExportModal(true)}
-              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
-            >
-              <Download className="size-3.5 opacity-80" />
-              ייצוא
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowImportModal(true)}
-              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
-            >
-              <Upload className="size-3.5 opacity-80" />
-              יבוא
-            </button>
-            <Link
-              href="/dashboard?view=trash"
-              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
-            >
-              סל מחזור
-            </Link>
-            <Link
-              href="/saved-inquiries"
-              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-right text-xs hover:bg-surface-container"
-            >
-              פניות שמורות
-            </Link>
-          </div>
-        </details>
-        <button
-          type="button"
-          onClick={handleEmailSync}
-          disabled={emailSyncing}
-          className="lux-button rounded-xl px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <MailCheck className={`size-4 opacity-80 ${emailSyncing ? "animate-pulse" : ""}`} />
-          {emailSyncing ? "מסנכרן…" : "סנכרן מיילים"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowNewModal(true)}
-          className="lux-button-primary rounded-xl px-3 py-1.5 text-xs"
-        >
-          <Plus className="size-4" />
-          פנייה חדשה
-        </button>
-      </div>
-
-    </>
+    </details>
   );
 
   return (
-    <MotionPage className="crm-workspace crm-mobile-bottom-bar min-h-screen px-2 pb-24 pt-2 text-[13px] sm:px-3 md:px-4 md:pb-8">
-      <div className="mx-auto max-w-[1380px] space-y-2">
-        <AppHeader
-          actions={headerActions}
-          onRefresh={handleHeaderRefresh}
-          onEmailSync={() => {
-            void handleEmailSync();
-          }}
-          emailSyncing={emailSyncing}
-          refreshing={headerRefreshing}
-          lastSyncedAt={lastEmailSyncedAt ?? lastSyncedAt}
-        />
+    <div className="crm-inbox-page crm-mobile-bottom-bar">
+      <CrmWorkspaceHeader
+        title={workbenchTitle}
+        subtitle={workbenchSubtitle}
+        metrics={[
+          { label: "פתוח", value: openCount, accent: "primary" },
+          { label: "בטיפול", value: inProgressCount, accent: "muted" },
+          { label: "חוזרות", value: followupCount, accent: "amber" },
+          { label: "סינון", value: triageCount, accent: "muted" }
+        ]}
+        onRefresh={handleHeaderRefresh}
+        onEmailSync={() => void handleEmailSync()}
+        onNewTicket={() => setShowNewModal(true)}
+        refreshing={headerRefreshing}
+        emailSyncing={emailSyncing}
+        lastSyncedAt={lastEmailSyncedAt ?? lastSyncedAt}
+        actions={advancedMenu}
+      />
 
         {listError ? (
           <div className="lux-card flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
@@ -1120,130 +1062,86 @@ export function DashboardInboxPage({
           </div>
         ) : null}
 
-        <section className="space-y-2">
-          <div className="glass-panel rounded-xl3 p-3">
-            <DashboardInboxTabs
-              activeTab={activeInboxTab}
-              counts={{
-                active: activeCount,
-                triage: triageCount,
-                followup: followupCount,
-                inProgress: inProgressCount,
-                outbox: outboxCount,
-                closed: closedCount,
-                triageAiHint: stats?.pendingWithSuggestion
+      <div className="crm-inbox-toolbar flex flex-wrap items-center gap-2">
+        <DashboardInboxTabs
+          compact
+          activeTab={activeInboxTab}
+          counts={{
+            active: activeCount,
+            triage: triageCount,
+            followup: followupCount,
+            inProgress: inProgressCount,
+            outbox: outboxCount,
+            closed: closedCount,
+            triageAiHint: stats?.pendingWithSuggestion
+          }}
+          onTabChange={applyInboxTab}
+        />
+        <div className="min-w-[8rem] flex-1">
+          <SearchBar value={searchValue} onChange={setSearchValue} compact />
+        </div>
+        <details className="relative shrink-0">
+          <summary className="cursor-pointer list-none rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600">
+            מסננים
+          </summary>
+          <div className="absolute end-0 z-40 mt-1 w-72 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+            <DashboardToolbar
+              searchValue={searchValue}
+              onSearchChange={setSearchValue}
+              activeCategory={activeCategory}
+              categories={dynamicCategories}
+              onCategoryChange={(category) => {
+                setActiveCategory(category);
+                setPage(1);
               }}
-              onTabChange={applyInboxTab}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              onDateFromChange={setDateFrom}
+              onDateToChange={setDateTo}
+              tagsFilter={tagsFilter}
+              onTagsFilterChange={setTagsFilter}
+              onSortAllOpen={() => void onSortAllOpenQueue()}
+              showAdvancedTools
+              toolsBusy={aiReclassifying}
+              onSpamSweep={() => void onSpamSweepAll()}
+              onMaintenance={() => void runCrmMaintenance()}
             />
-            <div className="mt-3">
-              <DashboardToolbar
-                searchValue={searchValue}
-                onSearchChange={setSearchValue}
-                activeCategory={activeCategory}
-                categories={dynamicCategories}
-                onCategoryChange={(category) => {
-                  setActiveCategory(category);
-                  setPage(1);
-                }}
-                dateFrom={dateFrom}
-                dateTo={dateTo}
-                onDateFromChange={setDateFrom}
-                onDateToChange={setDateTo}
-                tagsFilter={tagsFilter}
-                onTagsFilterChange={setTagsFilter}
-                onSortAllOpen={() => {
-                  void onSortAllOpenQueue();
-                }}
-                showAdvancedTools
-                toolsBusy={aiReclassifying}
-                onSpamSweep={() => {
-                  void onSpamSweepAll();
-                }}
-                onMaintenance={() => {
-                  void runCrmMaintenance();
-                }}
-              />
-            </div>
           </div>
-
-          <details className="rounded-2xl border border-outline/60 bg-white/80">
-            <summary className="cursor-pointer select-none px-3 py-2 text-xs font-bold text-on-surface-variant">
-              AI ותובנות (אופציונלי)
-            </summary>
-            <div className="space-y-2 border-t border-outline/40 p-2">
-              <AiInsightsPanel />
-              <AiAgentPanel
-                selectedCount={selectedIds.size}
-                busy={aiReclassifying}
-                onRun={onAgentCommand}
-              />
-            </div>
-          </details>
-
-          {activeCategory === PENDING_TRIAGE_CATEGORY ? (
-            <div className="flex flex-wrap justify-end gap-2">
-              <button
-                type="button"
-                disabled={aiReclassifying}
-                onClick={() => {
-                  void onReclassifyPendingTriage();
-                }}
-                className="crm-touch-target lux-button border-violet-200 bg-violet-50 text-violet-950"
-              >
-                {aiReclassifying ? "מסווג עם AI…" : "סיווג AI — כל התור"}
-              </button>
-              <button
-                type="button"
-                disabled={aiReclassifying}
-                onClick={() => {
-                  if (total > 500) void onBulkJobByFilter({ action: "spam" });
-                  else void onBulkByFilter({ category: "spam", status: "closed" });
-                }}
-                className="crm-touch-target lux-button border-amber-200 bg-amber-50 text-amber-950 text-xs"
-              >
-                סמן סינון כספאם
-                {total > 500 ? ` (עד ${total.toLocaleString("he-IL")})` : " (עד 500)"}
-              </button>
-            </div>
-          ) : null}
-
-          {total > 0 ? (
-            <div className="flex flex-wrap justify-end gap-2">
-              <button
-                type="button"
-                disabled={aiReclassifying}
-                onClick={() => void onBulkJobByFilter({ action: "spam" })}
-                className="crm-touch-target lux-button border-amber-200/80 bg-amber-50/80 text-xs text-amber-950"
-              >
-                ספאם לכל המסונן ({total.toLocaleString("he-IL")})
-              </button>
-              <button
-                type="button"
-                disabled={aiReclassifying}
-                onClick={() => void onBulkJobByFilter({ action: "delete" })}
-                className="crm-touch-target lux-button border-rose-200/80 bg-rose-50/80 text-xs text-rose-900"
-              >
-                מחק את כל המסונן
-              </button>
-            </div>
-          ) : null}
-
-          <p className="mb-2 hidden text-[10px] text-on-surface-variant md:block">
-            קיצורי מקלדת: <span className="font-mono font-bold">j</span> הבא ·{" "}
-            <span className="font-mono font-bold">k</span> הקודם ·{" "}
-            <span className="font-mono font-bold">e</span> ארכיון ·{" "}
-            <span className="font-mono font-bold">d</span> מחק ·{" "}
+        </details>
+        <button
+          type="button"
+          onClick={() => setCommandPaletteOpen(true)}
+          className="hidden rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600 md:inline"
+        >
+          ⌘K
+        </button>
+        {activeCategory === PENDING_TRIAGE_CATEGORY ? (
+          <>
             <button
               type="button"
-              onClick={() => setCommandPaletteOpen(true)}
-              className="font-mono font-bold text-primary underline-offset-2 hover:underline"
+              disabled={aiReclassifying}
+              onClick={() => void onReclassifyPendingTriage()}
+              className="rounded-lg border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-bold text-violet-900"
             >
-              ⌘K
-            </button>{" "}
-            פקודות
-          </p>
+              סיווג AI
+            </button>
+            <button
+              type="button"
+              disabled={aiReclassifying}
+              onClick={() => {
+                if (total > 500) void onBulkJobByFilter({ action: "spam" });
+                else void onBulkByFilter({ category: "spam", status: "closed" });
+              }}
+              className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-900"
+            >
+              ספאם בתור
+            </button>
+          </>
+        ) : null}
+      </div>
 
-          <TicketWorkbench
+      <div className="crm-workbench-body flex min-h-0 flex-1 flex-col">
+        <TicketWorkbench
             title={workbenchTitle}
             subtitle={workbenchSubtitle}
             listMode={workbenchListMode}
@@ -1283,24 +1181,33 @@ export function DashboardInboxPage({
               void onArchiveTicket(id);
             }}
             onInlineReply={onInlineReply}
-          />
-
-          <BulkActionBar
-            count={selectedIds.size}
-            onReply={() => setShowBulkReply(true)}
-            onAiClassify={() => {
-              void onBulkAiClassify();
-            }}
-            aiBusy={aiReclassifying}
-            onDelete={onBulkDelete}
-            onChangeCategory={onBulkChangeCategory}
-            onSetStatus={onBulkSetStatus}
-            onAddTags={onBulkAddTags}
-            onMoveToSpam={onBulkSpam}
-            onClearSelection={onClearSelection}
-          />
-        </section>
+        />
       </div>
+
+      <BulkActionBar
+        count={selectedIds.size}
+        onReply={() => setShowBulkReply(true)}
+        onAiClassify={() => void onBulkAiClassify()}
+        aiBusy={aiReclassifying}
+        onDelete={onBulkDelete}
+        onChangeCategory={onBulkChangeCategory}
+        onSetStatus={onBulkSetStatus}
+        onAddTags={onBulkAddTags}
+        onMoveToSpam={onBulkSpam}
+        onClearSelection={onClearSelection}
+      />
+
+      <details className="shrink-0 border-t border-slate-200 bg-white px-2 py-1">
+        <summary className="cursor-pointer text-[10px] font-bold text-slate-500">AI ותובנות</summary>
+        <div className="space-y-2 py-2">
+          <AiInsightsPanel />
+          <AiAgentPanel
+            selectedCount={selectedIds.size}
+            busy={aiReclassifying}
+            onRun={onAgentCommand}
+          />
+        </div>
+      </details>
 
       <ImportModal
         isOpen={showImportModal}
@@ -1383,6 +1290,6 @@ export function DashboardInboxPage({
           void onInlineReply(activeTicket.id, text);
         }}
       />
-    </MotionPage>
+    </div>
   );
 }

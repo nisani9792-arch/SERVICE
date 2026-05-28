@@ -2,11 +2,21 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, Keyboard, Loader2, RefreshCw } from "lucide-react";
+import { ArrowRight, Keyboard, Loader2 } from "lucide-react";
+import { CrmWorkspaceHeader } from "@/components/crm/CrmWorkspaceHeader";
 import { QuickReplyBar } from "@/components/QuickReplyBar";
 import { TriageCard } from "@/components/TriageCard";
 import { useTriageQueue } from "@/hooks/useTriageQueue";
 import { TRIAGE_ASSIGN_CATEGORIES } from "@/lib/triage";
+
+const KEY_HINTS = [
+  "1–8 קטגוריה",
+  "Enter אישור AI",
+  "S ספאם",
+  "J/K הבא·קודם",
+  "R מענה",
+  "רווח דילוג"
+];
 
 export function TriageMode() {
   const {
@@ -87,71 +97,78 @@ export function TriageMode() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onKeyDown]);
 
-  const progressPct = total > 0 ? Math.round(((total - remaining + 1) / total) * 100) : 0;
+  const done = total > 0 ? total - remaining : 0;
+  const progressPct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return (
-    <div className="crm-shell flex min-h-screen flex-col">
-      <header className="crm-card mb-3 flex flex-wrap items-center gap-3 px-3 py-2.5">
-        <Link
-          href="/dashboard?view=workbench"
-          className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
-        >
-          <ArrowRight className="size-4 rotate-180" />
-          חזרה ללוח
-        </Link>
-        <h1 className="text-sm font-bold text-on-surface">מצב סינון מהיר</h1>
-        <div className="mr-auto flex items-center gap-2">
-          <span className="text-xs text-on-surface-variant">
-            {remaining > 0 ? `${remaining} נותרו` : "אין פניות בתור"}
-          </span>
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="crm-btn-ghost"
-            aria-label="רענון"
+    <div className="crm-inbox-page flex min-h-0 flex-1 flex-col">
+      <CrmWorkspaceHeader
+        title="סינון מהיר"
+        subtitle={remaining > 0 ? `${remaining} פניות בתור · ${done}/${total} טופלו` : "אין פניות ממתינות"}
+        metrics={[
+          { label: "בתור", value: remaining, accent: "primary" },
+          { label: "סה״כ", value: total, accent: "muted" }
+        ]}
+        onRefresh={() => void refresh()}
+        refreshing={loading}
+        actions={
+          <Link
+            href="/dashboard?view=workbench"
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-50"
           >
-            <RefreshCw className="size-4" />
-          </button>
-        </div>
-      </header>
+            <ArrowRight className="size-3 rotate-180" />
+            לוח עיבוד
+          </Link>
+        }
+      />
 
-      <div className="mb-3 h-2 overflow-hidden rounded-full bg-surface-container">
+      <div className="h-1 shrink-0 bg-slate-200">
         <div
-          className="h-full rounded-full bg-primary transition-all duration-300"
+          className="h-full bg-indigo-600 transition-all duration-300"
           style={{ width: `${Math.min(100, progressPct)}%` }}
         />
       </div>
 
-      <div className="glass-panel hidden flex-wrap items-center gap-2 px-3 py-2 text-[10px] text-on-surface-variant md:flex">
-        <Keyboard className="size-3.5" />
-        <span>1–8 קטגוריה · Enter אישור AI · S ספאם · J/K הבא/קודם · R תשובה · רווח דילוג</span>
+      <div className="crm-inbox-toolbar hidden shrink-0 flex-wrap items-center gap-2 sm:flex">
+        <Keyboard className="size-3.5 text-slate-400" aria-hidden />
+        {KEY_HINTS.map((hint) => (
+          <span
+            key={hint}
+            className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-semibold text-slate-600"
+          >
+            {hint}
+          </span>
+        ))}
       </div>
 
       {error ? (
-        <p className="crm-toast crm-toast-error mx-auto mt-3 w-full max-w-xl text-center">{error}</p>
+        <p className="shrink-0 bg-rose-50 px-3 py-2 text-center text-xs text-rose-800">{error}</p>
       ) : null}
 
-      <main className="flex flex-1 flex-col justify-center py-4">
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="size-8 animate-spin text-primary" />
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden py-2">
+        {loading && !current ? (
+          <div className="flex flex-1 items-center justify-center">
+            <Loader2 className="size-8 animate-spin text-indigo-600" />
           </div>
         ) : current ? (
-          <>
-            <TriageCard
-              ticket={current}
-              detail={detail}
-              busy={busy}
-              onApprove={() => void approveSuggestion()}
-              onSpam={() => void markSpam()}
-              onSkip={skip}
-              onReplyOpen={() => setShowReply(true)}
-              onAssign={(cat) => void assignCategory(cat)}
-            />
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1">
+              <TriageCard
+                ticket={current}
+                detail={detail}
+                busy={busy}
+                onApprove={() => void approveSuggestion()}
+                onSpam={() => void markSpam()}
+                onSkip={skip}
+                onReplyOpen={() => setShowReply(true)}
+                onAssign={(cat) => void assignCategory(cat)}
+              />
+            </div>
             {showReply ? (
-              <div className="mx-auto mt-3 w-full max-w-xl">
+              <div className="shrink-0 border-t border-slate-200">
                 <QuickReplyBar
                   ticket={detail ?? current}
+                  variant="workbench"
                   onSent={() => {
                     setShowReply(false);
                     skip();
@@ -160,11 +177,14 @@ export function TriageMode() {
                 />
               </div>
             ) : null}
-          </>
+          </div>
         ) : (
-          <div className="crm-card mx-auto max-w-md p-8 text-center">
-            <p className="text-sm font-semibold text-on-surface">אין פניות ממתינות לסינון</p>
-            <Link href="/dashboard?view=workbench" className="crm-btn-primary mt-4 inline-flex">
+          <div className="m-auto max-w-sm rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <p className="text-sm font-semibold text-slate-800">אין פניות ממתינות לסינון</p>
+            <Link
+              href="/dashboard?view=workbench"
+              className="mt-4 inline-flex rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white"
+            >
               חזרה ללוח עיבוד
             </Link>
           </div>

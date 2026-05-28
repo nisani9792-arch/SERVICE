@@ -1,3 +1,4 @@
+import { latestCustomerFollowUp } from "@/lib/customer-followup-text";
 import type { Ticket } from "@/lib/types";
 
 function collapse(text: string): string {
@@ -6,7 +7,15 @@ function collapse(text: string): string {
 
 /** Short list-row preview: real inquiry text first, not AI classification labels. */
 export function listInquiryPreview(ticket: Ticket, maxLen = 160): string {
-  const body = collapse(ticket.bodyCleaned || ticket.body || "");
+  const rawBody = ticket.bodyCleaned || ticket.body || "";
+  const followUp = latestCustomerFollowUp(rawBody);
+  if (followUp && followUp.text.length >= 4) {
+    const preview = collapse(followUp.text);
+    const prefix = "תשובת לקוח: ";
+    return (prefix + preview).slice(0, maxLen);
+  }
+
+  const body = collapse(rawBody);
   const subject = collapse(ticket.subject || "");
   const summary = collapse(ticket.aiSummary || "");
 

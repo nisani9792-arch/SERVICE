@@ -1,16 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const MOBILE_UA =
-  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i;
-
-function isMobileDevice(request: NextRequest): boolean {
-  const ua = request.headers.get("user-agent") ?? "";
-  if (MOBILE_UA.test(ua)) return true;
-  const chMobile = request.headers.get("sec-ch-ua-mobile");
-  return chMobile === "?1";
-}
-
 function withDashboardView(request: NextRequest, view: string): NextResponse {
   const url = request.nextUrl.clone();
   url.pathname = "/dashboard";
@@ -20,19 +10,18 @@ function withDashboardView(request: NextRequest, view: string): NextResponse {
 
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  const mobile = isMobileDevice(request);
 
   if (pathname === "/") {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
-    url.searchParams.set("view", mobile ? "workbench" : "command");
+    url.searchParams.set("view", "workbench");
     return NextResponse.redirect(url);
   }
 
   if (pathname === "/dashboard") {
     if (!request.nextUrl.searchParams.has("view")) {
       const url = request.nextUrl.clone();
-      url.searchParams.set("view", mobile ? "workbench" : "command");
+      url.searchParams.set("view", "workbench");
       return NextResponse.redirect(url);
     }
   }
