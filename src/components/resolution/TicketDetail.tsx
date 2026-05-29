@@ -63,6 +63,114 @@ export type TicketDetailProps = {
   compactHeader?: boolean;
 };
 
+function TicketActionButtons({
+  ticket,
+  onSetStatus,
+  onSaveInquiry,
+  onEdit,
+  onDelete,
+  onReply,
+  onSpam,
+  onArchive,
+  onChangeCategory
+}: Pick<
+  TicketDetailProps,
+  | "ticket"
+  | "onSetStatus"
+  | "onSaveInquiry"
+  | "onEdit"
+  | "onDelete"
+  | "onReply"
+  | "onSpam"
+  | "onArchive"
+  | "onChangeCategory"
+>) {
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-900"
+        onClick={() => onSetStatus(ticket.id, "in_progress")}
+      >
+        <CircleDot className="size-3" />
+        בטיפול
+      </button>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700"
+        onClick={() => onSaveInquiry(ticket)}
+      >
+        <Save className="size-3" />
+        שמור
+      </button>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700"
+        onClick={() => onEdit(ticket)}
+      >
+        <Pencil className="size-3" />
+        עריכה
+      </button>
+      {onSpam ? (
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-900"
+          onClick={() => onSpam(ticket.id)}
+        >
+          <ShieldBan className="size-3" />
+          ספאם
+        </button>
+      ) : null}
+      {onArchive ? (
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-900"
+          onClick={() => onArchive(ticket.id)}
+        >
+          <Archive className="size-3" />
+          ארכיון
+        </button>
+      ) : null}
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-800"
+        onClick={() => onDelete(ticket.id)}
+      >
+        <Trash2 className="size-3" />
+        מחק
+      </button>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600"
+        onClick={() => onReply(ticket)}
+      >
+        <Maximize2 className="size-3" />
+        מורחב
+      </button>
+      <select
+        className="mr-auto max-w-[8rem] rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700"
+        value={ticket.category}
+        onChange={(event) => onChangeCategory(ticket.id, event.target.value)}
+        aria-label="קטגוריה"
+      >
+        {ACTIVE_CATEGORIES.map((category) => (
+          <option key={category} value={category}>
+            {categoryLabel(category)}
+          </option>
+        ))}
+      </select>
+      {ticket.senderEmail ? (
+        <Link
+          href={`/customer/${encodeURIComponent(ticket.senderEmail)}`}
+          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-indigo-700"
+        >
+          <ExternalLink className="size-3" />
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
 export function TicketDetail({
   ticket,
   detailLoading,
@@ -81,6 +189,7 @@ export function TicketDetail({
 }: TicketDetailProps) {
   const [replyKey, setReplyKey] = useState(0);
   const followUpThread = hasCustomerFollowUp(ticket.body || "");
+  const bodyText = ticket.body || "";
 
   useEffect(() => {
     setReplyKey((k) => k + 1);
@@ -101,8 +210,20 @@ export function TicketDetail({
     return <ResolutionSkeleton variant="detail" />;
   }
 
+  const actionProps = {
+    ticket,
+    onSetStatus,
+    onSaveInquiry,
+    onEdit,
+    onDelete,
+    onReply,
+    onSpam,
+    onArchive,
+    onChangeCategory
+  };
+
   return (
-    <div className="relative flex h-full min-h-0 flex-col bg-white">
+    <div className="relative flex h-full max-h-full min-h-0 flex-col bg-white">
       <div className="jds-panel-header shrink-0 px-3 py-2">
         <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -154,19 +275,25 @@ export function TicketDetail({
         </p>
       </div>
 
-      <div className="jds-list-scroll min-h-0 flex-1 overflow-y-auto px-3 py-2">
+      <div className="jds-detail-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2">
         {followUpThread ? (
-          <CustomerFollowUpDisplay body={ticket.body || ""} variant="light" showHistory />
+          <CustomerFollowUpDisplay body={bodyText} variant="light" showHistory />
         ) : null}
 
-        <div className="mt-2 whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-sm leading-relaxed text-slate-800">
-          {followUpThread ? (
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-              שרשור מלא
-            </p>
-          ) : null}
-          {ticket.body || "אין תוכן להצגה"}
-        </div>
+        {followUpThread ? (
+          <details className="mt-2 rounded-xl border border-slate-200 bg-slate-50/80">
+            <summary className="cursor-pointer px-3 py-2 text-[11px] font-bold text-slate-600">
+              שרשור מלא (היסטוריית מייל)
+            </summary>
+            <div className="max-h-48 overflow-y-auto overscroll-contain whitespace-pre-wrap border-t border-slate-200 px-3 py-2 text-[13px] leading-relaxed text-slate-800 lg:max-h-none">
+              {bodyText || "אין תוכן"}
+            </div>
+          </details>
+        ) : (
+          <div className="mt-2 whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-sm leading-relaxed text-slate-800">
+            {bodyText || "אין תוכן להצגה"}
+          </div>
+        )}
 
         {ticket.closureNote ? (
           <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-900">
@@ -183,89 +310,19 @@ export function TicketDetail({
         ) : null}
       </div>
 
-      <div className="jds-panel-footer shrink-0 border-t border-slate-200/90">
-        <div className="flex flex-wrap items-center gap-1 border-b border-slate-100 px-2 py-1.5">
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-900"
-            onClick={() => onSetStatus(ticket.id, "in_progress")}
-          >
-            <CircleDot className="size-3" />
-            בטיפול
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700"
-            onClick={() => onSaveInquiry(ticket)}
-          >
-            <Save className="size-3" />
-            שמור
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700"
-            onClick={() => onEdit(ticket)}
-          >
-            <Pencil className="size-3" />
-            עריכה
-          </button>
-          {onSpam ? (
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-900"
-              onClick={() => onSpam(ticket.id)}
-            >
-              <ShieldBan className="size-3" />
-              ספאם
-            </button>
-          ) : null}
-          {onArchive ? (
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-900"
-              onClick={() => onArchive(ticket.id)}
-            >
-              <Archive className="size-3" />
-              ארכיון
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-800"
-            onClick={() => onDelete(ticket.id)}
-          >
-            <Trash2 className="size-3" />
-            מחק
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600"
-            onClick={() => onReply(ticket)}
-          >
-            <Maximize2 className="size-3" />
-            מורחב
-          </button>
-          <select
-            className="mr-auto max-w-[8rem] rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700"
-            value={ticket.category}
-            onChange={(event) => onChangeCategory(ticket.id, event.target.value)}
-            aria-label="קטגוריה"
-          >
-            {ACTIVE_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {categoryLabel(category)}
-              </option>
-            ))}
-          </select>
-          {ticket.senderEmail ? (
-            <Link
-              href={`/customer/${encodeURIComponent(ticket.senderEmail)}`}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-indigo-700"
-            >
-              <ExternalLink className="size-3" />
-            </Link>
-          ) : null}
+      <div className="jds-detail-footer shrink-0 border-t border-slate-200/90 bg-white shadow-[0_-4px_16px_rgba(15,23,42,0.06)] pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="hidden border-b border-slate-100 px-2 py-1.5 lg:block">
+          <TicketActionButtons {...actionProps} />
         </div>
+
+        <details className="border-b border-slate-100 lg:hidden">
+          <summary className="cursor-pointer px-3 py-2 text-[11px] font-bold text-slate-600">
+            פעולות על הפנייה
+          </summary>
+          <div className="px-2 pb-2">
+            <TicketActionButtons {...actionProps} />
+          </div>
+        </details>
 
         {ticket.tags.length > 0 ? (
           <p className="flex flex-wrap items-center gap-1 px-3 py-1 text-[10px] text-slate-500">
@@ -287,7 +344,7 @@ export function TicketDetail({
             <button
               type="button"
               onClick={() => onReply(ticket)}
-              className="w-full rounded-xl bg-indigo-600 py-2 text-xs font-bold text-white"
+              className="w-full rounded-xl bg-indigo-600 py-2.5 text-xs font-bold text-white"
             >
               כתוב מענה
             </button>

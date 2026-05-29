@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useCallback, useEffect } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useDragControls } from "framer-motion";
 import { cn } from "@/lib/cn";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -54,6 +54,8 @@ export function SplitPaneLayout({
   className,
   minHeight = "min(72vh, 820px)"
 }: SplitPaneLayoutProps) {
+  const dragControls = useDragControls();
+
   const handleEscape = useCallback(
     (event: KeyboardEvent) => {
       if (event.key === "Escape" && detailOpen) {
@@ -149,7 +151,7 @@ export function SplitPaneLayout({
               exit={{ opacity: 0 }}
             />
             <motion.aside
-              className="jds-detail-sheet absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,92vh)] flex-col overflow-hidden"
+              className="jds-detail-sheet absolute inset-x-0 bottom-0 flex h-[min(96dvh,96vh)] max-h-[min(96dvh,96vh)] flex-col overflow-hidden"
               role="dialog"
               aria-modal="true"
               aria-label="פרטי פנייה"
@@ -158,6 +160,8 @@ export function SplitPaneLayout({
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 32, stiffness: 340, mass: 0.85 }}
               drag="y"
+              dragControls={dragControls}
+              dragListener={false}
               dragConstraints={{ top: 0, bottom: 0 }}
               dragElastic={{ top: 0, bottom: 0.35 }}
               onDragEnd={(_, info) => {
@@ -166,11 +170,14 @@ export function SplitPaneLayout({
                 }
               }}
             >
-              <motion.div
-                className="mx-auto mt-2.5 h-1 w-11 shrink-0 rounded-full bg-white/20"
+              <div
+                className="flex shrink-0 cursor-grab touch-none justify-center py-2 active:cursor-grabbing"
+                onPointerDown={(event) => dragControls.start(event)}
                 aria-hidden
-              />
-              <div className="min-h-0 flex-1 overflow-hidden">{detailPane}</div>
+              >
+                <div className="h-1 w-11 rounded-full bg-slate-300" />
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{detailPane}</div>
             </motion.aside>
           </motion.div>
         ) : null}
