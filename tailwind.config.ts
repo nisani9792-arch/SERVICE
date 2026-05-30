@@ -8,6 +8,10 @@ const config: Config = {
         sans: ["var(--font-heebo)", "system-ui", "sans-serif"]
       },
       colors: {
+        "jm3-primary": "var(--jm3-color-primary)",
+        "jm3-surface": "var(--jm3-color-surface)",
+        "jm3-on-surface": "var(--jm3-color-on-surface)",
+        "jm3-outline": "var(--jm3-color-outline)",
         surface: "var(--j-surface)",
         "surface-container": "var(--j-surface-container)",
         "surface-high": "var(--j-surface-high)",

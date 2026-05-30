@@ -1,3 +1,6 @@
+@import "../design-system/tokens/jusic-m3-tokens.css";
+@import "../design-system/react/m3-expressive-toolbar.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

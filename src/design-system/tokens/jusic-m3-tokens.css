@@ -1,0 +1,110 @@
+/**
+ * Jusic M3 Expressive — canonical design tokens
+ * Import once per app: @import "./design-system/tokens/jusic-m3-tokens.css";
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Brand */
+  --jm3-brand-cyan: #2fb4d8;
+  --jm3-brand-cyan-dark: #1a8bb8;
+  --jm3-brand-slate: #64748b;
+
+  /* Material 3 color roles */
+  --jm3-color-primary: #4f46e5;
+  --jm3-color-primary-container: rgba(79, 70, 229, 0.12);
+  --jm3-color-on-primary: #ffffff;
+  --jm3-color-secondary: #0d9488;
+  --jm3-color-secondary-container: rgba(13, 148, 136, 0.1);
+  --jm3-color-tertiary: #7c3aed;
+  --jm3-color-tertiary-container: rgba(124, 58, 237, 0.1);
+
+  --jm3-color-surface: #f8fafc;
+  --jm3-color-surface-dim: #f1f5f9;
+  --jm3-color-surface-container: #ffffff;
+  --jm3-color-surface-container-high: rgba(255, 255, 255, 0.94);
+  --jm3-color-surface-container-highest: rgba(255, 255, 255, 0.98);
+
+  --jm3-color-on-surface: #0f172a;
+  --jm3-color-on-surface-variant: #475569;
+  --jm3-color-outline: rgba(148, 163, 184, 0.38);
+  --jm3-color-outline-variant: rgba(148, 163, 184, 0.22);
+
+  --jm3-color-error: #dc2626;
+  --jm3-color-error-container: rgba(220, 38, 38, 0.1);
+  --jm3-color-warning: #d97706;
+  --jm3-color-warning-container: rgba(217, 119, 6, 0.1);
+  --jm3-color-success: #059669;
+  --jm3-color-success-container: rgba(5, 150, 105, 0.1);
+
+  /* Typography */
+  --jm3-font-family: "Heebo", "Plus Jakarta Sans", "Segoe UI", Assistant, system-ui, sans-serif;
+  --jm3-type-title-sm: 600 0.875rem/1.35 var(--jm3-font-family);
+  --jm3-type-title-md: 700 1rem/1.3 var(--jm3-font-family);
+  --jm3-type-body-sm: 400 0.8125rem/1.45 var(--jm3-font-family);
+  --jm3-type-body-md: 400 0.875rem/1.5 var(--jm3-font-family);
+  --jm3-type-label-sm: 600 0.6875rem/1.2 var(--jm3-font-family);
+  --jm3-type-label-xs: 700 0.625rem/1.1 var(--jm3-font-family);
+
+  /* Shape — morphing radii */
+  --jm3-shape-none: 0;
+  --jm3-shape-xs: 8px;
+  --jm3-shape-sm: 12px;
+  --jm3-shape-md: 16px;
+  --jm3-shape-lg: 20px;
+  --jm3-shape-xl: 28px;
+  --jm3-shape-full: 9999px;
+  --jm3-shape-morph-duration: 320ms;
+
+  /* Motion physics */
+  --jm3-motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --jm3-motion-ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+  --jm3-motion-ease-decelerate: cubic-bezier(0, 0, 0, 1);
+  --jm3-motion-ease-accelerate: cubic-bezier(0.3, 0, 1, 1);
+  --jm3-motion-duration-instant: 100ms;
+  --jm3-motion-duration-short: 150ms;
+  --jm3-motion-duration-medium: 280ms;
+  --jm3-motion-duration-long: 420ms;
+  --jm3-spring-stiffness: 380;
+  --jm3-spring-damping: 32;
+  --jm3-spring-mass: 0.85;
+
+  /* Elevation */
+  --jm3-elevation-0: none;
+  --jm3-elevation-1: 0 1px 3px rgba(15, 23, 42, 0.06), 0 0 0 1px var(--jm3-color-outline-variant);
+  --jm3-elevation-2: 0 4px 16px rgba(15, 23, 42, 0.08), 0 0 0 1px var(--jm3-color-outline-variant);
+  --jm3-elevation-3: 0 12px 40px rgba(15, 23, 42, 0.12), 0 0 0 1px var(--jm3-color-outline);
+
+  --jm3-glass-blur: 20px;
+  --jm3-glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  --jm3-glow-primary: 0 4px 24px rgba(79, 70, 229, 0.18);
+  --jm3-glow-brand: 0 6px 20px rgba(47, 180, 216, 0.2);
+
+  /* Canvas gradients (Antigravity mesh) */
+  --jm3-gradient-canvas:
+    radial-gradient(ellipse 80% 55% at 12% 0%, rgba(47, 180, 216, 0.2) 0%, transparent 55%),
+    radial-gradient(ellipse 65% 50% at 88% 6%, rgba(124, 58, 237, 0.08) 0%, transparent 50%),
+    var(--jm3-color-surface);
+
+  /* Layout */
+  --jm3-toolbar-height: 48px;
+  --jm3-toolbar-height-compact: 40px;
+  --jm3-rail-width: 52px;
+  --jm3-inbox-row-height: 36px;
+
+  /* Legacy bridge (SERVICE / ARTIST) */
+  --j-primary: var(--jm3-color-primary);
+  --j-surface: var(--jm3-color-surface);
+  --j-ease: var(--jm3-motion-ease-emphasized);
+  --accent: var(--jm3-brand-cyan);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --jm3-shape-morph-duration: 0ms;
+    --jm3-motion-duration-short: 0ms;
+    --jm3-motion-duration-medium: 0ms;
+    --jm3-motion-duration-long: 0ms;
+  }
+}
