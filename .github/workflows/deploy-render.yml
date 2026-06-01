@@ -1,0 +1,34 @@
+name: Deploy to Render
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy hook
+        if: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/render-deploy.out -w "%{http_code}" \
+            -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}")
+          echo "Render deploy hook HTTP $code"
+          cat /tmp/render-deploy.out
+          test "$code" = "200" -o "$code" = "201" -o "$code" = "202"
+
+      - name: Deploy hook not configured
+        if: ${{ secrets.RENDER_DEPLOY_HOOK_URL == '' }}
+        run: |
+          echo "::warning::RENDER_DEPLOY_HOOK_URL is not set on this repo."
+          echo "Add the secret from Render → jusic-crm → Settings → Deploy Hook,"
+          echo "or connect GitHub in Render with Auto-Deploy on main."
+          echo "See docs/DEPLOY-RENDER-HE.md"
