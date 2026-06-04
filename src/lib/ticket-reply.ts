@@ -8,6 +8,8 @@ import {
   defaultReplyEmailSubject,
   type TicketReplyContextInput
 } from "@/lib/ticket-reply-context";
+import { reclassifyTicketContent } from "@/lib/gemini";
+import { cleanMessageForAi } from "@/lib/message-filter";
 import { recordReplyKnowledge } from "@/lib/reply-knowledge";
 import { formatTicketNumber } from "@/lib/ticket-sequence";
 import { sql } from "@/lib/neon";
@@ -164,6 +166,49 @@ function composeCustomerReply(
     text = `${text}\n\n${closing}`;
   }
   return text;
+}
+
+/** Close ticket with operator note — no outbound email; AI summary + category in background. */
+export async function finalizeTicketResolution(
+  ticket: TicketRow,
+  closureNote: string
+): Promise<{
+  closed: boolean;
+  closureNote: string;
+  category?: string;
+  aiSummary?: string;
+}> {
+  const note = closureNote.trim() || "נסגר ללא מענה נוסף";
+  await applyReplyTicketUpdate(ticket.id, note, {
+    closeAfterSend: true,
+    outboundQueued: false
+  });
+  await maybeRecordReplyKnowledge(ticket, note, true);
+
+  const inquiry = cleanMessageForAi(ticket.body_cleaned || ticket.body || "");
+  const classification = await reclassifyTicketContent(
+    String(ticket.sender_email ?? ""),
+    String(ticket.subject ?? ""),
+    inquiry
+  );
+
+  await sql()`
+    UPDATE tickets SET
+      category = ${classification.category},
+      priority = ${classification.priority},
+      ai_summary = ${classification.summary},
+      ai_suggested_category = ${classification.category},
+      classification_confidence = ${classification.confidence},
+      updated_at = now()
+    WHERE id = ${ticket.id}
+  `;
+
+  return {
+    closed: true,
+    closureNote: note,
+    category: classification.category,
+    aiSummary: classification.summary
+  };
 }
 
 export async function sendReplyForTicket(

@@ -87,6 +87,28 @@
     radial-gradient(ellipse 65% 50% at 88% 6%, rgba(124, 58, 237, 0.08) 0%, transparent 50%),
     var(--jm3-color-surface);
 
+  /* Generative UI — Gemini-style surfaces */
+  --jm3-gen-gradient-soft:
+    linear-gradient(
+      135deg,
+      rgba(47, 180, 216, 0.14) 0%,
+      rgba(79, 70, 229, 0.08) 42%,
+      rgba(124, 58, 237, 0.06) 100%
+    );
+  --jm3-gen-gradient-mesh:
+    radial-gradient(ellipse 70% 60% at 0% 0%, rgba(47, 180, 216, 0.22), transparent 58%),
+    radial-gradient(ellipse 55% 45% at 100% 8%, rgba(124, 58, 237, 0.12), transparent 52%),
+    radial-gradient(ellipse 40% 35% at 50% 100%, rgba(79, 70, 229, 0.08), transparent 55%),
+    var(--jm3-color-surface);
+  --jm3-glass-surface: rgba(255, 255, 255, 0.72);
+  --jm3-glass-surface-strong: rgba(255, 255, 255, 0.9);
+  --jm3-glass-blur-strong: 28px;
+  --jm3-spacing-panel: 1rem;
+  --jm3-spacing-stack: 0.75rem;
+  --jm3-divider-subtle: rgba(148, 163, 184, 0.12);
+  --jm3-shadow-glass: 0 8px 32px rgba(15, 23, 42, 0.06), var(--jm3-glass-edge);
+  --jm3-shadow-float: 0 16px 48px rgba(79, 70, 229, 0.1);
+
   /* Layout */
   --jm3-toolbar-height: 48px;
   --jm3-toolbar-height-compact: 40px;
@@ -96,6 +118,15 @@
   /* Legacy bridge (SERVICE / ARTIST) */
   --j-primary: var(--jm3-color-primary);
   --j-surface: var(--jm3-color-surface);
+  --j-surface-container: var(--jm3-color-surface-container);
+  --j-surface-high: var(--jm3-color-surface-container-high);
+  --j-on-surface: var(--jm3-color-on-surface);
+  --j-on-surface-variant: var(--jm3-color-on-surface-variant);
+  --j-primary-soft: var(--jm3-color-primary-container);
+  --j-outline: var(--jm3-color-outline);
+  --j-glow-primary: var(--jm3-glow-primary);
+  --j-glow-sm: var(--jm3-shadow-glass);
+  --j-glass-edge: var(--jm3-glass-edge);
   --j-ease: var(--jm3-motion-ease-emphasized);
   --accent: var(--jm3-brand-cyan);
 }

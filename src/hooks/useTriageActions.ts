@@ -7,6 +7,7 @@ import {
   updateTicketsBulk
 } from "@/lib/firebase";
 import { hapticTap } from "@/lib/haptics";
+import { triggerResolveBackgroundAi } from "@/lib/resolve-ticket-client";
 import type { Ticket } from "@/lib/types";
 
 export type TriageActionKind = "spam" | "delete" | "archive";
@@ -22,6 +23,7 @@ type UseTriageActionsOptions = {
   index: number;
   advanceOptimistic: () => void;
   restoreTicket: (ticket: Ticket, atIndex: number) => void;
+  onOptimisticPatch?: (ticketId: string, patch: Partial<Ticket>) => void;
   onToast?: (payload: { message: string; undo?: TriageUndoState }) => void;
 };
 
@@ -30,6 +32,7 @@ export function useTriageActions({
   index,
   advanceOptimistic,
   restoreTicket,
+  onOptimisticPatch,
   onToast
 }: UseTriageActionsOptions) {
   const [busy, setBusy] = useState(false);
@@ -54,16 +57,34 @@ export function useTriageActions({
     if (!current || busy) return;
     hapticTap();
     const snapshot: TriageUndoState = { ticket: current, index, kind: "archive" };
-    setBusy(true);
+    onOptimisticPatch?.(current.id, { status: "closed" });
     advanceOptimistic();
-    try {
-      await updateTicket(current.id, { status: "closed" });
-    } catch {
+    void updateTicket(current.id, { status: "closed" }).catch(() => {
       restoreTicket(snapshot.ticket, snapshot.index);
-    } finally {
-      setBusy(false);
-    }
-  }, [advanceOptimistic, busy, current, index, restoreTicket]);
+    });
+  }, [advanceOptimistic, busy, current, index, onOptimisticPatch, restoreTicket]);
+
+  const handleResolve = useCallback(
+    async (closureNote: string) => {
+      if (!current || busy) return;
+      hapticTap();
+      const snapshot: TriageUndoState = { ticket: current, index, kind: "archive" };
+      const note = closureNote.trim();
+      onOptimisticPatch?.(current.id, {
+        status: "closed",
+        closureNote: note || current.closureNote
+      });
+      advanceOptimistic();
+      triggerResolveBackgroundAi(current.id, note);
+      void updateTicket(current.id, {
+        status: "closed",
+        closureNote: note || undefined
+      }).catch(() => {
+        restoreTicket(snapshot.ticket, snapshot.index);
+      });
+    },
+    [advanceOptimistic, busy, current, index, onOptimisticPatch, restoreTicket]
+  );
 
   const handleDelete = useCallback(async () => {
     if (!current || busy) return;
@@ -135,6 +156,7 @@ export function useTriageActions({
   return {
     busy,
     handleArchive,
+    handleResolve,
     handleDelete,
     handleSpam,
     handleUndo

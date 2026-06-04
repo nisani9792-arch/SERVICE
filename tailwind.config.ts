@@ -43,18 +43,30 @@ const config: Config = {
           200: "#a7f3d0"
         }
       },
+      backgroundImage: {
+        "gen-mesh": "var(--jm3-gen-gradient-mesh)",
+        "gen-soft": "var(--jm3-gen-gradient-soft)",
+        "gen-canvas": "var(--jm3-gradient-canvas)"
+      },
+      spacing: {
+        panel: "var(--jm3-spacing-panel)",
+        stack: "var(--jm3-spacing-stack)"
+      },
       boxShadow: {
         glow: "var(--j-glow-primary)",
         "glow-sm": "var(--j-glow-sm)",
         "glow-accent": "var(--j-glow-accent)",
-        glass: "var(--j-glass-edge)"
+        glass: "var(--jm3-shadow-glass)",
+        float: "var(--jm3-shadow-float)",
+        "glass-edge": "var(--j-glass-edge)"
       },
       borderRadius: {
         xl2: "1.25rem",
         xl3: "1.5rem"
       },
       backdropBlur: {
-        glass: "20px"
+        glass: "20px",
+        "glass-strong": "28px"
       },
       transitionTimingFunction: {
         fluid: "cubic-bezier(0.22, 1, 0.36, 1)"

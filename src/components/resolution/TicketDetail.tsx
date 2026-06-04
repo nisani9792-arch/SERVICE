@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { CategoryBadge } from "@/components/CategoryBadge";
 import { CustomerFollowUpDisplay } from "@/components/CustomerFollowUpDisplay";
-import { QuickReplyBar } from "@/components/QuickReplyBar";
+import { InlineReplyComposer } from "@/components/InlineReplyComposer";
 import { TicketAttachments } from "@/components/TicketAttachments";
 import { TriageAssignBar } from "@/components/TriageAssignBar";
 import { ResolutionSkeleton } from "@/components/resolution/ResolutionSkeleton";
@@ -34,9 +34,9 @@ const STATUS_LABELS: Record<TicketStatus, string> = {
 };
 
 const STATUS_STYLES: Record<TicketStatus, string> = {
-  open: "bg-blue-50 text-blue-800 border-blue-200",
-  in_progress: "bg-amber-50 text-amber-900 border-amber-200",
-  closed: "bg-slate-100 text-slate-600 border-slate-200"
+  open: "bg-primary-soft text-primary",
+  in_progress: "bg-amber-50/90 text-amber-900",
+  closed: "bg-surface-container text-on-surface-variant"
 };
 
 function formatWhen(ticket: Ticket): string {
@@ -89,7 +89,7 @@ function TicketActionButtons({
     <div className="flex flex-wrap items-center gap-1">
       <button
         type="button"
-        className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-900"
+        className="inline-flex items-center gap-1 rounded-lg bg-amber-50/90 px-2 py-1 text-[10px] font-bold text-amber-900 shadow-sm"
         onClick={() => onSetStatus(ticket.id, "in_progress")}
       >
         <CircleDot className="size-3" />
@@ -97,7 +97,7 @@ function TicketActionButtons({
       </button>
       <button
         type="button"
-        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700"
+        className="inline-flex items-center gap-1 rounded-lg bg-surface-container px-2 py-1 text-[10px] font-bold text-on-surface shadow-sm"
         onClick={() => onSaveInquiry(ticket)}
       >
         <Save className="size-3" />
@@ -105,7 +105,7 @@ function TicketActionButtons({
       </button>
       <button
         type="button"
-        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700"
+        className="inline-flex items-center gap-1 rounded-lg bg-surface-container px-2 py-1 text-[10px] font-bold text-on-surface shadow-sm"
         onClick={() => onEdit(ticket)}
       >
         <Pencil className="size-3" />
@@ -114,7 +114,7 @@ function TicketActionButtons({
       {onSpam ? (
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-900"
+          className="inline-flex items-center gap-1 rounded-lg bg-amber-50/90 px-2 py-1 text-[10px] font-bold text-amber-900 shadow-sm"
           onClick={() => onSpam(ticket.id)}
         >
           <ShieldBan className="size-3" />
@@ -124,7 +124,7 @@ function TicketActionButtons({
       {onArchive ? (
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-900"
+          className="inline-flex items-center gap-1 rounded-lg bg-emerald-50/90 px-2 py-1 text-[10px] font-bold text-emerald-900 shadow-sm"
           onClick={() => onArchive(ticket.id)}
         >
           <Archive className="size-3" />
@@ -133,7 +133,7 @@ function TicketActionButtons({
       ) : null}
       <button
         type="button"
-        className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-800"
+        className="inline-flex items-center gap-1 rounded-lg bg-rose-50/90 px-2 py-1 text-[10px] font-bold text-rose-800 shadow-sm"
         onClick={() => onDelete(ticket.id)}
       >
         <Trash2 className="size-3" />
@@ -141,14 +141,14 @@ function TicketActionButtons({
       </button>
       <button
         type="button"
-        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600"
+        className="inline-flex items-center gap-1 rounded-lg bg-surface-container px-2 py-1 text-[10px] font-bold text-on-surface-variant shadow-sm"
         onClick={() => onReply(ticket)}
       >
         <Maximize2 className="size-3" />
         מורחב
       </button>
       <select
-        className="mr-auto max-w-[8rem] rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700"
+        className="mr-auto max-w-[8rem] rounded-lg bg-surface-container px-2 py-1 text-[10px] font-semibold text-on-surface shadow-sm"
         value={ticket.category}
         onChange={(event) => onChangeCategory(ticket.id, event.target.value)}
         aria-label="קטגוריה"
@@ -162,7 +162,7 @@ function TicketActionButtons({
       {ticket.senderEmail ? (
         <Link
           href={`/customer/${encodeURIComponent(ticket.senderEmail)}`}
-          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-indigo-700"
+          className="inline-flex items-center gap-1 rounded-lg bg-primary-soft px-2 py-1 text-[10px] font-bold text-primary shadow-sm"
         >
           <ExternalLink className="size-3" />
         </Link>
@@ -223,13 +223,13 @@ export function TicketDetail({
   };
 
   return (
-    <div className="relative flex h-full max-h-full min-h-0 flex-col bg-white">
+    <div className="relative flex h-full max-h-full min-h-0 flex-col gen-surface-strong">
       <div className="jds-panel-header shrink-0 px-3 py-2">
         <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
             <CategoryBadge category={ticket.category} />
             <span
-              className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${STATUS_STYLES[ticket.status]}`}
+              className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_STYLES[ticket.status]}`}
             >
               {STATUS_LABELS[ticket.status]}
             </span>
@@ -281,22 +281,22 @@ export function TicketDetail({
         ) : null}
 
         {followUpThread ? (
-          <details className="mt-2 rounded-xl border border-slate-200 bg-slate-50/80">
-            <summary className="cursor-pointer px-3 py-2 text-[11px] font-bold text-slate-600">
+          <details className="mt-2 rounded-xl2 gen-panel !p-0">
+            <summary className="cursor-pointer px-3 py-2 text-[11px] font-bold text-on-surface-variant">
               שרשור מלא (היסטוריית מייל)
             </summary>
-            <div className="max-h-48 overflow-y-auto overscroll-contain whitespace-pre-wrap border-t border-slate-200 px-3 py-2 text-[13px] leading-relaxed text-slate-800 lg:max-h-none">
+            <div className="max-h-48 overflow-y-auto overscroll-contain whitespace-pre-wrap px-3 py-2 text-[13px] leading-relaxed text-on-surface lg:max-h-none">
               {bodyText || "אין תוכן"}
             </div>
           </details>
         ) : (
-          <div className="mt-2 whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-sm leading-relaxed text-slate-800">
+          <div className="mt-2 whitespace-pre-wrap rounded-xl2 gen-panel p-3 text-sm leading-relaxed text-on-surface">
             {bodyText || "אין תוכן להצגה"}
           </div>
         )}
 
         {ticket.closureNote ? (
-          <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-900">
+          <div className="mt-2 rounded-xl2 bg-emerald-50/90 p-2 text-xs text-emerald-900 shadow-sm">
             הערת סגירה: {ticket.closureNote}
           </div>
         ) : null}
@@ -310,12 +310,12 @@ export function TicketDetail({
         ) : null}
       </div>
 
-      <div className="jds-detail-footer shrink-0 border-t border-slate-200/90 bg-white shadow-[0_-4px_16px_rgba(15,23,42,0.06)] pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-        <div className="hidden border-b border-slate-100 px-2 py-1.5 lg:block">
+      <div className="jds-detail-footer shrink-0 gen-reply-composer pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-float">
+        <div className="hidden px-2 py-1.5 lg:block">
           <TicketActionButtons {...actionProps} />
         </div>
 
-        <details className="border-b border-slate-100 lg:hidden">
+        <details className="lg:hidden">
           <summary className="cursor-pointer px-3 py-2 text-[11px] font-bold text-slate-600">
             פעולות על הפנייה
           </summary>
@@ -332,10 +332,9 @@ export function TicketDetail({
         ) : null}
 
         {onInlineReply ? (
-          <QuickReplyBar
+          <InlineReplyComposer
             key={replyKey}
             ticket={ticket}
-            variant="workbench"
             onSubmit={handleInlineSubmit}
             onSent={() => setReplyKey((k) => k + 1)}
           />
@@ -344,7 +343,7 @@ export function TicketDetail({
             <button
               type="button"
               onClick={() => onReply(ticket)}
-              className="w-full rounded-xl bg-indigo-600 py-2.5 text-xs font-bold text-white"
+              className="gen-reply-send w-full py-2.5 text-xs"
             >
               כתוב מענה
             </button>

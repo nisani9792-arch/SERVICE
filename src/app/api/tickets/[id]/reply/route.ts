@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireGateAccess } from "@/lib/api-guard";
-import { sendReplyForTicket } from "@/lib/ticket-reply";
+import {
+  finalizeTicketResolution,
+  sendReplyForTicket,
+  type TicketReplySendResult
+} from "@/lib/ticket-reply";
 import { sql } from "@/lib/neon";
 
 export const dynamic = "force-dynamic";
@@ -14,11 +18,16 @@ export async function POST(
   if (denied) return denied;
 
   try {
-    const body = (await request.json()) as { message?: string };
+    const body = (await request.json()) as {
+      message?: string;
+      closeAfterSend?: boolean;
+      closeOnly?: boolean;
+    };
     const message = (body.message ?? "").trim();
-    const closeAfterSend = true;
+    const closeAfterSend = body.closeAfterSend !== false;
+    const closeOnly = body.closeOnly === true;
 
-    if (message.length < 2) {
+    if (!closeOnly && message.length < 2) {
       return NextResponse.json({ error: "Reply message is required" }, { status: 400 });
     }
 
@@ -35,6 +44,9 @@ export async function POST(
           id: string;
           sender_email: string;
           subject: string;
+          body?: string;
+          body_cleaned?: string | null;
+          category?: string;
           email_message_id: string | null;
           ticket_number: number | null;
         }
@@ -44,8 +56,35 @@ export async function POST(
       return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
     }
 
+    const ticketRow = {
+      id: ticket.id,
+      sender_email: ticket.sender_email,
+      subject: ticket.subject,
+      body: ticket.body,
+      body_cleaned: ticket.body_cleaned ?? undefined,
+      category: ticket.category,
+      email_message_id: ticket.email_message_id,
+      ticket_number: ticket.ticket_number
+    };
+
     try {
-      const result = await sendReplyForTicket(ticket, message, { closeAfterSend });
+      if (closeOnly) {
+        const result = await finalizeTicketResolution(ticketRow, message);
+        return NextResponse.json({
+          ok: true,
+          closeOnly: true,
+          closed: result.closed,
+          closureNote: result.closureNote,
+          category: result.category,
+          aiSummary: result.aiSummary
+        });
+      }
+
+      const result: TicketReplySendResult = await sendReplyForTicket(
+        ticketRow,
+        message,
+        { closeAfterSend }
+      );
       if (result.queued) {
         return NextResponse.json({
           ok: true,

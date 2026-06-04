@@ -197,6 +197,70 @@
   box-shadow: var(--j-glass-edge), var(--j-shadow-soft);
 }
 
+/* Generative UI utilities */
+.gen-surface {
+  background: var(--jm3-glass-surface, rgba(255, 255, 255, 0.72));
+  backdrop-filter: blur(var(--jm3-glass-blur, 20px));
+  -webkit-backdrop-filter: blur(var(--jm3-glass-blur, 20px));
+  box-shadow: var(--jm3-shadow-glass, var(--j-glow-sm));
+}
+
+.gen-surface-strong {
+  background: var(--jm3-glass-surface-strong, rgba(255, 255, 255, 0.9));
+  backdrop-filter: blur(var(--jm3-glass-blur-strong, 28px));
+  -webkit-backdrop-filter: blur(var(--jm3-glass-blur-strong, 28px));
+  box-shadow: var(--jm3-shadow-glass, var(--j-shadow-soft));
+}
+
+.gen-canvas-bg {
+  background: var(--jm3-gen-gradient-mesh, var(--j-surface));
+}
+
+.gen-panel {
+  border-radius: var(--j-radius);
+  padding: var(--jm3-spacing-panel, 1rem);
+  background: var(--jm3-glass-surface-strong);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--jm3-shadow-glass);
+}
+
+.gen-compose-chip {
+  background: var(--jm3-color-primary-container);
+  color: var(--jm3-color-primary);
+  box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.12);
+}
+
+.gen-compose-chip-ai {
+  background: linear-gradient(
+    135deg,
+    rgba(47, 180, 216, 0.18),
+    rgba(79, 70, 229, 0.14)
+  );
+  box-shadow: 0 0 20px rgba(79, 70, 229, 0.08);
+}
+
+.gen-reply-composer {
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.92) 24%);
+}
+
+.gen-reply-textarea {
+  background: var(--jm3-color-surface-container-highest);
+  color: var(--jm3-color-on-surface);
+  box-shadow: inset 0 0 0 1px var(--jm3-divider-subtle, rgba(148, 163, 184, 0.12));
+  border: none;
+}
+
+.gen-reply-send {
+  background: var(--jm3-color-primary);
+  color: var(--jm3-color-on-primary);
+  box-shadow: var(--jm3-glow-primary);
+}
+
+.gen-reply-input-row {
+  gap: var(--jm3-spacing-stack, 0.75rem);
+}
+
 /* Layout */
 .crm-shell,
 .crm-workspace {
@@ -649,8 +713,9 @@
 }
 
 .jds-cmdk {
-  background: rgba(255, 255, 255, 0.98);
+  background: var(--jm3-glass-surface-strong, rgba(255, 255, 255, 0.98));
   color: var(--jds-on-surface);
+  box-shadow: var(--jm3-shadow-float, var(--jds-shadow));
 }
 
 .jds-cmdk-root [cmdk-group-heading] {

@@ -15,6 +15,7 @@ import { AiInsightsPanel } from "@/components/AiInsightsPanel";
 import { BatchProgressBar } from "@/components/BatchProgressBar";
 import { TicketWorkbench } from "@/components/TicketWorkbench";
 import { ResolutionCommandPalette } from "@/components/resolution/ResolutionCommandPalette";
+import { triggerResolveBackgroundAi } from "@/lib/resolve-ticket-client";
 import { ReplyTicketModal } from "@/components/ReplyTicketModal";
 import {
   deleteTicket,
@@ -451,11 +452,12 @@ export function DashboardInboxPage({
 
   const onArchiveTicket = useCallback(
     async (ticketId: string) => {
-      patchItem(ticketId, { status: "closed" });
+      patchItem(ticketId, { status: "closed", closureNote: "נסגר וארכיון" });
+      triggerResolveBackgroundAi(ticketId, "נסגר וארכיון");
       try {
         const updated = await updateTicket(ticketId, { status: "closed" });
         upsertItem(updated);
-        await afterMutation();
+        void afterMutation();
       } catch {
         await afterMutation({ full: true });
       }
@@ -1078,7 +1080,17 @@ export function DashboardInboxPage({
           onTabChange={applyInboxTab}
         />
         <div className="min-w-[8rem] flex-1">
-          <SearchBar value={searchValue} onChange={setSearchValue} compact />
+          <SearchBar
+            value={searchValue}
+            onChange={setSearchValue}
+            compact
+            commandPalette={{
+              open: commandPaletteOpen,
+              onOpenChange: setCommandPaletteOpen,
+              searchValue,
+              onSearchChange: setSearchValue
+            }}
+          />
         </div>
         <details className="relative shrink-0">
           <summary className="cursor-pointer list-none rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600">
@@ -1275,7 +1287,19 @@ export function DashboardInboxPage({
       <ResolutionCommandPalette
         open={commandPaletteOpen}
         onOpenChange={setCommandPaletteOpen}
+        searchQuery={searchValue}
+        onSearchQueryChange={setSearchValue}
+        tickets={items}
         activeTicket={activeTicket}
+        onSelectTicket={(ticket) => {
+          setActiveTicketId(ticket.id);
+          setPage(1);
+        }}
+        onNewTicket={() => setShowNewModal(true)}
+        onCloseActiveTicket={() => {
+          if (!activeTicket) return;
+          void onArchiveTicket(activeTicket.id);
+        }}
         onMarkSpam={(id) => {
           void onMarkSpam(id);
         }}
