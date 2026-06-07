@@ -1,4 +1,3 @@
-import { ImapFlow } from "imapflow";
 import { simpleParser, type AddressObject, type ParsedMail } from "mailparser";
 import { repairEmailAddress } from "@/lib/email-address-repair";
 import { PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
@@ -18,7 +17,8 @@ import { sql } from "@/lib/neon";
 import { allocateNextTicketNumber } from "@/lib/ticket-sequence";
 import { ensureTicketListColumns } from "@/lib/ticket-schema";
 import { isGmailApiConfigured } from "@/lib/gmail-api";
-import {
+import { ImapSession, isImapSessionConnectFailure } from "@/lib/imap-session";
+import { runIngestExclusive } from "@/lib/email-ingest-lock";import {
   ensureTicketEmailThreadSchema,
   isInboundEmailAlreadyStored,
   tryAttachInboundThreadMessage
@@ -637,12 +637,12 @@ function isGmailHost(host: string): boolean {
   return host.toLowerCase().includes("gmail.com");
 }
 
-async function resolveArchiveMailbox(client: ImapFlow, config: GmailConfig): Promise<string> {
+async function resolveArchiveMailbox(session: ImapSession, config: GmailConfig): Promise<string> {
   if (config.archiveMailbox) {
     return config.archiveMailbox;
   }
 
-  const listed = await client.list();
+  const listed = await session.raw.list();
   const bySpecialUse = listed.find((box) => {
     const use = box.specialUse?.replace(/\\/g, "").toLowerCase();
     return use === "archive";
@@ -668,14 +668,120 @@ async function resolveArchiveMailbox(client: ImapFlow, config: GmailConfig): Pro
   );
 }
 
-async function archiveProcessedMessages(
-  client: ImapFlow,
-  archiveMailbox: string,
-  uids: number[]
-): Promise<number> {
-  if (uids.length === 0) return 0;
-  const moved = await client.messageMove(uids, archiveMailbox, { uid: true });
-  return moved ? uids.length : 0;
+async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailIngestResult> {
+  await ensureEmailIngestSchema();
+
+  const session = new ImapSession({
+    host: config.host,
+    port: config.port,
+    user: config.user,
+    pass: config.appPassword,
+    connectTimeoutMs: Math.min(30_000, config.timeoutMs),
+    socketTimeoutMs: config.timeoutMs
+  });
+
+  const result: EmailIngestResult = {
+    ok: true,
+    scanned: 0,
+    imported: 0,
+    followupsAttached: 0,
+    reopened: 0,
+    skipped: 0,
+    archived: 0,
+    archiveMailbox: config.archiveMailbox || DEFAULT_GMAIL_ARCHIVE_MAILBOX,
+    errors: [],
+    skipReasons: [],
+    provider: "imap"
+  };
+
+  try {
+    await withTimeout(session.connect(), Math.min(25_000, config.timeoutMs), "IMAP connect");
+    result.archiveMailbox = await withTimeout(
+      resolveArchiveMailbox(session, config),
+      config.timeoutMs,
+      "IMAP list mailboxes"
+    );
+
+    await session.withMailbox(config.mailbox, async (client) => {
+      const since = new Date(Date.now() - config.lookbackDays * 24 * 60 * 60 * 1000);
+      const [sinceUids, unseenUids] = await Promise.all([
+        withTimeout(client.search({ since }, { uid: true }), config.timeoutMs, "IMAP search since"),
+        withTimeout(client.search({ seen: false }, { uid: true }), config.timeoutMs, "IMAP search unseen").catch(
+          () => [] as number[]
+        )
+      ]);
+
+      const uidSet = new Set<number>();
+      for (const uid of [...(Array.isArray(sinceUids) ? sinceUids : []), ...(Array.isArray(unseenUids) ? unseenUids : [])]) {
+        if (Number.isFinite(uid) && uid > 0) uidSet.add(uid);
+      }
+
+      const uidsToFetch = Array.from(uidSet)
+        .sort((a, b) => a - b)
+        .slice(-config.maxMessages);
+
+      if (uidsToFetch.length === 0) {
+        return;
+      }
+
+      const processedUids: number[] = [];
+
+      for await (const fetched of client.fetch(
+        uidsToFetch,
+        { uid: true, source: true },
+        { uid: true }
+      )) {
+        result.scanned += 1;
+
+        try {
+          const uid = Number(fetched.uid);
+          const source = Buffer.isBuffer(fetched.source)
+            ? fetched.source
+            : Buffer.from(fetched.source ?? "");
+
+          if (!uid || source.length === 0) {
+            result.skipped += 1;
+            continue;
+          }
+
+          const message = await parseFetchedMessage(config.mailbox, uid, source);
+          source.fill(0);
+
+          if (!message) {
+            result.skipped += 1;
+            continue;
+          }
+
+          const processed = await processInboundEmailMessage(message, {
+            ownerEmail: config.user,
+            sourceTag: config.sourceTag
+          });
+
+          recordProcessResult(result, processed);
+          if (processed.imported) result.imported += 1;
+          if (processed.followupAttached) result.followupsAttached += 1;
+          if (processed.reopened) result.reopened += 1;
+          if (processed.skipped) result.skipped += 1;
+          if (processed.shouldArchive) processedUids.push(uid);
+        } catch (error) {
+          result.skipped += 1;
+          result.errors.push(error instanceof Error ? error.message : "Unknown email parsing error");
+          result.skipReasons = result.skipReasons ?? [];
+          result.skipReasons.push("error");
+        }
+      }
+
+      const archivedCount = await session.archiveUids(result.archiveMailbox, processedUids);
+      result.archived += archivedCount;
+      if (archivedCount !== processedUids.length) {
+        result.errors.push("Some processed emails could not be archived in the mailbox");
+      }
+    });
+  } finally {
+    await session.disconnect().catch(() => undefined);
+  }
+
+  return result;
 }
 
 async function parseFetchedMessage(
@@ -717,153 +823,6 @@ async function parseFetchedMessage(
   };
 }
 
-async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailIngestResult> {
-  await ensureEmailIngestSchema();
-
-  const connectMs = Math.min(30000, config.timeoutMs);
-  const socketMs = config.timeoutMs;
-
-  const client = new ImapFlow({
-    host: config.host,
-    port: config.port,
-    secure: true,
-    disableAutoIdle: true,
-    connectionTimeout: connectMs,
-    greetingTimeout: connectMs,
-    socketTimeout: socketMs,
-    auth: {
-      user: config.user,
-      pass: config.appPassword
-    },
-    logger: false,
-    tls: {
-      servername: config.host,
-      minVersion: "TLSv1.2"
-    }
-  });
-
-  const result: EmailIngestResult = {
-    ok: true,
-    scanned: 0,
-    imported: 0,
-    followupsAttached: 0,
-    reopened: 0,
-    skipped: 0,
-    archived: 0,
-    archiveMailbox: config.archiveMailbox || DEFAULT_GMAIL_ARCHIVE_MAILBOX,
-    errors: [],
-    skipReasons: [],
-    provider: "imap"
-  };
-
-  const connectAttempts = 3;
-  let lastConnectError: Error | null = null;
-  for (let attempt = 1; attempt <= connectAttempts; attempt += 1) {
-    try {
-      await withTimeout(client.connect(), Math.min(25000, config.timeoutMs), "IMAP connect");
-      lastConnectError = null;
-      break;
-    } catch (error) {
-      lastConnectError = error instanceof Error ? error : new Error("IMAP connect failed");
-      if (attempt < connectAttempts) {
-        await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
-      }
-    }
-  }
-  if (lastConnectError) {
-    throw lastConnectError;
-  }
-  result.archiveMailbox = await withTimeout(
-    resolveArchiveMailbox(client, config),
-    config.timeoutMs,
-    "IMAP list mailboxes"
-  );
-
-  const lock = await client.getMailboxLock(config.mailbox);
-  try {
-    const since = new Date(Date.now() - config.lookbackDays * 24 * 60 * 60 * 1000);
-    const [sinceUids, unseenUids] = await Promise.all([
-      withTimeout(client.search({ since }, { uid: true }), config.timeoutMs, "IMAP search since"),
-      withTimeout(client.search({ seen: false }, { uid: true }), config.timeoutMs, "IMAP search unseen").catch(
-        () => [] as number[]
-      )
-    ]);
-
-    const uidSet = new Set<number>();
-    for (const uid of [...(Array.isArray(sinceUids) ? sinceUids : []), ...(Array.isArray(unseenUids) ? unseenUids : [])]) {
-      if (Number.isFinite(uid) && uid > 0) uidSet.add(uid);
-    }
-
-    const uidsToFetch = Array.from(uidSet)
-      .sort((a, b) => a - b)
-      .slice(-config.maxMessages);
-
-    if (uidsToFetch.length === 0) {
-      return result;
-    }
-
-    const processedUids: number[] = [];
-
-    for await (const fetched of client.fetch(
-      uidsToFetch,
-      { uid: true, source: true },
-      { uid: true }
-    )) {
-      result.scanned += 1;
-
-      try {
-        const uid = Number(fetched.uid);
-        const source = Buffer.isBuffer(fetched.source)
-          ? fetched.source
-          : Buffer.from(fetched.source ?? "");
-
-        if (!uid || source.length === 0) {
-          result.skipped += 1;
-          continue;
-        }
-
-        const message = await parseFetchedMessage(config.mailbox, uid, source);
-        if (!message) {
-          result.skipped += 1;
-          continue;
-        }
-
-        const processed = await processInboundEmailMessage(message, {
-          ownerEmail: config.user,
-          sourceTag: config.sourceTag
-        });
-
-        recordProcessResult(result, processed);
-        if (processed.imported) result.imported += 1;
-        if (processed.followupAttached) result.followupsAttached += 1;
-        if (processed.reopened) result.reopened += 1;
-        if (processed.skipped) result.skipped += 1;
-        if (processed.shouldArchive) processedUids.push(uid);
-      } catch (error) {
-        result.skipped += 1;
-        result.errors.push(error instanceof Error ? error.message : "Unknown email parsing error");
-        result.skipReasons = result.skipReasons ?? [];
-        result.skipReasons.push("error");
-      }
-    }
-
-    const archivedCount = await archiveProcessedMessages(
-      client,
-      result.archiveMailbox,
-      processedUids
-    );
-    result.archived += archivedCount;
-    if (archivedCount !== processedUids.length) {
-      result.errors.push("Some processed emails could not be archived in the mailbox");
-    }
-  } finally {
-    lock.release();
-    await withTimeout(client.logout(), 8000, "IMAP logout").catch(() => undefined);
-  }
-
-  return result;
-}
-
 function resolveIngestProvider(): "gmail_api" | "imap" {
   const raw = process.env.EMAIL_INGEST_PROVIDER?.trim().toLowerCase();
   const imapReady = isImapConfigured();
@@ -879,8 +838,7 @@ function resolveIngestProvider(): "gmail_api" | "imap" {
 }
 
 function isImapConnectFailure(error: unknown): boolean {
-  const msg = error instanceof Error ? error.message : String(error);
-  return /IMAP connect|timed out|ETIMEDOUT|ECONNREFUSED|ENOTFOUND|socket/i.test(msg);
+  return isImapSessionConnectFailure(error);
 }
 
 async function ingestViaGmailApiOrThrow(): Promise<EmailIngestResult> {
@@ -904,32 +862,34 @@ async function ingestViaGmailApiOrThrow(): Promise<EmailIngestResult> {
 }
 
 export async function ingestGmailInbox(): Promise<EmailIngestResult> {
-  const provider = resolveIngestProvider();
+  return runIngestExclusive(async () => {
+    const provider = resolveIngestProvider();
 
-  if (provider === "gmail_api") {
-    return ingestViaGmailApiOrThrow();
-  }
-
-  if (!isImapConfigured()) {
-    if (isGmailApiConfigured()) {
+    if (provider === "gmail_api") {
       return ingestViaGmailApiOrThrow();
     }
-    throw new Error("EMAIL_IMAP_USER and EMAIL_IMAP_APP_PASSWORD must be configured");
-  }
 
-  const config = getGmailConfig();
-
-  try {
-    return await withTimeout(
-      ingestGmailInboxInternal(config),
-      config.timeoutMs + 20000,
-      "Email ingest"
-    );
-  } catch (error) {
-    if (isGmailApiConfigured() && isImapConnectFailure(error)) {
-      console.error("[email-ingest] IMAP failed, falling back to Gmail API:", error);
-      return ingestViaGmailApiOrThrow();
+    if (!isImapConfigured()) {
+      if (isGmailApiConfigured()) {
+        return ingestViaGmailApiOrThrow();
+      }
+      throw new Error("EMAIL_IMAP_USER and EMAIL_IMAP_APP_PASSWORD must be configured");
     }
-    throw error;
-  }
+
+    const config = getGmailConfig();
+
+    try {
+      return await withTimeout(
+        ingestGmailInboxInternal(config),
+        config.timeoutMs + 20_000,
+        "Email ingest"
+      );
+    } catch (error) {
+      if (isGmailApiConfigured() && isImapConnectFailure(error)) {
+        console.error("[email-ingest] IMAP failed, falling back to Gmail API:", error);
+        return ingestViaGmailApiOrThrow();
+      }
+      throw error;
+    }
+  });
 }

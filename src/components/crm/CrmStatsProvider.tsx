@@ -55,7 +55,7 @@ function useCrmStatsController(): CrmStatsContextValue {
     if (statsTimerRef.current) clearTimeout(statsTimerRef.current);
     statsTimerRef.current = setTimeout(() => {
       void refreshStats();
-    }, 400);
+    }, 800);
   }, [refreshStats]);
 
   useEffect(() => {
@@ -77,9 +77,9 @@ function useCrmStatsController(): CrmStatsContextValue {
     () => {
       void refreshStats();
     },
-    22_000,
+    30_000,
     true,
-    { runWhenHidden: true }
+    { runWhenHidden: false }
   );
 
   return useMemo(

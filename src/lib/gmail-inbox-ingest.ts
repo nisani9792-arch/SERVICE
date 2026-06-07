@@ -11,6 +11,7 @@ import {
   type EmailIngestResult,
   type ParsedEmailMessage
 } from "@/lib/email-ingest";
+import { fetchGmailAttachmentBodies } from "@/lib/ticket-attachments";
 
 function decodeBase64Url(data: string): string {
   const normalized = data.replace(/-/g, "+").replace(/_/g, "/");
@@ -81,7 +82,8 @@ function extractBodyFromPart(part: gmail_v1.Schema$MessagePart): string {
 
 function parseGmailApiMessage(
   gmailId: string,
-  data: gmail_v1.Schema$Message
+  data: gmail_v1.Schema$Message,
+  attachments: ParsedEmailMessage["attachments"]
 ): ParsedEmailMessage | null {
   const headers = data.payload?.headers;
   const from = parseFromHeader(headerValue(headers, "From"));
@@ -108,7 +110,7 @@ function parseGmailApiMessage(
     subject,
     body,
     messageAt,
-    attachments: []
+    attachments
   };
 }
 
@@ -173,7 +175,8 @@ export async function ingestInboxViaGmailApi(): Promise<EmailIngestResult> {
         format: "full"
       });
 
-      const message = parseGmailApiMessage(gmailId, full.data);
+      const attachments = await fetchGmailAttachmentBodies(gmailId, full.data.payload ?? undefined);
+      const message = parseGmailApiMessage(gmailId, full.data, attachments);
       if (!message) {
         result.skipped += 1;
         continue;

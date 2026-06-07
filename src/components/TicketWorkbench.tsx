@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { TicketListPanel } from "@/components/TicketListPanel";
 import type { TicketListMode } from "@/components/TicketListRow";
 import { SplitPaneLayout } from "@/components/resolution/SplitPaneLayout";
@@ -38,7 +38,23 @@ interface TicketWorkbenchProps {
   listMode?: TicketListMode;
 }
 
-export function TicketWorkbench(props: TicketWorkbenchProps) {
+function workbenchPropsEqual(prev: TicketWorkbenchProps, next: TicketWorkbenchProps): boolean {
+  return (
+    prev.tickets === next.tickets &&
+    prev.activeTicket?.id === next.activeTicket?.id &&
+    prev.selectedIds === next.selectedIds &&
+    prev.isLoading === next.isLoading &&
+    prev.isRefreshing === next.isRefreshing &&
+    prev.page === next.page &&
+    prev.total === next.total &&
+    prev.pageSize === next.pageSize &&
+    prev.listMode === next.listMode &&
+    prev.title === next.title &&
+    prev.subtitle === next.subtitle
+  );
+}
+
+const TicketWorkbenchInner = memo(function TicketWorkbenchInner(props: TicketWorkbenchProps) {
   const {
     title = "פניות",
     subtitle,
@@ -205,4 +221,8 @@ export function TicketWorkbench(props: TicketWorkbenchProps) {
       onDetailClose={() => setMobileDetailOpen(false)}
     />
   );
+}, workbenchPropsEqual);
+
+export function TicketWorkbench(props: TicketWorkbenchProps) {
+  return <TicketWorkbenchInner {...props} />;
 }

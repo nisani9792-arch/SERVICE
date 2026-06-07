@@ -1,5 +1,7 @@
 import type { Attachment } from "mailparser";
+import type { gmail_v1 } from "googleapis";
 import { getEmailAttachmentConfig, isAllowedAttachmentMime } from "@/lib/email-attachment-config";
+import { getGmailApiClient } from "@/lib/gmail-api";
 import { sql } from "@/lib/neon";
 import type { TicketAttachmentMeta } from "@/lib/types";
 
@@ -11,6 +13,42 @@ export type EmailAttachmentCandidate = {
 };
 
 const MIN_ATTACHMENT_BYTES = 400;
+const BASE64_CHUNK_BYTES = 24_576;
+
+/** Encode buffer to base64 in chunks to reduce peak memory during large attachments. */
+export function bufferToBase64Chunked(buffer: Buffer): string {
+  if (buffer.length <= BASE64_CHUNK_BYTES) {
+    return buffer.toString("base64");
+  }
+  const parts: string[] = [];
+  for (let offset = 0; offset < buffer.length; offset += BASE64_CHUNK_BYTES) {
+    parts.push(buffer.subarray(offset, offset + BASE64_CHUNK_BYTES).toString("base64"));
+  }
+  return parts.join("");
+}
+
+function decodeBase64Url(data: string): Buffer {
+  const normalized = data.replace(/-/g, "+").replace(/_/g, "/");
+  return Buffer.from(normalized, "base64");
+}
+
+function filenameFromPart(part: gmail_v1.Schema$MessagePart, contentType: string): string {
+  if (part.filename?.trim()) return part.filename.trim();
+  return contentType.startsWith("image/") ? "image" : "video";
+}
+
+function collectGmailMimeParts(
+  part: gmail_v1.Schema$MessagePart | undefined,
+  out: gmail_v1.Schema$MessagePart[]
+): void {
+  if (!part) return;
+  if (part.body?.attachmentId || (part.filename && part.body?.data)) {
+    out.push(part);
+  }
+  for (const child of part.parts ?? []) {
+    collectGmailMimeParts(child, out);
+  }
+}
 
 export async function ensureTicketAttachmentsSchema(): Promise<void> {
   await sql()`
@@ -38,25 +76,77 @@ export function extractAttachmentsFromParsedMail(
   for (const attachment of attachments) {
     if (accepted.length >= config.maxFilesPerEmail) break;
 
+    const sizeHint = Number(attachment.size ?? 0);
+    if (sizeHint > 0 && sizeHint < MIN_ATTACHMENT_BYTES) continue;
+    if (sizeHint > config.maxBytesPerFile) continue;
+
+    const contentType = String(attachment.contentType ?? "application/octet-stream").trim();
+    if (!isAllowedAttachmentMime(contentType, config)) continue;
+
     const content = Buffer.isBuffer(attachment.content)
       ? attachment.content
       : attachment.content
         ? Buffer.from(attachment.content)
         : Buffer.alloc(0);
 
-    const sizeBytes = content.length || Number(attachment.size ?? 0);
+    const sizeBytes = content.length || sizeHint;
     if (sizeBytes < MIN_ATTACHMENT_BYTES) continue;
     if (sizeBytes > config.maxBytesPerFile) continue;
-
-    const contentType = String(attachment.contentType ?? "application/octet-stream").trim();
-    if (!isAllowedAttachmentMime(contentType, config)) continue;
 
     const filename =
       String(attachment.filename ?? "").trim() ||
       (contentType.startsWith("image/") ? "image" : "video");
 
+    accepted.push({ filename, contentType, sizeBytes, content });
+  }
+
+  return accepted;
+}
+
+/** Fetch image/video attachment bodies from a Gmail API message. */
+export async function fetchGmailAttachmentBodies(
+  messageId: string,
+  payload: gmail_v1.Schema$MessagePart | undefined
+): Promise<EmailAttachmentCandidate[]> {
+  const config = getEmailAttachmentConfig();
+  if (!config.enabled || !payload) return [];
+
+  const gmail = getGmailApiClient();
+  const parts: gmail_v1.Schema$MessagePart[] = [];
+  collectGmailMimeParts(payload, parts);
+
+  const accepted: EmailAttachmentCandidate[] = [];
+
+  for (const part of parts) {
+    if (accepted.length >= config.maxFilesPerEmail) break;
+
+    const contentType = String(part.mimeType ?? "application/octet-stream").trim();
+    if (!isAllowedAttachmentMime(contentType, config)) continue;
+
+    let content = Buffer.alloc(0);
+    if (part.body?.data) {
+      content = decodeBase64Url(part.body.data);
+    } else if (part.body?.attachmentId) {
+      try {
+        const res = await gmail.users.messages.attachments.get({
+          userId: "me",
+          messageId,
+          id: part.body.attachmentId
+        });
+        if (res.data.data) {
+          content = decodeBase64Url(res.data.data);
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    const sizeBytes = content.length;
+    if (sizeBytes < MIN_ATTACHMENT_BYTES) continue;
+    if (sizeBytes > config.maxBytesPerFile) continue;
+
     accepted.push({
-      filename,
+      filename: filenameFromPart(part, contentType),
       contentType,
       sizeBytes,
       content
@@ -75,6 +165,9 @@ export async function saveTicketAttachments(
 
   let saved = 0;
   for (const attachment of attachments) {
+    const base64 = bufferToBase64Chunked(attachment.content);
+    attachment.content = Buffer.alloc(0);
+
     const rows = await sql()`
       INSERT INTO ticket_attachments (
         ticket_id,
@@ -88,7 +181,7 @@ export async function saveTicketAttachments(
         ${attachment.filename},
         ${attachment.contentType},
         ${attachment.sizeBytes},
-        ${attachment.content.toString("base64")}
+        ${base64}
       )
       RETURNING id
     `;

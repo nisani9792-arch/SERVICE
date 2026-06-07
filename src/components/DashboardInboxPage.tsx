@@ -32,12 +32,8 @@ import {
 } from "@/lib/firebase";
 import { useTicketList } from "@/hooks/useTicketList";
 import { useListPageSize } from "@/hooks/useListPageSize";
-import { formatSkipReasons } from "@/lib/email-ingest-labels";
-import {
-  EMAIL_SYNC_EVENT,
-  runEmailIngestClient,
-  type EmailSyncResult
-} from "@/lib/email-sync-client";
+import { EmailSyncProvider, useEmailSync } from "@/components/crm/EmailSyncProvider";
+import { useStableSelectionSet } from "@/hooks/useStableSelection";
 import { useLiveRefresh } from "@/hooks/useLiveRefresh";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useInboxKeyboard } from "@/hooks/useInboxKeyboard";
@@ -56,14 +52,38 @@ import { BUCKET_LABELS, type TicketBucket } from "@/lib/ticket-buckets";
 
 export type WorkbenchStatusFilter = TicketStatus | "active" | "outbox";
 
-const EMAIL_SYNC_TOAST_MS = 6000;
-
 export function DashboardInboxPage({
   initialStatus,
   initialBucket = null
 }: {
   initialStatus?: WorkbenchStatusFilter;
   initialBucket?: TicketBucket | null;
+}) {
+  const refreshOnSyncRef = useRef<() => void>(() => {});
+
+  return (
+    <EmailSyncProvider
+      onSyncComplete={() => {
+        refreshOnSyncRef.current();
+      }}
+    >
+      <DashboardInboxPageInner
+        initialStatus={initialStatus}
+        initialBucket={initialBucket}
+        refreshOnSyncRef={refreshOnSyncRef}
+      />
+    </EmailSyncProvider>
+  );
+}
+
+function DashboardInboxPageInner({
+  initialStatus,
+  initialBucket = null,
+  refreshOnSyncRef
+}: {
+  initialStatus?: WorkbenchStatusFilter;
+  initialBucket?: TicketBucket | null;
+  refreshOnSyncRef: React.MutableRefObject<() => void>;
 }) {
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState<string | "all">("all");
@@ -99,19 +119,21 @@ export function DashboardInboxPage({
   const [replyingTicket, setReplyingTicket] = useState<Ticket | null>(null);
   const [showBulkReply, setShowBulkReply] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const stableSelectedIds = useStableSelectionSet(selectedIds);
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   const [headerRefreshing, setHeaderRefreshing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
-  const [lastEmailSyncedAt, setLastEmailSyncedAt] = useState<Date | null>(null);
-  const [emailSyncing, setEmailSyncing] = useState(false);
-  const [emailSyncMessage, setEmailSyncMessage] = useState<{
-    kind: "success" | "error";
-    text: string;
-  } | null>(null);
-  const [emailSyncToastLeaving, setEmailSyncToastLeaving] = useState(false);
-  const emailSyncToastTimerRef = useRef<number | null>(null);
+  const {
+    emailSyncing,
+    emailSyncMessage,
+    emailSyncToastLeaving,
+    lastEmailSyncedAt,
+    handleEmailSync,
+    showSyncToast
+  } = useEmailSync();
+  const setEmailSyncMessage = showSyncToast;
   const [aiReclassifying, setAiReclassifying] = useState(false);
   const [batchProgress, setBatchProgress] = useState({
     visible: false,
@@ -180,6 +202,12 @@ export function DashboardInboxPage({
     setLastSyncedAt(new Date());
   }, [refresh, refreshStats]);
 
+  useEffect(() => {
+    refreshOnSyncRef.current = () => {
+      void refreshAll();
+    };
+  }, [refreshAll, refreshOnSyncRef]);
+
   const afterMutation = useCallback(
     async (options?: { full?: boolean }) => {
       if (options?.full) {
@@ -232,93 +260,6 @@ export function DashboardInboxPage({
     setLastSyncedAt(new Date());
   }, 45_000);
 
-  const applyEmailSyncResult = useCallback(
-    (result: EmailSyncResult, source: "auto" | "manual") => {
-      setLastEmailSyncedAt(new Date());
-
-      if (!result.ok) {
-        setEmailSyncMessage({
-          kind: "error",
-          text: `סנכרון המייל נכשל: ${result.details || result.error || "שגיאה לא ידועה"}`
-        });
-        return;
-      }
-
-      void refreshAll();
-
-      const skipHint = formatSkipReasons(result.skipReasons);
-      const errorHint = result.errors?.length
-        ? ` שגיאות: ${result.errors.slice(0, 2).join(" · ")}`
-        : "";
-      const skipDetail = skipHint ? ` סיבות דילוג: ${skipHint}.` : "";
-
-      if (
-        (result.imported ?? 0) > 0 ||
-        (result.followupsAttached ?? 0) > 0 ||
-        (result.reopened ?? 0) > 0
-      ) {
-        const parts: string[] = [];
-        if ((result.imported ?? 0) > 0) parts.push(`${result.imported} פניות חדשות`);
-        if ((result.followupsAttached ?? 0) > 0) {
-          parts.push(`${result.followupsAttached} תשובות חוזרות לפניות קיימות`);
-        }
-        if ((result.reopened ?? 0) > 0) parts.push(`${result.reopened} פניות נפתחו מחדש`);
-        setEmailSyncMessage({
-          kind: "success",
-          text:
-            source === "auto"
-              ? `סנכרון אוטומטי: ${parts.join(", ")} ממייל.`
-              : `סנכרון מיילים הושלם: ${parts.join(", ")}.${errorHint}`
-        });
-        return;
-      }
-
-      setEmailSyncMessage({
-        kind: "success",
-        text: `סנכרון מיילים: לא נמצאו פניות חדשות (${result.scanned ?? 0} נסרקו, ${result.skipped ?? 0} דולגו).${skipDetail}${errorHint}`
-      });
-    },
-    [refreshAll]
-  );
-
-  useEffect(() => {
-    const onAutoSync = (event: Event) => {
-      const detail = (event as CustomEvent<EmailSyncResult>).detail;
-      if (!detail) return;
-      applyEmailSyncResult(detail, "auto");
-    };
-
-    window.addEventListener(EMAIL_SYNC_EVENT, onAutoSync);
-    return () => window.removeEventListener(EMAIL_SYNC_EVENT, onAutoSync);
-  }, [applyEmailSyncResult]);
-
-  useEffect(() => {
-    if (!emailSyncMessage) {
-      setEmailSyncToastLeaving(false);
-      return;
-    }
-
-    setEmailSyncToastLeaving(false);
-    if (emailSyncToastTimerRef.current) {
-      clearTimeout(emailSyncToastTimerRef.current);
-    }
-
-    const fadeAt = Math.max(500, EMAIL_SYNC_TOAST_MS - 400);
-    const fadeTimer = window.setTimeout(() => setEmailSyncToastLeaving(true), fadeAt);
-    emailSyncToastTimerRef.current = window.setTimeout(() => {
-      setEmailSyncMessage(null);
-      setEmailSyncToastLeaving(false);
-    }, EMAIL_SYNC_TOAST_MS);
-
-    return () => {
-      clearTimeout(fadeTimer);
-      if (emailSyncToastTimerRef.current) {
-        clearTimeout(emailSyncToastTimerRef.current);
-        emailSyncToastTimerRef.current = null;
-      }
-    };
-  }, [emailSyncMessage]);
-
   const handleHeaderRefresh = useCallback(async () => {
     setHeaderRefreshing(true);
     try {
@@ -328,33 +269,6 @@ export function DashboardInboxPage({
       setHeaderRefreshing(false);
     }
   }, [refreshAll]);
-
-  const handleEmailSync = useCallback(async () => {
-    setEmailSyncing(true);
-    setEmailSyncMessage(null);
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 120_000);
-
-    try {
-      const result = await runEmailIngestClient(controller.signal, { force: true });
-      setLastSyncedAt(new Date());
-      applyEmailSyncResult(result, "manual");
-    } catch (error) {
-      setEmailSyncMessage({
-        kind: "error",
-        text: `סנכרון המייל נכשל: ${
-          error instanceof Error && error.name === "AbortError"
-            ? "הפעולה נתקעה מעל דקה. בדוק את הגדרות Gmail/Render ונסה שוב."
-            : error instanceof Error
-              ? error.message
-              : "שגיאה לא ידועה"
-        }`
-      });
-    } finally {
-      window.clearTimeout(timeout);
-      setEmailSyncing(false);
-    }
-  }, [applyEmailSyncResult]);
 
   useEffect(() => {
     setPage(1);
@@ -1163,7 +1077,7 @@ export function DashboardInboxPage({
             pageSize={pageSize}
             isLoading={isLoading}
             isRefreshing={isRefreshing}
-            selectedIds={selectedIds}
+            selectedIds={stableSelectedIds}
             activeTicket={activeTicket}
             onSetActiveTicket={(ticket) => setActiveTicketId(ticket.id)}
             onToggleSelect={onToggleSelect}

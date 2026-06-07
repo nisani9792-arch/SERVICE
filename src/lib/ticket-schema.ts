@@ -19,6 +19,25 @@ export async function ensureTicketListColumns(): Promise<void> {
         ON tickets (category, ai_suggested_category)
         WHERE category = 'pending_triage' AND deleted_at IS NULL
       `;
+      await sql()`
+        CREATE INDEX IF NOT EXISTS idx_tickets_list_active
+        ON tickets (deleted_at, status, category, message_at DESC)
+        WHERE deleted_at IS NULL
+      `;
+      await sql()`
+        CREATE INDEX IF NOT EXISTS idx_tickets_tags_gin
+        ON tickets USING GIN (tags)
+      `;
+      await sql()`
+        CREATE INDEX IF NOT EXISTS idx_tickets_sender_email_active
+        ON tickets (sender_email)
+        WHERE deleted_at IS NULL
+      `;
+      await sql()`
+        CREATE INDEX IF NOT EXISTS idx_tickets_message_at_active
+        ON tickets (COALESCE(message_at, created_at) DESC)
+        WHERE deleted_at IS NULL
+      `;
     })().catch((err) => {
       columnsReady = null;
       throw err;

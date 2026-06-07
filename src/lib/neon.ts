@@ -1,5 +1,7 @@
 import { neon, NeonQueryFunction } from "@neondatabase/serverless";
 
+export { withQueryDedup } from "@/lib/query-dedup";
+
 let _sql: NeonQueryFunction<false, false> | null = null;
 
 export function sql() {

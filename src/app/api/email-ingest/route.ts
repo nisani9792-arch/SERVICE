@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { ingestGmailInbox } from "@/lib/email-ingest";
 import { invalidateStatsCache } from "@/lib/stats-cache";
-
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -89,8 +88,7 @@ async function runEmailIngest(request: NextRequest) {
     if (result.imported > 0 || result.followupsAttached > 0 || result.reopened > 0) {
       invalidateStatsCache();
     }
-    return NextResponse.json(result);
-  } catch (error) {
+    return NextResponse.json(result);  } catch (error) {
     return NextResponse.json(
       {
         error: "Email ingest failed",

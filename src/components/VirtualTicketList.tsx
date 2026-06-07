@@ -1,9 +1,10 @@
 "use client";
 
-import { memo, useRef } from "react";
+import { memo, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { TicketListRow } from "@/components/TicketListRow";
 import { buildVirtualListRows, type VirtualListRow } from "@/lib/ticket-list-utils";
+import { useStableSelectionSet } from "@/hooks/useStableSelection";
 import type { Ticket } from "@/lib/types";
 
 const GROUP_ROW_HEIGHT = 22;
@@ -29,7 +30,8 @@ function VirtualTicketListInner({
   onToggleSelect
 }: VirtualTicketListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
-  const rows = buildVirtualListRows(tickets);
+  const rows = useMemo(() => buildVirtualListRows(tickets), [tickets]);
+  const stableSelectedIds = useStableSelectionSet(selectedIds);
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -67,7 +69,7 @@ function VirtualTicketListInner({
                   ticket={row.ticket}
                   listMode="default"
                   active={activeTicketId === row.ticket.id}
-                  selected={selectedIds.has(row.ticket.id)}
+                  selected={stableSelectedIds.has(row.ticket.id)}
                   onSelect={onSelect}
                   onToggleSelect={onToggleSelect}
                 />
