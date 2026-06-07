@@ -123,9 +123,9 @@ export async function fetchGmailAttachmentBodies(
     const contentType = String(part.mimeType ?? "application/octet-stream").trim();
     if (!isAllowedAttachmentMime(contentType, config)) continue;
 
-    let content = Buffer.alloc(0);
+    let content: Buffer = Buffer.from("");
     if (part.body?.data) {
-      content = decodeBase64Url(part.body.data);
+      content = Buffer.from(decodeBase64Url(part.body.data));
     } else if (part.body?.attachmentId) {
       try {
         const res = await gmail.users.messages.attachments.get({
@@ -134,7 +134,7 @@ export async function fetchGmailAttachmentBodies(
           id: part.body.attachmentId
         });
         if (res.data.data) {
-          content = decodeBase64Url(res.data.data);
+          content = Buffer.from(decodeBase64Url(res.data.data));
         }
       } catch {
         continue;
