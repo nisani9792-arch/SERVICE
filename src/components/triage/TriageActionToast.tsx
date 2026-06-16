@@ -28,7 +28,7 @@ export function TriageActionToast({
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 16 }}
-          className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-1/2 z-[100] flex w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 items-center gap-2 rounded-2xl border border-amber-200/90 bg-amber-50 px-3 py-2.5 shadow-lg"
+          className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-1/2 z-toast flex w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 items-center gap-2 rounded-jm3-lg border border-warning/30 bg-warning/10 px-3 py-2.5 shadow-lg"
           role="status"
         >
           <ShieldBan className="size-5 shrink-0 text-amber-800" />

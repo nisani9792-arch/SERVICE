@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { filterTicketsForPalette } from "@/lib/command-palette-search";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatTicketNumber } from "@/lib/ticket-sequence";
 import type { Ticket } from "@/lib/types";
 
@@ -59,10 +60,11 @@ export function ResolutionCommandPalette({
 }: ResolutionCommandPaletteProps) {
   const router = useRouter();
   const [bundles, setBundles] = useState<AnswerBundleLite[]>([]);
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 180);
 
   const matchedTickets = useMemo(
-    () => filterTicketsForPalette(tickets, searchQuery, 10),
-    [tickets, searchQuery]
+    () => filterTicketsForPalette(tickets, debouncedSearchQuery, 10),
+    [tickets, debouncedSearchQuery]
   );
 
   useEffect(() => {
@@ -93,7 +95,7 @@ export function ResolutionCommandPalette({
     <AnimatePresence>
       {open ? (
         <motion.div
-          className="fixed inset-0 z-[200] flex items-start justify-center px-3 pt-[max(12vh,4rem)]"
+          className="fixed inset-0 z-palette flex items-start justify-center px-3 pt-[max(12vh,4rem)]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

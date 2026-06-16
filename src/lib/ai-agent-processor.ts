@@ -5,13 +5,15 @@ import {
   getBatchJob,
   runBatchJobChunk
 } from "@/lib/ai-batch-runner";
-import { reclassifyTicketContent } from "@/lib/gemini";
+import { reclassifyTicketContent, GEMINI_MODEL_FLASH } from "@/lib/gemini";
 import { cleanMessageForAi } from "@/lib/message-filter";
 import { sweepSpamHeuristicChunk } from "@/lib/spam-sweep";
 import { sql } from "@/lib/neon";
 import { rowToTicket } from "@/lib/ticket-row";
 import { PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
-const MODEL_NAME = "gemini-1.5-flash";
+
+/** Agent task routing — flash for command parsing */
+const AGENT_ROUTER_MODEL = GEMINI_MODEL_FLASH;
 
 export type AgentTaskType =
   | "reclassify_batch"
@@ -129,7 +131,7 @@ async function parseTasksWithLlm(text: string, ctx: AgentContext): Promise<Agent
 
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
-    model: MODEL_NAME,
+    model: AGENT_ROUTER_MODEL,
     generationConfig: { temperature: 0.1, responseMimeType: "application/json" }
   });
 

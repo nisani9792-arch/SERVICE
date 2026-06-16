@@ -1,7 +1,34 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType, type Schema } from "@google/generative-ai";
+import { GEMINI_MODEL_FLASH, GEMINI_MODEL_PRO } from "@/lib/gemini";
 import type { SimilarReplySuggestion } from "@/lib/reply-knowledge";
 
-const MODEL_NAME = "gemini-1.5-flash";
+const TOPIC_PROFILE_SCHEMA: Schema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    topics: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+    intent: { type: SchemaType.STRING },
+    keywords: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } }
+  },
+  required: ["topics", "intent", "keywords"]
+};
+
+const RANK_SUGGESTIONS_SCHEMA: Schema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    ranked: { type: SchemaType.ARRAY, items: { type: SchemaType.NUMBER } },
+    reasons: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } }
+  },
+  required: ["ranked"]
+};
+
+const DRAFT_EMAIL_SCHEMA: Schema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    body: { type: SchemaType.STRING },
+    tone: { type: SchemaType.STRING }
+  },
+  required: ["body", "tone"]
+};
 
 export type InquiryTopicProfile = {
   topics: string[];
@@ -24,6 +51,18 @@ function extractJsonBlock(value: string): string {
   return trimmed.slice(first, last + 1);
 }
 
+function jsonModel(apiKey: string, modelName: string, schema: Schema, temperature: number) {
+  const genAI = new GoogleGenerativeAI(apiKey);
+  return genAI.getGenerativeModel({
+    model: modelName,
+    generationConfig: {
+      temperature,
+      responseMimeType: "application/json",
+      responseSchema: schema
+    }
+  });
+}
+
 /** Extract Hebrew/English topic labels and intent from a customer inquiry. */
 export async function extractInquiryTopicProfile(
   subject: string,
@@ -32,11 +71,7 @@ export async function extractInquiryTopicProfile(
   const apiKey = geminiApiKey();
   if (!apiKey || inquiryText.trim().length < 8) return null;
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: MODEL_NAME,
-    generationConfig: { temperature: 0.1, responseMimeType: "application/json" }
-  });
+  const model = jsonModel(apiKey, GEMINI_MODEL_FLASH, TOPIC_PROFILE_SCHEMA, 0.1);
 
   const prompt = `
 You analyze customer support inquiries for Jusic (Hebrew music streaming app).
@@ -88,11 +123,7 @@ export async function rankReplySuggestionsWithGemini(
   const apiKey = geminiApiKey();
   if (!apiKey || candidates.length === 0) return null;
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: MODEL_NAME,
-    generationConfig: { temperature: 0.05, responseMimeType: "application/json" }
-  });
+  const model = jsonModel(apiKey, GEMINI_MODEL_FLASH, RANK_SUGGESTIONS_SCHEMA, 0.05);
 
   const candidateLines = candidates
     .slice(0, 12)
@@ -173,18 +204,14 @@ export type DraftEmailResult = {
   usedKnowledge: boolean;
 };
 
-/** Compose a precise Hebrew reply using KB matches + ticket context. */
+/** Compose a precise Hebrew reply using KB matches + ticket context (Pro for depth). */
 export async function draftEmailWithKnowledge(
   input: DraftEmailInput
 ): Promise<DraftEmailResult | null> {
   const apiKey = geminiApiKey();
   if (!apiKey || input.inquiryText.trim().length < 6) return null;
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: MODEL_NAME,
-    generationConfig: { temperature: 0.35, responseMimeType: "application/json" }
-  });
+  const model = jsonModel(apiKey, GEMINI_MODEL_PRO, DRAFT_EMAIL_SCHEMA, 0.35);
 
   const kbBlock =
     input.similarReplies && input.similarReplies.length > 0

@@ -73,11 +73,11 @@ export function DashboardInboxTabs({ activeTab, counts, onTabChange, compact }: 
               aria-selected={selected}
               onClick={() => onTabChange(tab.id)}
               className={cn(
-                "shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold leading-tight transition",
+                "crm-touch-target shrink-0 rounded-jm3-md px-2 py-1 text-[10px] font-bold leading-tight transition",
                 selected
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-100",
-                tab.id === "followup" && !selected && n > 0 && "bg-amber-50 text-amber-900"
+                  ? "bg-primary text-white shadow-jm3-1"
+                  : "text-on-surface-variant hover:bg-surface-high",
+                tab.id === "followup" && !selected && n > 0 && "bg-warning/10 text-warning"
               )}
             >
               {tab.label}

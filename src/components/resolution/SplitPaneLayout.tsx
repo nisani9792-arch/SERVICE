@@ -135,7 +135,7 @@ export function SplitPaneLayout({
         {hasActiveDetail && detailOpen ? (
           <motion.div
             key="mobile-detail"
-            className="fixed inset-0 z-50 lg:hidden"
+            className="fixed inset-0 z-sheet lg:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

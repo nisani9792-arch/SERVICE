@@ -46,7 +46,7 @@ export function CloseTicketModal({
       : "טיפול בפניה וסגירת הפנייה";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
       <div className="gen-panel w-full max-w-lg">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-on-surface">{title}</h2>

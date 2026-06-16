@@ -115,11 +115,23 @@
   --jm3-rail-width: 52px;
   --jm3-inbox-row-height: 36px;
 
+  /* Z-index scale — bottom → top */
+  --jm3-z-header: 30;
+  --jm3-z-dock: 40;
+  --jm3-z-fab: 45;
+  --jm3-z-pwa: 48;
+  --jm3-z-sheet: 55;
+  --jm3-z-modal: 60;
+  --jm3-z-toast: 100;
+  --jm3-z-palette: 200;
+  --jm3-z-lock: 1000;
+
   /* Legacy bridge (SERVICE / ARTIST) */
   --j-primary: var(--jm3-color-primary);
   --j-surface: var(--jm3-color-surface);
   --j-surface-container: var(--jm3-color-surface-container);
   --j-surface-high: var(--jm3-color-surface-container-high);
+  --j-surface-container-low: var(--jm3-color-surface-dim);
   --j-on-surface: var(--jm3-color-on-surface);
   --j-on-surface-variant: var(--jm3-color-on-surface-variant);
   --j-primary-soft: var(--jm3-color-primary-container);

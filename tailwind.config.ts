@@ -1,7 +1,9 @@
 import type { Config } from "tailwindcss";
+import { jm3TailwindPreset } from "./tailwind.jm3-preset";
 
 const config: Config = {
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
+  presets: [jm3TailwindPreset],
   theme: {
     extend: {
       fontFamily: {
@@ -14,6 +16,7 @@ const config: Config = {
         "jm3-outline": "var(--jm3-color-outline)",
         surface: "var(--j-surface)",
         "surface-container": "var(--j-surface-container)",
+        "surface-container-low": "var(--j-surface-container-low)",
         "surface-high": "var(--j-surface-high)",
         "on-surface": "var(--j-on-surface)",
         "on-surface-variant": "var(--j-on-surface-variant)",
@@ -42,6 +45,17 @@ const config: Config = {
           50: "#ecfdf5",
           200: "#a7f3d0"
         }
+      },
+      zIndex: {
+        header: "var(--jm3-z-header)",
+        dock: "var(--jm3-z-dock)",
+        fab: "var(--jm3-z-fab)",
+        pwa: "var(--jm3-z-pwa)",
+        sheet: "var(--jm3-z-sheet)",
+        modal: "var(--jm3-z-modal)",
+        toast: "var(--jm3-z-toast)",
+        palette: "var(--jm3-z-palette)",
+        lock: "var(--jm3-z-lock)"
       },
       backgroundImage: {
         "gen-mesh": "var(--jm3-gen-gradient-mesh)",

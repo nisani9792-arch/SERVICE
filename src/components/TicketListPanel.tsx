@@ -4,6 +4,7 @@ import { memo, useEffect, useMemo, useState } from "react";
 import { TicketListRow, type TicketListMode } from "@/components/TicketListRow";
 import { VirtualTicketList } from "@/components/VirtualTicketList";
 import { dayGroupLabel } from "@/lib/ticket-list-utils";
+import { useStableSelectionSet } from "@/hooks/useStableSelection";
 import type { Ticket } from "@/lib/types";
 
 function useDesktopVirtualList() {
@@ -37,6 +38,7 @@ function TicketListPanelInner({
   onToggleSelect
 }: TicketListPanelProps) {
   const useVirtual = useDesktopVirtualList();
+  const stableSelectedIds = useStableSelectionSet(selectedIds);
 
   const groups = useMemo(() => {
     const map = new Map<string, Ticket[]>();
@@ -54,7 +56,7 @@ function TicketListPanelInner({
       <VirtualTicketList
         tickets={tickets}
         activeTicketId={activeTicketId}
-        selectedIds={selectedIds}
+        selectedIds={stableSelectedIds}
         onSelect={onSelect}
         onToggleSelect={onToggleSelect}
       />
@@ -62,10 +64,10 @@ function TicketListPanelInner({
   }
 
   return (
-    <div className="crm-inbox-list divide-y divide-slate-100">
+    <div className="crm-inbox-list divide-y divide-outline/30">
       {groups.map(([label, groupTickets]) => (
         <section key={label}>
-          <h3 className="sticky top-0 z-[1] bg-slate-50/95 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-400 backdrop-blur-sm">
+          <h3 className="sticky top-0 z-[1] bg-surface-container/95 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-on-surface-variant backdrop-blur-sm">
             {label}
           </h3>
           <div>
@@ -75,7 +77,7 @@ function TicketListPanelInner({
                 ticket={ticket}
                 listMode={listMode}
                 active={activeTicketId === ticket.id}
-                selected={selectedIds.has(ticket.id)}
+                selected={stableSelectedIds.has(ticket.id)}
                 onSelect={onSelect}
                 onToggleSelect={onToggleSelect}
               />

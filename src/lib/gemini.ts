@@ -1,10 +1,30 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType, type Schema } from "@google/generative-ai";
 import { bodyForAiPrompt } from "@/lib/message-filter";
 import { isLikelySpamInquiry } from "@/lib/spam-inquiry";
 import { normalizeCategory } from "@/lib/category-normalize";
 import { TicketPriority } from "@/lib/types";
 
-const MODEL_NAME = "gemini-1.5-flash";
+/** High-volume triage / ingest — low latency */
+export const GEMINI_MODEL_FLASH = process.env.GEMINI_MODEL_FLASH ?? "gemini-1.5-flash";
+/** Deep reclassify, complex reasoning */
+export const GEMINI_MODEL_PRO = process.env.GEMINI_MODEL_PRO ?? "gemini-1.5-pro";
+
+const CLASSIFICATION_RESPONSE_SCHEMA: Schema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    category: { type: SchemaType.STRING },
+    priority: { type: SchemaType.NUMBER },
+    summary: { type: SchemaType.STRING },
+    confidence: { type: SchemaType.NUMBER },
+    suggestedTags: {
+      type: SchemaType.ARRAY,
+      items: { type: SchemaType.STRING }
+    },
+    sentiment: { type: SchemaType.STRING },
+    kbRoutingHint: { type: SchemaType.STRING }
+  },
+  required: ["category", "priority", "summary", "confidence"]
+};
 
 export type GeminiClassifyResult = {
   category: string;
@@ -201,10 +221,24 @@ export const quickHeuristic = (
   return null;
 };
 
-export async function classifyWithGemini(
+type GeminiModelTier = "flash" | "pro";
+
+function classificationModel(genAI: GoogleGenerativeAI, tier: GeminiModelTier) {
+  return genAI.getGenerativeModel({
+    model: tier === "pro" ? GEMINI_MODEL_PRO : GEMINI_MODEL_FLASH,
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: "application/json",
+      responseSchema: CLASSIFICATION_RESPONSE_SCHEMA
+    }
+  });
+}
+
+async function runGeminiClassification(
   senderEmail: string,
   subject: string,
-  body: string
+  body: string,
+  tier: GeminiModelTier
 ): Promise<GeminiClassifyResult> {
   const apiKey = process.env.GOOGLE_GEMINI_API_KEY ?? process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -218,13 +252,7 @@ export async function classifyWithGemini(
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: MODEL_NAME,
-    generationConfig: {
-      temperature: 0.1,
-      responseMimeType: "application/json"
-    }
-  });
+  const model = classificationModel(genAI, tier);
 
   const compactBody = bodyForAiPrompt(body).trim().slice(0, 8000);
   const prompt = buildUnifiedPrompt(senderEmail, subject, compactBody);
@@ -297,6 +325,23 @@ export async function classifyWithGemini(
   }
 }
 
+export async function classifyWithGemini(
+  senderEmail: string,
+  subject: string,
+  body: string
+): Promise<GeminiClassifyResult> {
+  return runGeminiClassification(senderEmail, subject, body, "flash");
+}
+
+/** Deep contextual reclassify — uses Pro for tags, sentiment, KB routing */
+export async function classifyWithGeminiPro(
+  senderEmail: string,
+  subject: string,
+  body: string
+): Promise<GeminiClassifyResult> {
+  return runGeminiClassification(senderEmail, subject, body, "pro");
+}
+
 /** @deprecated Use classifyDirect from classification.ts */
 export const classifyTicketContent = async (
   senderEmail: string,
@@ -355,7 +400,7 @@ export const reclassifyTicketContent = async (
     };
   }
 
-  const result = await classifyWithGemini(senderEmail, subject, body);
+  const result = await classifyWithGeminiPro(senderEmail, subject, body);
   return {
     category: result.category,
     priority: result.priority,

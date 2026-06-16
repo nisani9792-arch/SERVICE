@@ -76,7 +76,7 @@ export function BulkReplyModal({ isOpen, count, onClose, onSubmit }: BulkReplyMo
   };
 
   return (
-    <div className="fixed inset-0 z-[60]">
+    <div className="fixed inset-0 z-modal">
       <button type="button" className="absolute inset-0 bg-black/40" aria-label="סגור" onClick={onClose} />
       <ModalCenter>
         <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-outline/80 bg-white shadow-2xl">

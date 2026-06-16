@@ -1,15 +1,52 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import { DashboardHub } from "@/components/DashboardHub";
-import { DashboardInboxPage, type WorkbenchStatusFilter } from "@/components/DashboardInboxPage";
-import { TriageMode } from "@/components/TriageMode";
-import { RapidReplyMode } from "@/components/RapidReplyMode";
-import { ReviewDeskPanel } from "@/components/crm/ReviewDeskPanel";
-import { TrashWorkspacePanel } from "@/components/crm/TrashWorkspacePanel";
+import type { WorkbenchStatusFilter } from "@/components/DashboardInboxPage";
+import { ResolutionSkeleton } from "@/components/resolution/ResolutionSkeleton";
 import { parseTicketBucket } from "@/lib/ticket-buckets";
 import { parseWorkspaceView } from "@/lib/crm-workspace-views";
+
+function CrmViewLoading() {
+  return (
+    <div className="flex min-h-[50vh] flex-col gap-3 p-4">
+      <ResolutionSkeleton className="h-10 w-full max-w-md" />
+      <ResolutionSkeleton className="min-h-[320px] flex-1" />
+    </div>
+  );
+}
+
+const DashboardInboxPage = dynamic(
+  () => import("@/components/DashboardInboxPage").then((m) => ({ default: m.DashboardInboxPage })),
+  { loading: () => <CrmViewLoading /> }
+);
+
+const TriageMode = dynamic(
+  () => import("@/components/TriageMode").then((m) => ({ default: m.TriageMode })),
+  { loading: () => <CrmViewLoading /> }
+);
+
+const RapidReplyMode = dynamic(
+  () => import("@/components/RapidReplyMode").then((m) => ({ default: m.RapidReplyMode })),
+  { loading: () => <CrmViewLoading /> }
+);
+
+const ReviewDeskPanel = dynamic(
+  () => import("@/components/crm/ReviewDeskPanel").then((m) => ({ default: m.ReviewDeskPanel })),
+  { loading: () => <CrmViewLoading /> }
+);
+
+const TrashWorkspacePanel = dynamic(
+  () =>
+    import("@/components/crm/TrashWorkspacePanel").then((m) => ({ default: m.TrashWorkspacePanel })),
+  { loading: () => <CrmViewLoading /> }
+);
+
+const DashboardHub = dynamic(
+  () => import("@/components/DashboardHub").then((m) => ({ default: m.DashboardHub })),
+  { loading: () => <CrmViewLoading /> }
+);
 
 export function CrmWorkspace() {
   const searchParams = useSearchParams();

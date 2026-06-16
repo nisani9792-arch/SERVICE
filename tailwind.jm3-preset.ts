@@ -18,6 +18,7 @@ export const jm3TailwindPreset: Partial<Config> = {
         "jm3-sm": "var(--jm3-shape-sm)",
         "jm3-md": "var(--jm3-shape-md)",
         "jm3-lg": "var(--jm3-shape-lg)",
+        "jm3-xl": "var(--jm3-shape-xl)",
         "jm3-full": "var(--jm3-shape-full)"
       },
       transitionTimingFunction: {

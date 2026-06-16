@@ -104,7 +104,7 @@ export function PwaInstallPrompt() {
   if (!visible || isStandalone()) return null;
 
   return (
-    <div className="fixed inset-x-3 bottom-3 z-[70] mx-auto max-w-md rounded-3xl border border-outline/80 bg-white/95 p-4 text-right shadow-2xl backdrop-blur-md md:bottom-6">
+    <div className="fixed inset-x-3 bottom-3 z-pwa mx-auto max-w-md rounded-jm3-xl border border-outline/80 bg-surface-container/95 p-4 text-right shadow-2xl backdrop-blur-md md:bottom-6">
       <button
         type="button"
         onClick={dismiss}

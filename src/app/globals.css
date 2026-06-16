@@ -388,7 +388,7 @@
 
 /* Mobile dock */
 .crm-mobile-dock {
-  @apply fixed inset-x-0 bottom-0 z-40 border-t px-3 py-2 md:hidden;
+  @apply fixed inset-x-0 bottom-0 z-dock border-t px-3 py-2 md:hidden;
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
   border-color: rgba(255, 255, 255, 0.5);
   background: rgba(255, 255, 255, 0.72);
@@ -416,7 +416,7 @@
 }
 
 .crm-detail-sheet {
-  @apply fixed inset-0 z-50 flex flex-col lg:hidden;
+  @apply fixed inset-0 z-sheet flex flex-col lg:hidden;
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(20px);
 }
@@ -433,7 +433,7 @@
 }
 
 .crm-toast-popup {
-  @apply fixed bottom-20 left-1/2 z-[120] w-[min(92vw,28rem)] -translate-x-1/2 text-center;
+  @apply fixed bottom-20 left-1/2 z-toast w-[min(92vw,28rem)] -translate-x-1/2 text-center;
   animation: crm-toast-in 0.32s var(--j-ease);
 }
 
@@ -472,7 +472,7 @@
 }
 
 .crm-app-header {
-  @apply glass-panel-strong sticky z-30 mb-3 px-4 py-3.5 md:py-4;
+  @apply glass-panel-strong sticky z-header mb-3 px-4 py-3.5 md:py-4;
   top: max(0.35rem, env(safe-area-inset-top));
 }
 

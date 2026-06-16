@@ -101,7 +101,7 @@ export function ReplyTemplatesModal({ isOpen, onClose, onInsert }: ReplyTemplate
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/35 p-4">
       <div className="lux-card flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold">תבניות וחתימת מענה</h2>

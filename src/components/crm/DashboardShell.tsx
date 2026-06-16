@@ -75,12 +75,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const bucket = searchParams.get("bucket") ?? "";
 
   return (
-    <div className="crm-workspace-shell flex h-dvh max-h-dvh overflow-hidden bg-slate-100">
-      <aside className="crm-workspace-rail hidden w-[3.25rem] shrink-0 flex-col border-e border-slate-200/90 bg-white md:flex lg:w-14">
-        <div className="flex h-12 items-center justify-center border-b border-slate-200/80">
+    <div className="crm-workspace-shell flex h-dvh max-h-dvh overflow-hidden overflow-x-hidden bg-surface-container-low">
+      <aside className="crm-workspace-rail hidden w-[3.25rem] shrink-0 flex-col border-e border-outline/40 bg-surface-container md:flex lg:w-14">
+        <div className="flex h-12 items-center justify-center border-b border-outline/30">
           <Link
             href={"/dashboard?view=workbench" as Route}
-            className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-[10px] font-black text-white shadow-sm"
+            className="flex size-9 min-h-[48px] min-w-[48px] items-center justify-center rounded-jm3-md bg-gradient-to-br from-primary to-accent text-[10px] font-black text-white shadow-jm3-1 md:size-9 md:min-h-0 md:min-w-0"
             title="Jusic CRM"
           >
             J
@@ -97,10 +97,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 href={href}
                 title={item.label}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 rounded-xl py-2 text-[8px] font-bold leading-none transition",
+                  "flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-jm3-md py-2 text-[8px] font-bold leading-none transition md:min-h-0",
                   active
-                    ? "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200"
-                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                    ? "bg-primary-soft text-primary ring-1 ring-primary/20"
+                    : "text-on-surface-variant hover:bg-surface-high hover:text-on-surface"
                 )}
               >
                 <Icon className="size-4 shrink-0" strokeWidth={active ? 2.25 : 2} />
@@ -109,15 +109,15 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="border-t border-slate-200/80 p-1">
+        <div className="border-t border-outline/30 p-1">
           <Link
             href={"/dashboard?view=command" as Route}
             title="מרכז פיקוד"
             className={cn(
-              "mb-1 flex flex-col items-center justify-center gap-0.5 rounded-xl py-2 text-[8px] font-bold",
+              "mb-1 flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-jm3-md py-2 text-[8px] font-bold md:min-h-0",
               currentView === "command"
-                ? "bg-slate-100 text-slate-800"
-                : "text-slate-400 hover:bg-slate-50"
+                ? "bg-surface-high text-on-surface"
+                : "text-on-surface-variant/70 hover:bg-surface-high"
             )}
           >
             <LayoutGrid className="size-4" />
@@ -126,7 +126,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <Link
             href={"/mobile/triage" as Route}
             title="מצב סריקה (נייד)"
-            className="flex flex-col items-center justify-center gap-0.5 rounded-xl border border-dashed border-indigo-200 py-2 text-[8px] font-bold text-indigo-600"
+            className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-jm3-md border border-dashed border-primary/25 py-2 text-[8px] font-bold text-primary md:min-h-0"
           >
             <Smartphone className="size-4" />
             <span>נייד</span>
@@ -134,7 +134,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">{children}</div>
     </div>
   );
 }

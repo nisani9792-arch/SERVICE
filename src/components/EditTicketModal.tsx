@@ -65,7 +65,7 @@ export function EditTicketModal({ ticket, onClose }: EditTicketModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/35 p-4">
       <div className="lux-card max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold">עריכת פנייה</h2>

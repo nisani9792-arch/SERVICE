@@ -21,7 +21,7 @@ export function BatchProgressBar({
 
   return (
     <div
-      className="crm-batch-progress glass-panel-strong fixed inset-x-3 bottom-[max(4.5rem,calc(env(safe-area-inset-bottom)+3.5rem))] z-40 p-3 md:inset-x-auto md:right-4 md:w-80"
+      className="crm-batch-progress glass-panel-strong fixed inset-x-3 bottom-[max(4.5rem,calc(env(safe-area-inset-bottom)+3.5rem))] z-dock p-3 md:inset-x-auto md:right-4 md:w-80"
       role="status"
       aria-live="polite"
     >

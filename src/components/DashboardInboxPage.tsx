@@ -2,21 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { CrmWorkspaceHeader } from "@/components/crm/CrmWorkspaceHeader";
-import { MobileDock } from "@/components/MobileDock";
+import { DashboardInboxOverlays } from "@/components/crm/DashboardInboxOverlays";
 import { SearchBar } from "@/components/SearchBar";
 import { DashboardInboxTabs, type InboxTabId } from "@/components/DashboardInboxTabs";
 import { DashboardToolbar } from "@/components/DashboardToolbar";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
-import { AiAgentPanel } from "@/components/AiAgentPanel";
-import { AiInsightsPanel } from "@/components/AiInsightsPanel";
-import { BatchProgressBar } from "@/components/BatchProgressBar";
 import { TicketWorkbench } from "@/components/TicketWorkbench";
-import { ResolutionCommandPalette } from "@/components/resolution/ResolutionCommandPalette";
 import { triggerResolveBackgroundAi } from "@/lib/resolve-ticket-client";
-import { ReplyTicketModal } from "@/components/ReplyTicketModal";
 import {
   deleteTicket,
   deleteTicketsBulk,
@@ -33,18 +27,12 @@ import {
 import { useTicketList } from "@/hooks/useTicketList";
 import { useListPageSize } from "@/hooks/useListPageSize";
 import { EmailSyncProvider, useEmailSync } from "@/components/crm/EmailSyncProvider";
-import { useStableSelectionSet } from "@/hooks/useStableSelection";
+import { useStableHandler, useStableSelectionSet } from "@/hooks/useStableSelection";
 import { useLiveRefresh } from "@/hooks/useLiveRefresh";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useInboxKeyboard } from "@/hooks/useInboxKeyboard";
 import { useTicketUrlSync } from "@/hooks/useResolutionSelection";
 import { CUSTOMER_FOLLOWUP_CATEGORY, PENDING_TRIAGE_CATEGORY } from "@/lib/triage";
-import { ImportModal } from "@/components/ImportModal";
-import { NewTicketModal } from "@/components/NewTicketModal";
-import { EditTicketModal } from "@/components/EditTicketModal";
-import { ExportContactsModal } from "@/components/ExportContactsModal";
-import { ReplyTemplatesModal } from "@/components/ReplyTemplatesModal";
-import { BulkReplyModal } from "@/components/BulkReplyModal";
 import type { Ticket, TicketStatus } from "@/lib/types";
 import { startBulkJobWithSse } from "@/lib/bulk-job-client";
 import { confirmSpamWithBlockSender } from "@/lib/spam-confirm";
@@ -85,7 +73,6 @@ function DashboardInboxPageInner({
   initialBucket?: TicketBucket | null;
   refreshOnSyncRef: React.MutableRefObject<() => void>;
 }) {
-  const router = useRouter();
   const [activeCategory, setActiveCategory] = useState<string | "all">("all");
   const [activeBucket, setActiveBucket] = useState<TicketBucket | null>(initialBucket);
   const [activeStatus, setActiveStatus] = useState<WorkbenchStatusFilter>(
@@ -144,13 +131,14 @@ function DashboardInboxPageInner({
   });
 
   const debouncedSearch = useDebouncedValue(searchValue, 220);
+  const debouncedTagsFilter = useDebouncedValue(tagsFilter, 220);
   const tagTokens = useMemo(
     () =>
-      tagsFilter
+      debouncedTagsFilter
         .split(/[,;\s]+/)
         .map((t) => t.trim())
         .filter(Boolean),
-    [tagsFilter]
+    [debouncedTagsFilter]
   );
 
   const listQuery = useMemo(
@@ -272,11 +260,11 @@ function DashboardInboxPageInner({
 
   useEffect(() => {
     setPage(1);
-  }, [activeCategory, activeStatus, debouncedSearch, dateFrom, dateTo, tagsFilter]);
+  }, [activeCategory, activeStatus, debouncedSearch, dateFrom, dateTo, debouncedTagsFilter]);
 
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [activeCategory, activeStatus, debouncedSearch, dateFrom, dateTo, tagsFilter, page]);
+  }, [activeCategory, activeStatus, debouncedSearch, dateFrom, dateTo, debouncedTagsFilter, page]);
 
   useEffect(() => {
     if (items.length === 0) {
@@ -314,27 +302,33 @@ function DashboardInboxPageInner({
 
   const onClearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
-  const onSetTicketStatus = async (ticketId: string, status: TicketStatus) => {
-    patchItem(ticketId, { status });
-    try {
-      const updated = await updateTicket(ticketId, { status });
-      upsertItem(updated);
-      await afterMutation();
-    } catch {
-      await afterMutation({ full: true });
-    }
-  };
+  const onSetTicketStatus = useCallback(
+    async (ticketId: string, status: TicketStatus) => {
+      patchItem(ticketId, { status });
+      try {
+        const updated = await updateTicket(ticketId, { status });
+        upsertItem(updated);
+        await afterMutation();
+      } catch {
+        await afterMutation({ full: true });
+      }
+    },
+    [afterMutation, patchItem, upsertItem]
+  );
 
-  const onDelete = async (ticketId: string) => {
-    removeItem(ticketId);
-    if (activeTicketId === ticketId) setActiveTicketId(null);
-    try {
-      await deleteTicket(ticketId);
-      await afterMutation();
-    } catch {
-      await afterMutation({ full: true });
-    }
-  };
+  const onDelete = useCallback(
+    async (ticketId: string) => {
+      removeItem(ticketId);
+      if (activeTicketId === ticketId) setActiveTicketId(null);
+      try {
+        await deleteTicket(ticketId);
+        await afterMutation();
+      } catch {
+        await afterMutation({ full: true });
+      }
+    },
+    [activeTicketId, afterMutation, removeItem]
+  );
 
   const advanceAfterTicketRemoved = useCallback(
     (ticketId: string) => {
@@ -513,53 +507,59 @@ function DashboardInboxPageInner({
     }
   };
 
-  const onChangeSingleCategory = async (ticketId: string, category: string) => {
-    patchItem(ticketId, { category });
-    try {
-      const updated = await updateTicket(ticketId, { category });
-      upsertItem(updated);
-      await afterMutation();
-    } catch {
-      await afterMutation({ full: true });
-    }
-  };
-
-  const onTriageAssign = async (ticketId: string, category: string) => {
-    const currentIndex = items.findIndex((ticket) => ticket.id === ticketId);
-    let nextTicket: Ticket | null = items[currentIndex + 1] ?? items[currentIndex - 1] ?? null;
-
-    if (!nextTicket && currentIndex === items.length - 1 && page * pageSize < total) {
+  const onChangeSingleCategory = useCallback(
+    async (ticketId: string, category: string) => {
+      patchItem(ticketId, { category });
       try {
-        const nextPage = await fetchTicketPage({
-          ...listQuery,
-          page: page + 1
-        });
-        nextTicket = nextPage.items[0] ?? null;
+        const updated = await updateTicket(ticketId, { category });
+        upsertItem(updated);
+        await afterMutation();
       } catch {
-        nextTicket = null;
+        await afterMutation({ full: true });
       }
-    }
+    },
+    [afterMutation, patchItem, upsertItem]
+  );
 
-    removeItem(ticketId);
-    if (nextTicket && nextTicket.id !== ticketId) {
-      setActiveTicketId(nextTicket.id);
-    } else {
-      setActiveTicketId(null);
-    }
+  const onTriageAssign = useCallback(
+    async (ticketId: string, category: string) => {
+      const currentIndex = items.findIndex((ticket) => ticket.id === ticketId);
+      let nextTicket: Ticket | null = items[currentIndex + 1] ?? items[currentIndex - 1] ?? null;
 
-    try {
-      await updateTicket(ticketId, {
-        category,
-        status: "open",
-        aiSuggestedCategory: null,
-        classificationConfidence: null
-      });
-      await afterMutation();
-    } catch {
-      setActiveTicketId(ticketId);
-      await afterMutation({ full: true });
-    }
-  };
+      if (!nextTicket && currentIndex === items.length - 1 && page * pageSize < total) {
+        try {
+          const nextPage = await fetchTicketPage({
+            ...listQuery,
+            page: page + 1
+          });
+          nextTicket = nextPage.items[0] ?? null;
+        } catch {
+          nextTicket = null;
+        }
+      }
+
+      removeItem(ticketId);
+      if (nextTicket && nextTicket.id !== ticketId) {
+        setActiveTicketId(nextTicket.id);
+      } else {
+        setActiveTicketId(null);
+      }
+
+      try {
+        await updateTicket(ticketId, {
+          category,
+          status: "open",
+          aiSuggestedCategory: null,
+          classificationConfidence: null
+        });
+        await afterMutation();
+      } catch {
+        setActiveTicketId(ticketId);
+        await afterMutation({ full: true });
+      }
+    },
+    [afterMutation, items, listQuery, page, pageSize, removeItem, total]
+  );
 
   const onBulkByFilter = async (payload: {
     category?: string;
@@ -812,13 +812,13 @@ function DashboardInboxPageInner({
     window.alert(`מענה מרובה: ${parts.join(" · ")}`);
   };
 
-  const onSaveInquiry = async (ticket: Ticket) => {
+  const onSaveInquiry = useCallback(async (ticket: Ticket) => {
     await saveInquiryForAction(ticket);
     setEmailSyncMessage({
       kind: "success",
       text: "הפנייה נשמרה כמסמך בפניות שמורות (נושא, מייל וטקסט)."
     });
-  };
+  }, [setEmailSyncMessage]);
 
   const dynamicCategories = stats?.byCategory ?? [];
   const openCount = stats?.statusCounts.open ?? 0;
@@ -896,34 +896,73 @@ function DashboardInboxPageInner({
             : undefined;
   const workbenchListMode = activeStatus === "outbox" ? "outbox" as const : "default" as const;
 
+  const onSetActiveTicket = useCallback((ticket: Ticket) => {
+    setActiveTicketId(ticket.id);
+  }, []);
+
+  const onEditTicket = useCallback((ticket: Ticket) => {
+    setEditingTicket(ticket);
+  }, []);
+
+  const onReplyTicket = useCallback((ticket: Ticket) => {
+    setReplyingTicket(ticket);
+  }, []);
+
+  const stableOnDelete = useStableHandler(onDelete);
+  const stableOnSetStatus = useStableHandler(onSetTicketStatus);
+  const stableOnChangeCategory = useStableHandler(onChangeSingleCategory);
+  const stableOnSaveInquiry = useStableHandler(onSaveInquiry);
+  const stableOnTriageAssign = useStableHandler(onTriageAssign);
+  const stableOnMarkSpam = useStableHandler(onMarkSpam);
+  const stableOnArchive = useStableHandler(onArchiveTicket);
+  const stableOnInlineReply = useStableHandler(onInlineReply);
+
+  const onSelectTicketFromPalette = useCallback((ticket: Ticket) => {
+    setActiveTicketId(ticket.id);
+    setPage(1);
+  }, []);
+
+  const onArchiveActiveFromPalette = useCallback(() => {
+    if (!activeTicket) return;
+    void onArchiveTicket(activeTicket.id);
+  }, [activeTicket, onArchiveTicket]);
+
+  const onInlineReplyFromPalette = useCallback(
+    (text: string) => {
+      if (!activeTicket) return;
+      void onInlineReply(activeTicket.id, text);
+    },
+    [activeTicket, onInlineReply]
+  );
+
   const advancedMenu = (
     <details className="relative">
       <summary className="crm-icon-btn cursor-pointer list-none">⋯</summary>
-      <div className="absolute left-0 z-50 mt-1 w-36 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+      <div className="absolute left-0 z-modal mt-1 w-36 rounded-jm3-md border border-outline/50 bg-surface-container p-1 shadow-jm3-2">
         <button
           type="button"
           onClick={() => setShowReplyTemplates(true)}
-          className="flex w-full rounded-lg px-2 py-1.5 text-right text-[10px] font-semibold hover:bg-slate-50"
+          className="crm-touch-target flex w-full rounded-jm3-sm px-2 py-1.5 text-right text-[10px] font-semibold hover:bg-surface-high"
         >
           תבניות
         </button>
         <button
           type="button"
           onClick={() => setShowExportModal(true)}
-          className="flex w-full rounded-lg px-2 py-1.5 text-right text-[10px] font-semibold hover:bg-slate-50"
+          className="crm-touch-target flex w-full rounded-jm3-sm px-2 py-1.5 text-right text-[10px] font-semibold hover:bg-surface-high"
         >
           ייצוא
         </button>
         <button
           type="button"
           onClick={() => setShowImportModal(true)}
-          className="flex w-full rounded-lg px-2 py-1.5 text-right text-[10px] font-semibold hover:bg-slate-50"
+          className="crm-touch-target flex w-full rounded-jm3-sm px-2 py-1.5 text-right text-[10px] font-semibold hover:bg-surface-high"
         >
           יבוא
         </button>
         <Link
           href="/saved-inquiries"
-          className="flex w-full rounded-lg px-2 py-1.5 text-right text-[10px] font-semibold hover:bg-slate-50"
+          className="crm-touch-target flex w-full rounded-jm3-sm px-2 py-1.5 text-right text-[10px] font-semibold hover:bg-surface-high"
         >
           פניות שמורות
         </Link>
@@ -1007,10 +1046,10 @@ function DashboardInboxPageInner({
           />
         </div>
         <details className="relative shrink-0">
-          <summary className="cursor-pointer list-none rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600">
+          <summary className="crm-touch-target cursor-pointer list-none rounded-jm3-md border border-outline/40 px-2 py-1 text-[10px] font-bold text-on-surface-variant">
             מסננים
           </summary>
-          <div className="absolute end-0 z-40 mt-1 w-72 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+          <div className="absolute end-0 z-dock mt-1 w-72 rounded-jm3-md border border-outline/50 bg-surface-container p-2 shadow-jm3-2">
             <DashboardToolbar
               searchValue={searchValue}
               onSearchChange={setSearchValue}
@@ -1079,34 +1118,20 @@ function DashboardInboxPageInner({
             isRefreshing={isRefreshing}
             selectedIds={stableSelectedIds}
             activeTicket={activeTicket}
-            onSetActiveTicket={(ticket) => setActiveTicketId(ticket.id)}
+            onSetActiveTicket={onSetActiveTicket}
             onToggleSelect={onToggleSelect}
             onSelectPage={onSelectPage}
             onPageChange={setPage}
-            onEdit={setEditingTicket}
-            onDelete={(id) => {
-              void onDelete(id);
-            }}
-            onSetStatus={(id, status) => {
-              void onSetTicketStatus(id, status);
-            }}
-            onChangeCategory={(id, category) => {
-              void onChangeSingleCategory(id, category);
-            }}
-            onReply={setReplyingTicket}
-            onSaveInquiry={(ticket) => {
-              void onSaveInquiry(ticket);
-            }}
-            onTriageAssign={(id, category) => {
-              void onTriageAssign(id, category);
-            }}
-            onSpam={(id) => {
-              void onMarkSpam(id);
-            }}
-            onArchive={(id) => {
-              void onArchiveTicket(id);
-            }}
-            onInlineReply={onInlineReply}
+            onEdit={onEditTicket}
+            onDelete={stableOnDelete}
+            onSetStatus={stableOnSetStatus}
+            onChangeCategory={stableOnChangeCategory}
+            onReply={onReplyTicket}
+            onSaveInquiry={stableOnSaveInquiry}
+            onTriageAssign={stableOnTriageAssign}
+            onSpam={stableOnMarkSpam}
+            onArchive={stableOnArchive}
+            onInlineReply={stableOnInlineReply}
         />
       </div>
 
@@ -1123,110 +1148,58 @@ function DashboardInboxPageInner({
         onClearSelection={onClearSelection}
       />
 
-      <details className="shrink-0 border-t border-slate-200 bg-white px-2 py-1">
-        <summary className="cursor-pointer text-[10px] font-bold text-slate-500">AI ותובנות</summary>
-        <div className="space-y-2 py-2">
-          <AiInsightsPanel />
-          <AiAgentPanel
-            selectedCount={selectedIds.size}
-            busy={aiReclassifying}
-            onRun={onAgentCommand}
-          />
-        </div>
-      </details>
-
-      <ImportModal
-        isOpen={showImportModal}
-        onClose={() => {
+      <DashboardInboxOverlays
+        selectedCount={selectedIds.size}
+        aiReclassifying={aiReclassifying}
+        onAgentCommand={onAgentCommand}
+        showImportModal={showImportModal}
+        onCloseImport={() => {
           setShowImportModal(false);
           void refreshAll();
         }}
-      />
-      <NewTicketModal
-        isOpen={showNewModal}
-        onClose={() => {
+        showNewModal={showNewModal}
+        onCloseNew={() => {
           setShowNewModal(false);
           void refreshAll();
         }}
-      />
-      <EditTicketModal
-        ticket={editingTicket}
-        onClose={() => {
+        editingTicket={editingTicket}
+        onCloseEdit={() => {
           setEditingTicket(null);
           void refreshAll();
         }}
-      />
-      <ReplyTicketModal
-        ticket={replyingTicket}
-        onClose={() => setReplyingTicket(null)}
-        onSubmit={onSendReply}
-      />
-      <ExportContactsModal isOpen={showExportModal} onClose={() => setShowExportModal(false)} />
-      <ReplyTemplatesModal isOpen={showReplyTemplates} onClose={() => setShowReplyTemplates(false)} />
-      <BulkReplyModal
-        isOpen={showBulkReply}
-        count={selectedIds.size}
-        onClose={() => setShowBulkReply(false)}
-        onSubmit={onBulkSendReply}
-      />
-
-      <div className="md:hidden">
-        <MobileDock
-          onSyncMail={() => {
-            void handleEmailSync();
-          }}
-          onTriage={() => {
-            router.push("/dashboard?view=triage");
-          }}
-          onAnswerBundles={() => {
-            router.push("/answer-bundles");
-          }}
-          onReview={() => {
-            router.push("/mobile/triage?queue=active");
-          }}
-          emailSyncing={emailSyncing}
-          triageCount={triageCount}
-          bundleCount={0}
-        />
-      </div>
-
-      <BatchProgressBar
-        visible={batchProgress.visible}
-        label={batchProgress.label}
-        processed={batchProgress.processed}
-        total={batchProgress.total}
-        progress={batchProgress.progress}
-      />
-
-      <ResolutionCommandPalette
-        open={commandPaletteOpen}
-        onOpenChange={setCommandPaletteOpen}
-        searchQuery={searchValue}
-        onSearchQueryChange={setSearchValue}
+        replyingTicket={replyingTicket}
+        onCloseReply={() => setReplyingTicket(null)}
+        onSendReply={onSendReply}
+        showExportModal={showExportModal}
+        onCloseExport={() => setShowExportModal(false)}
+        showReplyTemplates={showReplyTemplates}
+        onCloseReplyTemplates={() => setShowReplyTemplates(false)}
+        showBulkReply={showBulkReply}
+        bulkReplyCount={selectedIds.size}
+        onCloseBulkReply={() => setShowBulkReply(false)}
+        onBulkSendReply={onBulkSendReply}
+        emailSyncing={emailSyncing}
+        triageCount={triageCount}
+        onEmailSync={() => {
+          void handleEmailSync();
+        }}
+        batchProgress={batchProgress}
+        commandPaletteOpen={commandPaletteOpen}
+        onCommandPaletteOpenChange={setCommandPaletteOpen}
+        searchValue={searchValue}
+        onSearchValueChange={setSearchValue}
         tickets={items}
         activeTicket={activeTicket}
-        onSelectTicket={(ticket) => {
-          setActiveTicketId(ticket.id);
-          setPage(1);
-        }}
-        onNewTicket={() => setShowNewModal(true)}
-        onCloseActiveTicket={() => {
-          if (!activeTicket) return;
-          void onArchiveTicket(activeTicket.id);
-        }}
-        onMarkSpam={(id) => {
+        onSelectTicketFromPalette={onSelectTicketFromPalette}
+        onNewTicketFromPalette={() => setShowNewModal(true)}
+        onArchiveActiveFromPalette={onArchiveActiveFromPalette}
+        onMarkSpamFromPalette={(id) => {
           void onMarkSpam(id);
         }}
-        onArchive={(id) => {
+        onArchiveFromPalette={(id) => {
           void onArchiveTicket(id);
         }}
-        onFocusAiReply={() => {
-          window.dispatchEvent(new Event("resolution:focus-reply"));
-        }}
-        onApplyBundleReply={(text) => {
-          if (!activeTicket) return;
-          void onInlineReply(activeTicket.id, text);
-        }}
+        onInlineReplyFromPalette={onInlineReplyFromPalette}
       />
     </div>
   );

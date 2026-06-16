@@ -272,7 +272,7 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
     importMode === "historical" ? historicalRecords.length : classicRecords.length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/35 p-4">
       <div className="lux-card w-full max-w-xl rounded-2xl p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold">ייבוא פניות</h2>
