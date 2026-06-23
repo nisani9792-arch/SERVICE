@@ -88,15 +88,16 @@ export class ImapSession {
   async connect(): Promise<void> {
     if (this.connected && this.client) return;
 
-    await this.disconnect();
-    this.client = new ImapFlow(buildClientOptions(this.config));
-    this.attachLifecycleHandlers(this.client);
-
     let lastError: unknown = null;
     for (let attempt = 1; attempt <= this.maxAttempts; attempt += 1) {
+      await this.destroyClient();
+      const client = new ImapFlow(buildClientOptions(this.config));
+      this.client = client;
+      this.attachLifecycleHandlers(client);
+
       try {
         await withTimeout(
-          this.client.connect(),
+          client.connect(),
           Math.min(25_000, this.config.connectTimeoutMs),
           "IMAP connect"
         );
@@ -105,6 +106,7 @@ export class ImapSession {
       } catch (error) {
         lastError = error;
         this.connected = false;
+        await this.destroyClient();
         if (attempt < this.maxAttempts) {
           const delayMs = Math.min(8_000, 800 * 2 ** (attempt - 1));
           await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -121,11 +123,19 @@ export class ImapSession {
   }
 
   async disconnect(): Promise<void> {
+    await this.destroyClient();
+  }
+
+  private async destroyClient(): Promise<void> {
     if (!this.client) return;
     const client = this.client;
     this.client = null;
     this.connected = false;
-    await withTimeout(client.logout(), 8_000, "IMAP logout").catch(() => undefined);
+    try {
+      await withTimeout(client.logout(), 8_000, "IMAP logout");
+    } catch {
+      client.close();
+    }
   }
 
   async withMailbox<T>(mailbox: string, fn: (client: ImapFlow) => Promise<T>): Promise<T> {

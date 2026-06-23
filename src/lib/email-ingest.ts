@@ -702,6 +702,8 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
       "IMAP list mailboxes"
     );
 
+    const processedUids: number[] = [];
+
     await session.withMailbox(config.mailbox, async (client) => {
       const since = new Date(Date.now() - config.lookbackDays * 24 * 60 * 60 * 1000);
       const [sinceUids, unseenUids] = await Promise.all([
@@ -723,8 +725,6 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
       if (uidsToFetch.length === 0) {
         return;
       }
-
-      const processedUids: number[] = [];
 
       for await (const fetched of client.fetch(
         uidsToFetch,
@@ -770,13 +770,13 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
           result.skipReasons.push("error");
         }
       }
-
-      const archivedCount = await session.archiveUids(result.archiveMailbox, processedUids);
-      result.archived += archivedCount;
-      if (archivedCount !== processedUids.length) {
-        result.errors.push("Some processed emails could not be archived in the mailbox");
-      }
     });
+
+    const archivedCount = await session.archiveUids(result.archiveMailbox, processedUids);
+    result.archived += archivedCount;
+    if (archivedCount !== processedUids.length) {
+      result.errors.push("Some processed emails could not be archived in the mailbox");
+    }
   } finally {
     await session.disconnect().catch(() => undefined);
   }
