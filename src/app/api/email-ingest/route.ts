@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { ingestGmailInbox } from "@/lib/email-ingest";
+import { formatImapCommandError } from "@/lib/imap-session";
 import { invalidateStatsCache } from "@/lib/stats-cache";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -92,7 +93,7 @@ async function runEmailIngest(request: NextRequest) {
     return NextResponse.json(
       {
         error: "Email ingest failed",
-        details: error instanceof Error ? error.message : "Unknown error"
+        details: formatImapCommandError(error)
       },
       { status: 500 }
     );

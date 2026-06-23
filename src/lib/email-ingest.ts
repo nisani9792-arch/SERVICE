@@ -668,6 +668,78 @@ async function resolveArchiveMailbox(session: ImapSession, config: GmailConfig):
   );
 }
 
+type FetchedInboxItem = {
+  uid: number;
+  message: ParsedEmailMessage | null;
+};
+
+async function fetchInboxMessages(
+  session: ImapSession,
+  config: GmailConfig,
+  result: EmailIngestResult
+): Promise<FetchedInboxItem[]> {
+  const items: FetchedInboxItem[] = [];
+
+  await session.withMailbox(config.mailbox, async (client) => {
+    const since = new Date(Date.now() - config.lookbackDays * 24 * 60 * 60 * 1000);
+    const [sinceUids, unseenUids] = await Promise.all([
+      withTimeout(client.search({ since }, { uid: true }), config.timeoutMs, "IMAP search since"),
+      withTimeout(client.search({ seen: false }, { uid: true }), config.timeoutMs, "IMAP search unseen").catch(
+        () => [] as number[]
+      )
+    ]);
+
+    const uidSet = new Set<number>();
+    for (const uid of [...(Array.isArray(sinceUids) ? sinceUids : []), ...(Array.isArray(unseenUids) ? unseenUids : [])]) {
+      if (Number.isFinite(uid) && uid > 0) uidSet.add(uid);
+    }
+
+    const uidsToFetch = Array.from(uidSet)
+      .sort((a, b) => a - b)
+      .slice(-config.maxMessages);
+
+    if (uidsToFetch.length === 0) {
+      return;
+    }
+
+    for await (const fetched of client.fetch(
+      uidsToFetch,
+      { uid: true, source: true },
+      { uid: true }
+    )) {
+      result.scanned += 1;
+
+      try {
+        const uid = Number(fetched.uid);
+        const source = Buffer.isBuffer(fetched.source)
+          ? fetched.source
+          : Buffer.from(fetched.source ?? "");
+
+        if (!uid || source.length === 0) {
+          result.skipped += 1;
+          continue;
+        }
+
+        const message = await parseFetchedMessage(config.mailbox, uid, source);
+        source.fill(0);
+        if (!message) {
+          result.skipped += 1;
+          continue;
+        }
+
+        items.push({ uid, message });
+      } catch (error) {
+        result.skipped += 1;
+        result.errors.push(error instanceof Error ? error.message : "Unknown email parsing error");
+        result.skipReasons = result.skipReasons ?? [];
+        result.skipReasons.push("error");
+      }
+    }
+  });
+
+  return items;
+}
+
 async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailIngestResult> {
   await ensureEmailIngestSchema();
 
@@ -702,80 +774,45 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
       "IMAP list mailboxes"
     );
 
+    const fetchedItems = await fetchInboxMessages(session, config, result);
     const processedUids: number[] = [];
 
-    await session.withMailbox(config.mailbox, async (client) => {
-      const since = new Date(Date.now() - config.lookbackDays * 24 * 60 * 60 * 1000);
-      const [sinceUids, unseenUids] = await Promise.all([
-        withTimeout(client.search({ since }, { uid: true }), config.timeoutMs, "IMAP search since"),
-        withTimeout(client.search({ seen: false }, { uid: true }), config.timeoutMs, "IMAP search unseen").catch(
-          () => [] as number[]
-        )
-      ]);
-
-      const uidSet = new Set<number>();
-      for (const uid of [...(Array.isArray(sinceUids) ? sinceUids : []), ...(Array.isArray(unseenUids) ? unseenUids : [])]) {
-        if (Number.isFinite(uid) && uid > 0) uidSet.add(uid);
+    for (const { uid, message } of fetchedItems) {
+      if (!message) {
+        result.skipped += 1;
+        continue;
       }
 
-      const uidsToFetch = Array.from(uidSet)
-        .sort((a, b) => a - b)
-        .slice(-config.maxMessages);
+      try {
+        const processed = await processInboundEmailMessage(message, {
+          ownerEmail: config.user,
+          sourceTag: config.sourceTag
+        });
 
-      if (uidsToFetch.length === 0) {
-        return;
+        recordProcessResult(result, processed);
+        if (processed.imported) result.imported += 1;
+        if (processed.followupAttached) result.followupsAttached += 1;
+        if (processed.reopened) result.reopened += 1;
+        if (processed.skipped) result.skipped += 1;
+        if (processed.shouldArchive) processedUids.push(uid);
+      } catch (error) {
+        result.skipped += 1;
+        result.errors.push(error instanceof Error ? error.message : "Unknown email processing error");
+        result.skipReasons = result.skipReasons ?? [];
+        result.skipReasons.push("error");
       }
+    }
 
-      for await (const fetched of client.fetch(
-        uidsToFetch,
-        { uid: true, source: true },
-        { uid: true }
-      )) {
-        result.scanned += 1;
-
-        try {
-          const uid = Number(fetched.uid);
-          const source = Buffer.isBuffer(fetched.source)
-            ? fetched.source
-            : Buffer.from(fetched.source ?? "");
-
-          if (!uid || source.length === 0) {
-            result.skipped += 1;
-            continue;
-          }
-
-          const message = await parseFetchedMessage(config.mailbox, uid, source);
-          source.fill(0);
-
-          if (!message) {
-            result.skipped += 1;
-            continue;
-          }
-
-          const processed = await processInboundEmailMessage(message, {
-            ownerEmail: config.user,
-            sourceTag: config.sourceTag
-          });
-
-          recordProcessResult(result, processed);
-          if (processed.imported) result.imported += 1;
-          if (processed.followupAttached) result.followupsAttached += 1;
-          if (processed.reopened) result.reopened += 1;
-          if (processed.skipped) result.skipped += 1;
-          if (processed.shouldArchive) processedUids.push(uid);
-        } catch (error) {
-          result.skipped += 1;
-          result.errors.push(error instanceof Error ? error.message : "Unknown email parsing error");
-          result.skipReasons = result.skipReasons ?? [];
-          result.skipReasons.push("error");
-        }
+    if (processedUids.length > 0) {
+      const archivedCount = await session.archiveUids(
+        config.mailbox,
+        result.archiveMailbox,
+        processedUids
+      );
+      result.archived += archivedCount;
+      if (archivedCount !== processedUids.length) {
+        result.errors.push("Some processed emails could not be archived in the mailbox");
       }
-    });
-
-    const archivedCount = await session.archiveUids(result.archiveMailbox, processedUids);
-    result.archived += archivedCount;
-    if (archivedCount !== processedUids.length) {
-      result.errors.push("Some processed emails could not be archived in the mailbox");
     }
   } finally {
     await session.disconnect().catch(() => undefined);

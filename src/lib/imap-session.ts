@@ -24,6 +24,12 @@ export type ImapSessionConfig = {
 
 const ARCHIVE_CHUNK_SIZE = 50;
 
+export function formatImapCommandError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const imapErr = error as Error & { responseText?: string };
+  return imapErr.responseText ? `${imapErr.message}: ${imapErr.responseText}` : imapErr.message;
+}
+
 function classifyConnectError(error: unknown): ImapErrorKind {
   const msg = error instanceof Error ? error.message : String(error);
   if (/auth|credentials|login|invalid.*password|535/i.test(msg)) return "auth";
@@ -148,29 +154,48 @@ export class ImapSession {
     }
   }
 
-  async archiveUids(archiveMailbox: string, uids: number[]): Promise<number> {
+  async archiveUids(sourceMailbox: string, archiveMailbox: string, uids: number[]): Promise<number> {
     if (uids.length === 0) return 0;
-    await this.connect();
 
-    let archived = 0;
-    for (let i = 0; i < uids.length; i += ARCHIVE_CHUNK_SIZE) {
-      const chunk = uids.slice(i, i + ARCHIVE_CHUNK_SIZE);
-      try {
-        const moved = await withTimeout(
-          this.raw.messageMove(chunk, archiveMailbox, { uid: true }),
-          this.config.socketTimeoutMs,
-          "IMAP archive"
-        );
-        if (moved) archived += chunk.length;
-      } catch (error) {
-        throw new ImapSessionError(
-          "archive",
-          error instanceof Error ? error.message : "IMAP archive failed",
-          error
-        );
+    return this.withMailbox(sourceMailbox, async (client) => {
+      let archived = 0;
+      for (let i = 0; i < uids.length; i += ARCHIVE_CHUNK_SIZE) {
+        const chunk = uids.slice(i, i + ARCHIVE_CHUNK_SIZE);
+        try {
+          const moved = await withTimeout(
+            client.messageMove(chunk, archiveMailbox, { uid: true }),
+            this.config.socketTimeoutMs,
+            "IMAP archive"
+          );
+          if (moved) {
+            archived += chunk.length;
+            continue;
+          }
+        } catch (moveError) {
+          try {
+            await withTimeout(
+              client.messageFlagsAdd(chunk, ["\\Deleted"], { uid: true }),
+              this.config.socketTimeoutMs,
+              "IMAP mark deleted"
+            );
+            await withTimeout(
+              client.messageDelete(chunk, { uid: true }),
+              this.config.socketTimeoutMs,
+              "IMAP expunge"
+            );
+            archived += chunk.length;
+            continue;
+          } catch (deleteError) {
+            throw new ImapSessionError(
+              "archive",
+              `Failed to remove processed mail from ${sourceMailbox}: ${formatImapCommandError(deleteError)}`,
+              deleteError
+            );
+          }
+        }
       }
-    }
-    return archived;
+      return archived;
+    });
   }
 
   private attachLifecycleHandlers(client: ImapFlow): void {
