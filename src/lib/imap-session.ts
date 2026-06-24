@@ -171,7 +171,7 @@ export class ImapSession {
             archived += chunk.length;
             continue;
           }
-        } catch (moveError) {
+        } catch {
           try {
             await withTimeout(
               client.messageFlagsAdd(chunk, ["\\Deleted"], { uid: true }),
