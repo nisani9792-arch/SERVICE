@@ -54,6 +54,23 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   }
 }
 
+function isGmailHost(host: string): boolean {
+  return host.toLowerCase().includes("gmail.com");
+}
+
+async function removeUidsFromMailbox(
+  client: ImapFlow,
+  uids: number[],
+  socketTimeoutMs: number
+): Promise<void> {
+  await withTimeout(
+    client.messageFlagsAdd(uids, ["\\Deleted"], { uid: true }),
+    socketTimeoutMs,
+    "IMAP mark deleted"
+  );
+  await withTimeout(client.messageDelete(uids, { uid: true }), socketTimeoutMs, "IMAP expunge");
+}
+
 function buildClientOptions(config: ImapSessionConfig): ImapFlowOptions {
   const connectMs = Math.min(30_000, config.connectTimeoutMs);
   return {
@@ -157,11 +174,20 @@ export class ImapSession {
   async archiveUids(sourceMailbox: string, archiveMailbox: string, uids: number[]): Promise<number> {
     if (uids.length === 0) return 0;
 
+    const gmail = isGmailHost(this.config.host);
+
     return this.withMailbox(sourceMailbox, async (client) => {
       let archived = 0;
       for (let i = 0; i < uids.length; i += ARCHIVE_CHUNK_SIZE) {
         const chunk = uids.slice(i, i + ARCHIVE_CHUNK_SIZE);
         try {
+          if (gmail) {
+            // Gmail: remove from INBOX (documented ingest behavior); message stays in All Mail.
+            await removeUidsFromMailbox(client, chunk, this.config.socketTimeoutMs);
+            archived += chunk.length;
+            continue;
+          }
+
           const moved = await withTimeout(
             client.messageMove(chunk, archiveMailbox, { uid: true }),
             this.config.socketTimeoutMs,
@@ -171,25 +197,18 @@ export class ImapSession {
             archived += chunk.length;
             continue;
           }
-        } catch {
+
+          await removeUidsFromMailbox(client, chunk, this.config.socketTimeoutMs);
+          archived += chunk.length;
+        } catch (error) {
           try {
-            await withTimeout(
-              client.messageFlagsAdd(chunk, ["\\Deleted"], { uid: true }),
-              this.config.socketTimeoutMs,
-              "IMAP mark deleted"
-            );
-            await withTimeout(
-              client.messageDelete(chunk, { uid: true }),
-              this.config.socketTimeoutMs,
-              "IMAP expunge"
-            );
+            await removeUidsFromMailbox(client, chunk, this.config.socketTimeoutMs);
             archived += chunk.length;
-            continue;
           } catch (deleteError) {
             throw new ImapSessionError(
               "archive",
               `Failed to remove processed mail from ${sourceMailbox}: ${formatImapCommandError(deleteError)}`,
-              deleteError
+              deleteError ?? error
             );
           }
         }

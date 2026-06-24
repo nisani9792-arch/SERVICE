@@ -775,6 +775,8 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
     );
 
     const fetchedItems = await fetchInboxMessages(session, config, result);
+    // Close IMAP before slow Gemini work — idle sockets were failing archive with "Command failed".
+    await session.disconnect();
     const processedUids: number[] = [];
 
     for (const { uid, message } of fetchedItems) {
@@ -804,14 +806,20 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
     }
 
     if (processedUids.length > 0) {
-      const archivedCount = await session.archiveUids(
-        config.mailbox,
-        result.archiveMailbox,
-        processedUids
-      );
-      result.archived += archivedCount;
-      if (archivedCount !== processedUids.length) {
-        result.errors.push("Some processed emails could not be archived in the mailbox");
+      try {
+        const archivedCount = await session.archiveUids(
+          config.mailbox,
+          result.archiveMailbox,
+          processedUids
+        );
+        result.archived += archivedCount;
+        if (archivedCount !== processedUids.length) {
+          result.errors.push("Some processed emails could not be archived in the mailbox");
+        }
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : "IMAP archive failed";
+        result.errors.push(detail);
+        console.error("[email-ingest] archive failed after processing:", error);
       }
     }
   } finally {
