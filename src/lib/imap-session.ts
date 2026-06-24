@@ -26,8 +26,16 @@ const ARCHIVE_CHUNK_SIZE = 50;
 
 export function formatImapCommandError(error: unknown): string {
   if (!(error instanceof Error)) return String(error);
-  const imapErr = error as Error & { responseText?: string };
-  return imapErr.responseText ? `${imapErr.message}: ${imapErr.responseText}` : imapErr.message;
+  const imapErr = error as Error & {
+    responseText?: string;
+    responseStatus?: string;
+    response?: string;
+  };
+  const parts = [imapErr.message];
+  if (imapErr.responseStatus) parts.push(imapErr.responseStatus);
+  if (imapErr.responseText) parts.push(imapErr.responseText);
+  else if (imapErr.response) parts.push(imapErr.response);
+  return parts.filter(Boolean).join(": ");
 }
 
 function classifyConnectError(error: unknown): ImapErrorKind {
@@ -234,4 +242,11 @@ export function isImapSessionConnectFailure(error: unknown): boolean {
   }
   const msg = error instanceof Error ? error.message : String(error);
   return /IMAP connect|timed out|ETIMEDOUT|ECONNREFUSED|ENOTFOUND|socket/i.test(msg);
+}
+
+/** True when IMAP ingest should fall back to Gmail API (Render IMAP sockets are often flaky). */
+export function isImapIngestFallbackError(error: unknown): boolean {
+  if (isImapSessionConnectFailure(error)) return true;
+  if (error instanceof ImapSessionError) return true;
+  return /command failed|IMAP (connect|search|fetch|archive|list)/i.test(formatImapCommandError(error));
 }

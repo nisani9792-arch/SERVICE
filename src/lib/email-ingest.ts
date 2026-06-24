@@ -17,7 +17,7 @@ import { sql } from "@/lib/neon";
 import { allocateNextTicketNumber } from "@/lib/ticket-sequence";
 import { ensureTicketListColumns } from "@/lib/ticket-schema";
 import { isGmailApiConfigured } from "@/lib/gmail-api";
-import { ImapSession, isImapSessionConnectFailure } from "@/lib/imap-session";
+import { ImapSession, isImapIngestFallbackError } from "@/lib/imap-session";
 import { runIngestExclusive } from "@/lib/email-ingest-lock";import {
   ensureTicketEmailThreadSchema,
   isInboundEmailAlreadyStored,
@@ -642,6 +642,10 @@ async function resolveArchiveMailbox(session: ImapSession, config: GmailConfig):
     return config.archiveMailbox;
   }
 
+  if (isGmailHost(config.host)) {
+    return DEFAULT_GMAIL_ARCHIVE_MAILBOX;
+  }
+
   const listed = await session.raw.list();
   const bySpecialUse = listed.find((box) => {
     const use = box.specialUse?.replace(/\\/g, "").toLowerCase();
@@ -657,10 +661,6 @@ async function resolveArchiveMailbox(session: ImapSession, config: GmailConfig):
   });
   if (byName?.path) {
     return byName.path;
-  }
-
-  if (isGmailHost(config.host)) {
-    return DEFAULT_GMAIL_ARCHIVE_MAILBOX;
   }
 
   throw new Error(
@@ -682,11 +682,25 @@ async function fetchInboxMessages(
 
   await session.withMailbox(config.mailbox, async (client) => {
     const since = new Date(Date.now() - config.lookbackDays * 24 * 60 * 60 * 1000);
+    const gmail = isGmailHost(config.host);
     const [sinceUids, unseenUids] = await Promise.all([
-      withTimeout(client.search({ since }, { uid: true }), config.timeoutMs, "IMAP search since"),
-      withTimeout(client.search({ seen: false }, { uid: true }), config.timeoutMs, "IMAP search unseen").catch(
-        () => [] as number[]
-      )
+      withTimeout(
+        gmail
+          ? client.search(
+              { gmraw: `newer_than:${config.lookbackDays}d in:inbox` },
+              { uid: true }
+            )
+          : client.search({ since }, { uid: true }),
+        config.timeoutMs,
+        gmail ? "IMAP Gmail search" : "IMAP search since"
+      ),
+      withTimeout(
+        gmail
+          ? client.search({ gmraw: "is:unread in:inbox" }, { uid: true })
+          : client.search({ seen: false }, { uid: true }),
+        config.timeoutMs,
+        gmail ? "IMAP Gmail search unread" : "IMAP search unseen"
+      ).catch(() => [] as number[])
     ]);
 
     const uidSet = new Set<number>();
@@ -771,7 +785,7 @@ async function ingestGmailInboxInternal(config: GmailConfig): Promise<EmailInges
     result.archiveMailbox = await withTimeout(
       resolveArchiveMailbox(session, config),
       config.timeoutMs,
-      "IMAP list mailboxes"
+      "IMAP resolve archive mailbox"
     );
 
     const fetchedItems = await fetchInboxMessages(session, config, result);
@@ -872,18 +886,16 @@ function resolveIngestProvider(): "gmail_api" | "imap" {
   const raw = process.env.EMAIL_INGEST_PROVIDER?.trim().toLowerCase();
   const imapReady = isImapConfigured();
   const gmailReady = isGmailApiConfigured();
+  const onRender = process.env.RENDER === "true";
 
-  if (raw === "imap") return imapReady ? "imap" : gmailReady ? "gmail_api" : "imap";
   if (raw === "gmail_api") return gmailReady ? "gmail_api" : imapReady ? "imap" : "gmail_api";
+  if (raw === "imap") return imapReady ? "imap" : gmailReady ? "gmail_api" : "imap";
 
-  // Default: IMAP (App Password) — worked reliably before Gmail API ingest switch.
+  // Default on Render: Gmail API (HTTPS) — IMAP sockets are unreliable on hosted Node.
+  if (onRender && gmailReady) return "gmail_api";
   if (imapReady) return "imap";
   if (gmailReady) return "gmail_api";
   return "imap";
-}
-
-function isImapConnectFailure(error: unknown): boolean {
-  return isImapSessionConnectFailure(error);
 }
 
 async function ingestViaGmailApiOrThrow(): Promise<EmailIngestResult> {
@@ -930,7 +942,7 @@ export async function ingestGmailInbox(): Promise<EmailIngestResult> {
         "Email ingest"
       );
     } catch (error) {
-      if (isGmailApiConfigured() && isImapConnectFailure(error)) {
+      if (isGmailApiConfigured() && isImapIngestFallbackError(error)) {
         console.error("[email-ingest] IMAP failed, falling back to Gmail API:", error);
         return ingestViaGmailApiOrThrow();
       }
