@@ -889,7 +889,11 @@ function resolveIngestProvider(): "gmail_api" | "imap" {
   const onRender = process.env.RENDER === "true";
 
   if (raw === "gmail_api") return gmailReady ? "gmail_api" : imapReady ? "imap" : "gmail_api";
-  if (raw === "imap") return imapReady ? "imap" : gmailReady ? "gmail_api" : "imap";
+  if (raw === "imap") {
+    // On Render, HTTPS Gmail API is reliable; IMAP often returns generic "Command failed".
+    if (onRender && gmailReady) return "gmail_api";
+    return imapReady ? "imap" : gmailReady ? "gmail_api" : "imap";
+  }
 
   // Default on Render: Gmail API (HTTPS) — IMAP sockets are unreliable on hosted Node.
   if (onRender && gmailReady) return "gmail_api";
@@ -912,7 +916,9 @@ async function ingestViaGmailApiOrThrow(): Promise<EmailIngestResult> {
     return await ingestInboxViaGmailApi();
   } catch (error) {
     if (isInsufficientScopeError(error)) {
-      throw new Error(`הרשאות Gmail API חסרות. ${gmailApiIngestScopeHint()}`);
+      throw new Error(
+        `הרשאות Gmail API חסרות לייבוא מייל (gmail.readonly + gmail.modify). ${gmailApiIngestScopeHint()}`
+      );
     }
     throw error;
   }
